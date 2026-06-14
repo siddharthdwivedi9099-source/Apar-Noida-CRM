@@ -26,14 +26,14 @@ This guide does not cover:
 
 - application: `apps/web`
 - stack: React, TypeScript, Vite, Tailwind CSS
-- local URL: `http://localhost:5173`
+- local URL: `http://127.0.0.1:5173`
 
 ### API
 
 - application: `apps/api`
 - stack: Express, TypeScript, Zod, Pino
-- local URL: `http://localhost:4000`
-- health endpoint: `http://localhost:4000/api/v1/health`
+- local URL: `http://127.0.0.1:4000`
+- health endpoint: `http://127.0.0.1:4000/api/v1/health`
 
 ### Local Infrastructure Placeholders
 
@@ -112,13 +112,13 @@ The environment reference file is [`.env.example`](/Users/apar/Documents/CRM for
 ### Frontend verification
 
 1. Start the web app with `npm run dev:web`.
-2. Open `http://localhost:5173`.
+2. Open `http://127.0.0.1:5173`.
 3. Verify that the sidebar, topbar, theme toggle, and placeholder routes render correctly.
 
 ### API verification
 
 1. Start the API with `npm run dev:api`.
-2. Call `curl http://localhost:4000/api/v1/health`.
+2. Call `curl http://127.0.0.1:4000/api/v1/health`.
 3. Confirm the JSON response includes status, version, environment, and placeholder dependency health.
 
 ### Build verification
@@ -146,6 +146,8 @@ Phase 1 is intentionally limited to initialization and should not be treated as 
 
 Current limitations:
 - no auth
+- no RBAC enforcement
+- no tenant-context propagation
 - no persistence
 - no migrations
 - no caching
@@ -156,6 +158,7 @@ Current limitations:
 ## Immediate DevOps Next Steps
 
 The next operational tasks after Phase 1 should be:
+- add Authentication and RBAC as the next platform implementation phase
 - add linting and CI checks
 - define container build strategy for the web and API
 - add environment-specific configuration handling

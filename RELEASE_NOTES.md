@@ -13,9 +13,61 @@ Release notes should summarize:
 - why the release matters
 - what is recommended next
 
-## v0.1.0
+## Current Implemented Repository State
 
-Release date: **2026-06-14**
+The repository is currently beyond the original `v0.1.0` baseline.
+
+As of **June 15, 2026**, the implemented state includes:
+- Phase 0 repository and documentation foundation
+- Phase 1 frontend and backend project initialization
+
+This implemented state is reflected in the repository and changelog, even though the latest formal release baseline documented here remains `v0.1.0`.
+
+## Phase 1 Implemented State Summary
+
+### Theme
+
+Backend and frontend project initialization on top of the original documentation baseline.
+
+### Included in the Current Implemented State
+
+- React + TypeScript + Vite frontend in `apps/web`
+- Tailwind CSS and ShadCN-ready structure
+- responsive shell with sidebar and topbar
+- placeholder routes for login, dashboard, admin, leads, accounts, opportunities, campaigns, support, customer success, and AI assistant
+- Express + TypeScript API in `apps/api`
+- versioned API structure under `/api/v1`
+- working health endpoint at `/api/v1/health`
+- centralized API error handling and request logging foundation
+- initialized shared packages for config, types, UI, auth, AI, and database placeholders
+- DevOps and local run documentation
+
+### Explicitly Not Included Yet
+
+- authentication
+- RBAC enforcement
+- tenant-context propagation
+- CRM business logic
+- persistence logic
+- workflow execution
+- AI runtime execution
+
+### Why This Matters
+
+This means the platform is no longer only a documentation baseline. It now has a real application frame that can support the next implementation phase safely and consistently.
+
+### Recommended Next Phase
+
+The next implementation phase should focus on:
+- Authentication
+- RBAC
+- tenant context propagation
+
+These should be treated as the next core platform features before deeper CRM module implementation begins.
+
+## Latest Formal Release Baseline: v0.1.0
+
+Release date: **June 14, 2026**
 
 ### Release Theme
 
@@ -23,9 +75,9 @@ Foundation and documentation baseline for the AI-native CRM platform.
 
 ### Summary
 
-`v0.1.0` establishes the starting point for the platform as a documentation-first program. It defines the product shape, architecture direction, security posture, AI governance baseline, customer-success scope, and release framework needed before implementation begins.
+`v0.1.0` established the starting point for the platform as a documentation-first program. It defined the product shape, architecture direction, security posture, AI governance baseline, customer-success scope, and release framework needed before implementation began.
 
-### Included in This Release
+### Included in v0.1.0
 
 - Repository directory structure for future applications and packages
 - Product vision, business requirements, and functional baseline documentation
@@ -36,31 +88,12 @@ Foundation and documentation baseline for the AI-native CRM platform.
 - Testing and deployment guidance
 - Local development environment template and dependency scaffold
 
-### Why This Release Matters
+### Not Included in v0.1.0
 
-This release creates alignment before code is written. It reduces implementation risk by documenting:
-- what the product is meant to solve
-- which modules exist and why
-- how tenancy and security should shape the platform
-- how AI capabilities must be governed
-- how future phases should be sequenced
-
-### Not Included in This Release
-
-- Application logic
+- runnable application logic
 - APIs
 - authentication and authorization implementation
 - CRM module implementation
 - workflow engine logic
 - database schemas and migrations
 - AI runtime or provider integration
-
-### Intended Audience
-
-- Product and business stakeholders validating scope
-- Architecture and engineering leads defining implementation direction
-- Future contributors who need a documented baseline before coding
-
-### Recommended Follow-Up
-
-The next release should focus on platform foundation work: monorepo wiring, shared configuration and type contracts, CI quality gates, observability scaffolding, and tenant-aware engineering conventions.

@@ -19,6 +19,12 @@ Phase 1 builds on the Phase 0 documentation baseline and introduces:
 - shared package initialization in `packages/*`
 - local environment documentation and workspace scripts
 
+## Release Status
+
+- Latest formal release baseline: `v0.1.0`
+- Current repository state: Phase 1 initialization is implemented and recorded in `CHANGELOG.md` under `Unreleased`
+- Next implementation phase: **Authentication and RBAC**
+
 ## What Exists Now
 
 ### Frontend
@@ -138,7 +144,7 @@ npm run dev:web
 ```
 
 The frontend runs at:
-- [http://localhost:5173](http://localhost:5173)
+- [http://127.0.0.1:5173](http://127.0.0.1:5173)
 
 ### Run the API
 
@@ -147,7 +153,7 @@ npm run dev:api
 ```
 
 The API runs at:
-- [http://localhost:4000](http://localhost:4000)
+- [http://127.0.0.1:4000](http://127.0.0.1:4000)
 
 ### Run both together
 
@@ -174,7 +180,7 @@ Open the frontend and verify the sidebar and placeholder routes:
 ### API health check
 
 ```bash
-curl http://localhost:4000/api/v1/health
+curl http://127.0.0.1:4000/api/v1/health
 ```
 
 Expected behavior:
@@ -202,7 +208,7 @@ The canonical baseline lives in [`.env.example`](/Users/apar/Documents/CRM for A
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `VITE_APP_NAME` | Web application display name | `AI-Native CRM` |
-| `VITE_API_BASE_URL` | API base URL used by future frontend integrations | `http://localhost:4000/api/v1` |
+| `VITE_API_BASE_URL` | API base URL used by future frontend integrations | `http://127.0.0.1:4000/api/v1` |
 | `VITE_DEFAULT_THEME` | Default theme mode | `light` |
 | `WEB_PORT` | Documented local frontend port | `5173` |
 
@@ -212,7 +218,7 @@ The canonical baseline lives in [`.env.example`](/Users/apar/Documents/CRM for A
 | --- | --- | --- |
 | `API_HOST` | API bind host | `127.0.0.1` |
 | `API_PORT` | API port | `4000` |
-| `API_CORS_ORIGIN` | Allowed local frontend origin | `http://localhost:5173` |
+| `API_CORS_ORIGIN` | Allowed local frontend origin | `http://127.0.0.1:5173` |
 | `API_LOG_LEVEL` | API logging verbosity | `info` |
 | `NODE_ENV` | Runtime environment | `development` |
 
@@ -236,6 +242,7 @@ The frontend currently includes:
 
 The frontend does not yet include:
 - authentication guards
+- RBAC-aware route enforcement
 - live data fetching
 - tables, forms, or CRUD flows
 - business logic
@@ -255,6 +262,7 @@ The API does not yet include:
 - persistence repositories
 - queue workers
 - auth middleware
+- RBAC enforcement
 - tenant resolution
 
 ## Documentation Map
@@ -277,6 +285,7 @@ The API does not yet include:
 
 The next recommended phase after this initialization is **Phase 2: Platform Core and Secure Access**, where we should implement:
 - authentication and authorization
+- RBAC enforcement
 - tenant context propagation
 - initial API contracts
 - persistence adapters

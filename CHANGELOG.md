@@ -38,6 +38,8 @@ Recommended headings for future releases:
 
 ## [Unreleased]
 
+This section represents the **current implemented repository state after `v0.1.0`**. It has been completed in the repository, but it has not yet been cut as a separately documented release version.
+
 ### Added
 
 - npm workspace setup for `apps/*` and `packages/*`
@@ -56,13 +58,15 @@ Recommended headings for future releases:
 ### Changed
 
 - `README.md` now reflects the actual Phase 1 workspace and run commands
-- technical and architecture documentation now describe the implemented stack rather than Phase 0 intentions
+- technical and architecture documentation now describe the implemented stack rather than only the Phase 0 intent
 - testing strategy now includes concrete Phase 1 verification steps
 
 ### Notes
 
-- Authentication, business modules, persistence, and AI execution remain intentionally out of scope
-- This phase establishes the runnable platform frame that later implementation phases will build on
+- Phase 0 is complete
+- Phase 1 initialization is complete in the repository
+- Authentication, RBAC, tenant-context propagation, business modules, persistence, and AI execution remain intentionally out of scope so far
+- The next implementation phase should begin with Authentication and RBAC rather than with new CRM module delivery
 
 ## [v0.1.0] - 2026-06-14
 
@@ -83,7 +87,7 @@ Recommended headings for future releases:
 
 - This release is intentionally documentation-first
 - No application code, APIs, authentication, AI runtime logic, or database implementation are included
-- This release establishes the foundation that future implementation phases should follow
+- This release established the baseline that Phase 1 later built on
 
 ## Future Update Guidance
 

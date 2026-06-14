@@ -1,35 +1,59 @@
 # Version
 
-## Current Version
+## Current Release Version
 
-Current version: **v0.1.0**
+Latest documented release version: **v0.1.0**
 
-## Purpose
+## Current Repository State
 
-This document defines how the platform version is interpreted and how versioning should work across application releases, contracts, AI assets, and operational artifacts.
+The repository currently contains **completed Phase 1 initialization work** on `main`, including:
+- a runnable frontend in `apps/web`
+- a runnable backend API in `apps/api`
+- initialized shared packages
+- updated technical, architecture, testing, and DevOps documentation
+
+This means:
+- `v0.1.0` is still the latest formally documented release baseline
+- Phase 1 implementation work is present in the repository and recorded in `CHANGELOG.md` under `Unreleased`
+- the next formal release should be cut separately rather than silently assumed
+
+## Why This Matters
+
+The version file needs to distinguish between:
+- the latest formal release state
+- the current implemented repository state
+
+At the moment, those are not the same thing:
+- the latest formal release baseline is `v0.1.0`
+- the repository has progressed beyond that baseline with completed Phase 1 initialization work
 
 ## Meaning of `v0.1.0`
 
-- `0` means the platform is pre-general-availability
-- `1` means the first structured foundation release has been defined
-- `0` means no patch release has been issued for this baseline yet
+- `0` means the platform is still pre-general-availability
+- `1` means the first formal foundation baseline was established
+- `0` means no patch release was issued on top of that baseline
 
-In practical terms, `v0.1.0` represents a documentation and repository-structure milestone rather than a software feature release.
+In practical terms, `v0.1.0` refers to the original foundation-and-documentation release baseline, not the full current repository implementation state.
 
-## Scope of the Current Version
+## Next Expected Release
 
-The current version covers:
-- Repository foundation
-- Documentation baseline
-- Release and roadmap conventions
-- Local environment scaffolding
+When the current Phase 1 work is cut as a formal release, it should be versioned as the next minor release rather than treated as a patch to `v0.1.0`.
 
-The current version does not cover:
-- Production application code
-- APIs
-- authentication
-- database implementation
-- AI execution features
+That is because Phase 1 added:
+- runnable application code
+- a versioned API surface
+- local runtime workflows
+- shared package initialization
+
+## Scope of the Latest Formal Release
+
+The latest formal release baseline (`v0.1.0`) covers:
+- repository foundation
+- documentation baseline
+- release and roadmap conventions
+- local environment scaffolding
+
+It does not fully represent the current repository state anymore.
 
 ## Semantic Versioning Policy
 
@@ -51,7 +75,7 @@ Increment the minor version when adding backward-compatible capabilities such as
 - new workflows
 - new AI capabilities
 - new operational tooling
-- substantial documentation expansions aligned with delivered capabilities
+- runnable application foundations and platform surfaces
 
 ### Patch
 
@@ -64,7 +88,6 @@ Increment the patch version when applying:
 ## Additional Versioned Artifacts
 
 The platform version is only one dimension. The following assets must also be versioned independently:
-
 - API contracts
 - event schemas
 - database migration chains
@@ -76,14 +99,14 @@ The platform version is only one dimension. The following assets must also be ve
 
 ## Release Management Guidance
 
-- Every release should have matching entries in `CHANGELOG.md` and `RELEASE_NOTES.md`
+- Every formal release should have matching entries in `CHANGELOG.md` and `RELEASE_NOTES.md`
+- Repository progress may appear in `Unreleased`, but should not be mistaken for a cut release
 - Breaking changes should be called out explicitly, even before `v1.0.0`
-- Pre-GA releases should still follow disciplined version increments to avoid ambiguity
-- Feature branches and experimental work should not redefine version numbers outside release preparation
+- The next implementation phase is **Authentication and RBAC**, which is not yet implemented
 
 ## Future Implementation Guidance
 
-When code is introduced, the next release process should also define:
+When the next formal release is prepared, also define:
 - build artifact version stamping
 - package version synchronization rules
 - migration versioning format
