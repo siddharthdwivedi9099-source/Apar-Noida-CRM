@@ -2,176 +2,282 @@
 
 ## Purpose
 
-This repository is the starting point for a production-ready, AI-native CRM platform intended to support the full customer lifecycle across demand generation, revenue operations, partner ecosystems, customer service, and customer success.
+This repository contains the Phase 1 foundation of a production-ready, AI-native CRM platform designed to support the full customer lifecycle across marketing, sales, partner ecosystems, support, onboarding, and customer success.
 
-The goal is not to build a simple lead tracker. The target product is a multi-tenant operational system that combines:
-- CRM system-of-record responsibilities
-- AI system-of-intelligence capabilities
-- workflow and automation system-of-action behavior
-
-## Scope
-
-This repository currently contains:
-- the Phase 0 repository foundation
-- documentation baseline for business, technical, security, AI, testing, and deployment planning
-- release and versioning artifacts
-- local development scaffolding only
-
-It does not yet contain:
-- application code
-- service code
-- authentication flows
-- database implementation
-- AI execution logic
+The product target remains:
+- a CRM system of record
+- an AI system of intelligence
+- a workflow and automation system of action
 
 ## Current Phase
 
-The repository is currently in **Phase 0: Foundation and Documentation Baseline**.
+The repository is currently in **Phase 1: Backend and Frontend Project Initialization**.
 
-Phase 0 exists to remove ambiguity before implementation begins. It establishes the repository layout, documentation baseline, design direction, and release governance without introducing production code.
+Phase 1 builds on the Phase 0 documentation baseline and introduces:
+- a runnable frontend application in `apps/web`
+- a runnable backend API in `apps/api`
+- shared package initialization in `packages/*`
+- local environment documentation and workspace scripts
 
-### Included in Phase 0
+## What Exists Now
 
-- Repository structure for applications, packages, docs, scripts, and tests
-- Business, functional, technical, architecture, security, AI, testing, and deployment documentation
-- Versioning, changelog, roadmap, and release note baseline
-- Local environment template and Docker Compose development scaffold
+### Frontend
 
-### Explicitly Not Included in Phase 0
+- React + TypeScript + Vite
+- Tailwind CSS
+- ShadCN-ready structure
+- React Router-based navigation
+- responsive application shell with sidebar and topbar
+- theme foundation with light and dark mode support
+- placeholder pages for:
+  - Login
+  - Dashboard
+  - Admin
+  - Leads
+  - Accounts
+  - Opportunities
+  - Campaigns
+  - Support
+  - Customer Success
+  - AI Assistant
 
-- Authentication and authorization implementation
-- CRM business logic or module workflows
-- AI execution logic, providers, or retrieval implementation
-- Database schema, migrations, or persistence logic
-- Frontend application code or API endpoints
-- CI/CD pipelines or infrastructure automation code
+### Backend
 
-## Product Intent
+- Node.js + Express + TypeScript
+- `/api/v1` versioning structure
+- health check endpoint
+- centralized error handling
+- request logging middleware
+- environment parsing and validation
+- database and Redis connection placeholders
+- modular folder structure ready for future domain modules
 
-The platform is intended to support:
-- Marketing and social media marketing
-- Campaign management
-- Inside sales and SDR workflows
-- Sales, business development, and presales collaboration
-- Partner and reseller management
-- Support ticketing
-- Customer onboarding, training, and success
-- Dashboards and workflow automation
-- AI query handling, RAG assistance, and governed AI operations
+### Shared Packages
 
-## Product Principles
+- `packages/types`
+- `packages/config`
+- `packages/ui`
+- `packages/auth`
+- `packages/ai`
+- `packages/database`
 
-- AI-native rather than AI-bolted-on
-- Multi-tenant by design
-- Secure and auditable by default
-- Configurable without becoming ungovernable
-- Modular with clear contracts
-- Documentation-first from the beginning
-- Production-minded before feature breadth
+## What Still Does Not Exist
+
+Phase 1 intentionally does **not** implement:
+- authentication flows
+- authorization logic
+- CRM business workflows
+- database persistence logic
+- Redis caching logic
+- AI model execution
+- RAG pipelines
+- production DevOps automation
 
 ## Repository Structure
 
 ```text
 apps/
-  web/                Future operational frontend
-  api/                Future API and orchestration entry point
+  web/                React + Vite frontend
+  api/                Express + TypeScript API
 
 packages/
-  ui/                 Shared design system and UI primitives
-  config/             Shared configuration contracts and helpers
-  types/              Shared domain and platform types
-  auth/               Reserved for future access and identity contracts
-  ai/                 Reserved for future AI platform contracts
-  database/           Reserved for future persistence contracts
+  ui/                 Shared UI constants and design primitives
+  config/             Shared platform and environment metadata
+  types/              Shared platform and API types
+  auth/               Authentication foundation placeholders
+  ai/                 AI capability foundation placeholders
+  database/           Database and Redis placeholder contracts
 
 docs/
-  business/           Product vision, requirements, functional specs, role and module catalog
-  technical/          Technical design and conceptual data model
-  architecture/       System architecture and multi-tenancy design
-  security/           Security design and RBAC baseline
-  ai/                 AI architecture and governance documentation
-  customer-success/   Success, training, and health design
-  user-guides/        Reserved for future operational usage documentation
-  testing/            Quality and validation strategy
-  deployment/         Deployment and readiness guidance
-
-scripts/              Reserved for future automation and developer workflows
-tests/                Reserved for future automated test suites
+  business/           Product and business definitions
+  technical/          Technical design and data model
+  architecture/       Architecture and multi-tenancy design
+  security/           Security and RBAC direction
+  ai/                 AI platform architecture
+  customer-success/   Post-sales functional design
+  testing/            Testing strategy
+  deployment/         Deployment, DevOps, and production guidance
 ```
+
+## Technology Choices
+
+### Frontend
+
+- React 18
+- TypeScript
+- Vite
+- React Router
+- Tailwind CSS
+- ShadCN-ready component structure
+
+### Backend
+
+- Node.js
+- Express
+- TypeScript
+- Zod for environment and validation structure
+- Pino for API logging
+
+### Workspace
+
+- npm workspaces
+- shared root scripts for local development, build, and typecheck
+
+## Getting Started
+
+### Install dependencies
+
+```bash
+npm install
+```
+
+### Run the web app
+
+```bash
+npm run dev:web
+```
+
+The frontend runs at:
+- [http://localhost:5173](http://localhost:5173)
+
+### Run the API
+
+```bash
+npm run dev:api
+```
+
+The API runs at:
+- [http://localhost:4000](http://localhost:4000)
+
+### Run both together
+
+```bash
+npm run dev
+```
+
+## Verification Commands
+
+### Frontend
+
+Open the frontend and verify the sidebar and placeholder routes:
+- `/login`
+- `/dashboard`
+- `/admin`
+- `/leads`
+- `/accounts`
+- `/opportunities`
+- `/campaigns`
+- `/support`
+- `/customer-success`
+- `/ai-assistant`
+
+### API health check
+
+```bash
+curl http://localhost:4000/api/v1/health
+```
+
+Expected behavior:
+- HTTP `200`
+- JSON response with service status, version, timestamp, environment, and database and Redis placeholder health
+
+### Typecheck
+
+```bash
+npm run typecheck
+```
+
+### Build
+
+```bash
+npm run build
+```
+
+## Environment Variables
+
+The canonical baseline lives in [`.env.example`](/Users/apar/Documents/CRM for Apar and eLite/.env.example).
+
+### Frontend
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `VITE_APP_NAME` | Web application display name | `AI-Native CRM` |
+| `VITE_API_BASE_URL` | API base URL used by future frontend integrations | `http://localhost:4000/api/v1` |
+| `VITE_DEFAULT_THEME` | Default theme mode | `light` |
+| `WEB_PORT` | Documented local frontend port | `5173` |
+
+### API
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `API_HOST` | API bind host | `127.0.0.1` |
+| `API_PORT` | API port | `4000` |
+| `API_CORS_ORIGIN` | Allowed local frontend origin | `http://localhost:5173` |
+| `API_LOG_LEVEL` | API logging verbosity | `info` |
+| `NODE_ENV` | Runtime environment | `development` |
+
+### Placeholder Infrastructure
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `DATABASE_ENABLED` | Enables future database connection bootstrap | `false` |
+| `DATABASE_URL` | Future database connection string | `postgresql://crm:crm@localhost:5432/crm` |
+| `REDIS_ENABLED` | Enables future Redis bootstrap | `false` |
+| `REDIS_URL` | Future Redis connection string | `redis://localhost:6379` |
+
+## Frontend Foundations
+
+The frontend currently includes:
+- routed placeholder pages for the initial product areas
+- a responsive sidebar and topbar shell
+- theme switching
+- reusable `components/ui` primitives
+- `components.json` and `lib/utils.ts` for ShadCN compatibility
+
+The frontend does not yet include:
+- authentication guards
+- live data fetching
+- tables, forms, or CRUD flows
+- business logic
+
+## API Foundations
+
+The API currently includes:
+- root bootstrap in `apps/api/src/server.ts`
+- app composition in `apps/api/src/app.ts`
+- versioned router mounted at `/api/v1`
+- health endpoint in `apps/api/src/modules/health`
+- middleware for logging, not found handling, and centralized errors
+- environment parsing in `apps/api/src/config/env.ts`
+
+The API does not yet include:
+- domain controllers
+- persistence repositories
+- queue workers
+- auth middleware
+- tenant resolution
 
 ## Documentation Map
 
-### Product and Business
+### Core technical docs
 
-- [PRODUCT_VISION.md](docs/business/PRODUCT_VISION.md)
-- [BUSINESS_REQUIREMENTS.md](docs/business/BUSINESS_REQUIREMENTS.md)
-- [FUNCTIONAL_SPECIFICATION.md](docs/business/FUNCTIONAL_SPECIFICATION.md)
-- [MODULE_CATALOG.md](docs/business/MODULE_CATALOG.md)
-- [ROLE_CATALOG.md](docs/business/ROLE_CATALOG.md)
+- [docs/technical/TECHNICAL_DESIGN.md](docs/technical/TECHNICAL_DESIGN.md)
+- [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)
+- [docs/testing/TESTING_STRATEGY.md](docs/testing/TESTING_STRATEGY.md)
+- [docs/deployment/DEVOPS_GUIDE.md](docs/deployment/DEVOPS_GUIDE.md)
 
-### Technical and Architecture
+### Platform and product docs
 
-- [TECHNICAL_DESIGN.md](docs/technical/TECHNICAL_DESIGN.md)
-- [DATA_MODEL.md](docs/technical/DATA_MODEL.md)
-- [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)
-- [MULTI_TENANCY_DESIGN.md](docs/architecture/MULTI_TENANCY_DESIGN.md)
+- [docs/business/PRODUCT_VISION.md](docs/business/PRODUCT_VISION.md)
+- [docs/business/FUNCTIONAL_SPECIFICATION.md](docs/business/FUNCTIONAL_SPECIFICATION.md)
+- [docs/security/SECURITY_DESIGN.md](docs/security/SECURITY_DESIGN.md)
+- [docs/ai/AI_ARCHITECTURE.md](docs/ai/AI_ARCHITECTURE.md)
 
-### Security and AI
+## Next Recommended Phase
 
-- [SECURITY_DESIGN.md](docs/security/SECURITY_DESIGN.md)
-- [RBAC_MATRIX.md](docs/security/RBAC_MATRIX.md)
-- [AI_ARCHITECTURE.md](docs/ai/AI_ARCHITECTURE.md)
-- [AI_GATEWAY_DESIGN.md](docs/ai/AI_GATEWAY_DESIGN.md)
-- [AI_AGENT_REGISTRY.md](docs/ai/AI_AGENT_REGISTRY.md)
-- [PROMPT_REGISTRY.md](docs/ai/PROMPT_REGISTRY.md)
-- [RAG_ARCHITECTURE.md](docs/ai/RAG_ARCHITECTURE.md)
-- [CUSTOMER_QUERY_AI_DESIGN.md](docs/ai/CUSTOMER_QUERY_AI_DESIGN.md)
-
-### Customer Operations, Quality, and Delivery
-
-- [CUSTOMER_SUCCESS_FUNCTIONAL_SPEC.md](docs/customer-success/CUSTOMER_SUCCESS_FUNCTIONAL_SPEC.md)
-- [CUSTOMER_TRAINING_FUNCTIONAL_SPEC.md](docs/customer-success/CUSTOMER_TRAINING_FUNCTIONAL_SPEC.md)
-- [CUSTOMER_HEALTH_SCORE_DESIGN.md](docs/customer-success/CUSTOMER_HEALTH_SCORE_DESIGN.md)
-- [TESTING_STRATEGY.md](docs/testing/TESTING_STRATEGY.md)
-- [DEPLOYMENT_GUIDE.md](docs/deployment/DEPLOYMENT_GUIDE.md)
-- [PRODUCTION_READINESS_CHECKLIST.md](docs/deployment/PRODUCTION_READINESS_CHECKLIST.md)
-
-## Working Model for Future Phases
-
-### Phase 0
-
-Define product direction, repository structure, architecture baseline, AI governance baseline, and operational documentation.
-
-### Phase 1
-
-Establish the platform foundation:
-- workspace tooling
-- shared contracts
-- configuration conventions
-- audit and observability scaffolding
-- CI quality gates
-
-### Later Phases
-
-Progressively implement CRM core, revenue workflows, partner capabilities, post-sales capabilities, and AI runtime services on top of the documented foundation.
-
-## Documentation Standards
-
-All future implementation work should follow these rules:
-- Every major feature must map to a documented business purpose
-- Every architectural change should update the relevant technical and architecture docs
-- Every security-sensitive change should update the security model or controls documentation
-- Every AI-related change should define prompts, agent policies, evaluation expectations, and access boundaries
-- Release documentation must stay current with delivered scope
-
-## Environment Baseline
-
-The repository includes:
-- `.env.example` for local configuration conventions
-- `docker-compose.yml` for future local dependency bring-up
-
-These files are placeholders for development readiness and do not represent a production deployment.
-
-## Recommended Immediate Next Step
-
-After Phase 0, the next recommended step is **Phase 1: Platform Foundation**. That phase should wire the monorepo, build pipeline, shared package boundaries, documentation site, configuration contracts, and observability scaffolding before business module implementation begins.
+The next recommended phase after this initialization is **Phase 2: Platform Core and Secure Access**, where we should implement:
+- authentication and authorization
+- tenant context propagation
+- initial API contracts
+- persistence adapters
+- the first CRM kernel entities such as accounts, contacts, leads, and activities

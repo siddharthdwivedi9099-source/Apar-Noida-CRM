@@ -36,6 +36,34 @@ Recommended headings for future releases:
 - `Security`
 - `Notes`
 
+## [Unreleased]
+
+### Added
+
+- npm workspace setup for `apps/*` and `packages/*`
+- runnable React + TypeScript + Vite frontend in `apps/web`
+- Tailwind CSS and ShadCN-ready frontend structure
+- responsive web shell with sidebar, topbar, theme toggle, and placeholder module pages
+- runnable Express + TypeScript API in `apps/api`
+- versioned API routing under `/api/v1`
+- health check endpoint at `/api/v1/health`
+- API environment parsing and validation
+- centralized API error handling and request logging middleware
+- database and Redis connection placeholder services
+- initialized shared packages for config, types, UI, auth, AI, and database concerns
+- DevOps guide for local development and workspace operations
+
+### Changed
+
+- `README.md` now reflects the actual Phase 1 workspace and run commands
+- technical and architecture documentation now describe the implemented stack rather than Phase 0 intentions
+- testing strategy now includes concrete Phase 1 verification steps
+
+### Notes
+
+- Authentication, business modules, persistence, and AI execution remain intentionally out of scope
+- This phase establishes the runnable platform frame that later implementation phases will build on
+
 ## [v0.1.0] - 2026-06-14
 
 ### Added

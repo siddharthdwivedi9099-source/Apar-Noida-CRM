@@ -2,163 +2,177 @@
 
 ## Purpose
 
-This document defines the target system architecture for the platform and explains how business modules, platform services, AI infrastructure, and data systems should fit together over time.
+This document describes the current architectural baseline after Phase 1 and explains how the initialized frontend, API, shared packages, and future platform layers fit together.
 
 ## Scope
 
 This document covers:
-- architectural style
-- system layers
-- logical component relationships
-- scaling and resilience direction
-- implementation guidance for future phases
+- current implemented architecture
+- application boundaries
+- shared package responsibilities
+- near-term extensibility direction
+- implementation guidance
 
 This document does not cover:
-- provider-specific infrastructure manifests
-- network diagrams at deployment detail level
-- framework bootstrapping
+- infrastructure deployment topology
+- final service decomposition
+- domain module internals
 
-## Architectural Objectives
+## Phase 1 Architectural State
 
-- Support modular product growth without runaway coupling
-- Preserve shared customer context across lifecycle modules
-- centralize cross-cutting concerns such as audit, configuration, and AI routing
-- enable future scale without forcing early microservice complexity
-- maintain strong multi-tenant and security boundaries
+The system is currently a monorepo with two runnable application entry points:
+- `apps/web`
+- `apps/api`
 
-## Architectural Style
+The architecture is intentionally lightweight but structured so future modules can grow without rewriting the application frame.
 
-The recommended starting architecture is a **modular monolith with event-oriented boundaries**, managed inside a monorepo.
+## Architecture Style
 
-This is preferred because:
-- early coordination across shared modules is easier
-- operational complexity is lower
-- code reuse is more straightforward
-- extraction into dedicated services remains possible later
+The current implementation follows a **modular monorepo** with:
+- a frontend application shell
+- an API composition layer
+- shared foundational packages
 
-## System Layers
+This keeps operational overhead low while preserving clear seams for later extraction.
+
+## Implemented System View
+
+```mermaid
+flowchart LR
+  A["Web App (React + Vite)"] --> B["API App (Express + TypeScript)"]
+  A --> C["Shared Packages"]
+  B --> C
+  B --> D["Health Route /api/v1/health"]
+  B -.placeholder.-> E["PostgreSQL"]
+  B -.placeholder.-> F["Redis"]
+```
+
+## Implemented Layers
 
 ### Experience Layer
 
-- operator-facing web application
-- administrative and governance interfaces
-- future external or partner-facing experiences as needed
+Currently implemented in `apps/web`:
+- route composition
+- responsive shell
+- placeholder module pages
+- theme foundation
 
-### Application Layer
+### API Layer
 
-- request orchestration
-- command and query handling
-- workflow initiation
-- tenant and actor context propagation
+Currently implemented in `apps/api`:
+- server bootstrap
+- middleware stack
+- versioned routing
+- health endpoint
+- error handling
 
-### Domain Layer
+### Shared Foundation Layer
 
-- CRM core concepts
-- revenue and marketing modules
-- partner and reseller modules
-- support, onboarding, training, and success modules
+Currently implemented in `packages/*`:
+- shared types
+- shared config
+- shared UI tokens
+- auth placeholder metadata
+- AI placeholder metadata
+- database placeholder contracts
 
-### Platform Layer
+## Frontend Boundary
 
-- identity and access
-- configuration
-- audit
-- workflow orchestration
-- notifications
-- search and analytics support
+The frontend currently owns:
+- navigation and information architecture
+- layout and visual system foundation
+- placeholder page surfaces for future modules
 
-### AI Platform Layer
+The frontend currently does not own:
+- business logic
+- authentication
+- live API state
+- form workflows
 
-- AI Gateway
-- Prompt Registry
-- Agent Registry
-- retrieval orchestration
-- evaluation and safety services
+## API Boundary
 
-### Data Layer
+The API currently owns:
+- request lifecycle composition
+- health visibility
+- runtime configuration parsing
+- logging and error response behavior
 
-- transactional data store
-- cache and queue infrastructure
-- object storage
-- vector and search indexes
-- analytics and reporting storage
+The API currently does not own:
+- business-domain modules
+- persistence
+- queues
+- AI runtime orchestration
+- auth or tenant resolution
 
-## Logical Architecture
+## Shared Package Boundary
 
-```mermaid
-flowchart TD
-  A["Web and Admin Apps"] --> B["API and Orchestration Layer"]
-  B --> C["Domain Modules"]
-  B --> D["Platform Services"]
-  B --> E["AI Platform Services"]
-  C --> F["Transactional Data"]
-  D --> F
-  D --> G["Cache and Workflow Infrastructure"]
-  E --> H["Knowledge and Vector Stores"]
-  E --> I["Model Providers"]
-  C --> J["Analytics and Reporting"]
-  D --> J
-```
+Shared packages are intentionally thin in Phase 1. Their purpose is to establish reusable seams before module logic begins.
 
-## Architectural Boundaries
+This matters because future phases should not:
+- duplicate shared types between the web and API
+- scatter API version constants across code
+- hard-code UI layout values in multiple places
+- mix placeholder infrastructure contracts directly into business modules
 
-### Product Modules
+## Route and Versioning Structure
 
-Product modules should own business workflows and lifecycle semantics, but they should not reimplement platform concerns such as audit, AI routing, or tenant context propagation.
+### Frontend routes
 
-### Platform Services
+Implemented routes include:
+- `/login`
+- `/dashboard`
+- `/admin`
+- `/leads`
+- `/accounts`
+- `/opportunities`
+- `/campaigns`
+- `/support`
+- `/customer-success`
+- `/ai-assistant`
 
-Platform services should provide reusable capabilities that every module can depend on:
-- authorization
-- audit
-- configuration
-- automation
-- observability
+### API routes
 
-### AI Services
+Implemented routes include:
+- `/`
+- `/api/v1`
+- `/api/v1/health`
 
-AI services should be centrally governed and consumed through contracts. Product teams should not create direct provider coupling in their modules.
+## Extensibility Direction
 
-## Integration Patterns
+### Frontend
 
-### Synchronous Paths
+Future phases should add:
+- auth-aware route guards
+- data loaders or service clients
+- module-specific components and state
+- reusable table, form, and detail patterns
 
-Use synchronous interactions for:
-- user-driven create, read, update, and review operations
-- low-latency AI interactions where appropriate
-- configuration and administrative flows
+### API
 
-### Asynchronous Paths
+Future phases should add:
+- domain module routers
+- service layer boundaries
+- persistence adapters
+- auth and tenant middleware
+- workflow and AI platform integration
 
-Use asynchronous processing for:
-- workflow automation
-- ingestion and indexing
-- analytics event processing
-- long-running AI or batch tasks
+## Architectural Risks Being Avoided
 
-## Resilience and Scalability Direction
-
-- scale stateless request-serving components horizontally
-- isolate long-running workloads in workers
-- partition search, vector, and analytics workloads from primary transactional flows
-- preserve graceful degradation when external AI providers or async systems fail
-
-## Observability Expectations
-
-- structured logs for important business and technical events
-- traceability across user actions, workflows, and AI requests
-- metrics for module usage, failures, latency, and queue health
-- audit visibility for sensitive actions
+Phase 1 deliberately avoids:
+- immediate microservice sprawl
+- feature-local direct model integrations
+- routing without versioning
+- UI pages without a reusable shell
+- backend growth without centralized error handling and env validation
 
 ## Implementation Guidance
 
-When implementation begins:
-- establish clear module boundaries before adding feature depth
-- create platform interfaces for audit, config, workflow, and AI access
-- document every cross-module dependency that affects lifecycle continuity
-- prefer evolutionary architecture over premature distribution
-- keep architecture docs updated when boundaries or control flows change
+The next phase should preserve these architectural constraints:
+- all new API modules should mount under `/api/v1`
+- all new frontend feature areas should fit into the shared shell unless intentionally public
+- shared types should move into packages before duplication appears
+- auth and tenancy should be introduced as platform capabilities, not page-by-page patches
 
-## Phase 0 Note
+## Phase 1 Note
 
-This architecture is directional. The repository does not yet contain services or runtime implementation.
+This document reflects the current implemented system frame. It is no longer purely directional, but it still represents foundation work rather than full platform behavior.

@@ -1,0 +1,12 @@
+{
+  "name": "@crm/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@crm/types": "file:../types"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

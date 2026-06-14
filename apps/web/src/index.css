@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 33% 97%;
+    --foreground: 215 42% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 42% 12%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 35 100% 98%;
+    --secondary: 188 38% 92%;
+    --secondary-foreground: 198 84% 22%;
+    --muted: 34 20% 92%;
+    --muted-foreground: 214 16% 39%;
+    --accent: 188 50% 88%;
+    --accent-foreground: 197 75% 24%;
+    --border: 30 17% 84%;
+    --input: 30 17% 84%;
+    --ring: 24 95% 53%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 216 34% 11%;
+    --foreground: 36 33% 96%;
+    --card: 219 29% 15%;
+    --card-foreground: 36 33% 96%;
+    --primary: 24 95% 58%;
+    --primary-foreground: 216 34% 11%;
+    --secondary: 201 44% 19%;
+    --secondary-foreground: 36 33% 96%;
+    --muted: 218 18% 23%;
+    --muted-foreground: 215 20% 74%;
+    --accent: 191 64% 22%;
+    --accent-foreground: 36 33% 96%;
+    --border: 217 17% 26%;
+    --input: 217 17% 26%;
+    --ring: 24 95% 58%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-background font-sans text-foreground antialiased;
+    background-image:
+      radial-gradient(circle at top left, rgba(249, 115, 22, 0.16), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(8, 145, 178, 0.14), transparent 26%);
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply border border-white/40 bg-white/75 shadow-panel backdrop-blur dark:border-white/10 dark:bg-slate-900/70;
+  }
+}
+

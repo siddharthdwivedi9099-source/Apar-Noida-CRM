@@ -2,155 +2,229 @@
 
 ## Purpose
 
-This document establishes the technical design direction for the platform before implementation begins. It defines the engineering shape of the system, the expected module boundaries, and the principles that should govern future code and infrastructure decisions.
+This document defines the implemented technical baseline for Phase 1 and explains how the workspace is structured for future platform development.
 
 ## Scope
 
 This document covers:
-- repository and module design direction
-- architectural style and decomposition approach
-- cross-cutting technical concerns
-- integration and contract principles
-- implementation guidance for early phases
+- the current workspace and stack choices
+- implemented frontend and backend initialization
+- shared package responsibilities
+- cross-cutting technical conventions
+- implementation guidance for the next phase
 
-This document does not define:
-- framework-specific code
-- deployment manifests
-- API endpoints
-- database schema details
+This document does not cover:
+- business module behavior
+- authentication implementation
+- database schema design
+- infrastructure-as-code details
 
-## Design Goals
+## Phase 1 Outcome
 
-- Support rapid early delivery without locking the platform into unscalable patterns
-- Preserve clear extraction paths for future service separation
-- Keep shared contracts explicit and reusable
-- Build tenancy, observability, and governance into the technical baseline
-- make AI capabilities first-class but controlled
+Phase 1 establishes a runnable application foundation while intentionally deferring domain implementation.
 
-## Architectural Style
+The repository now contains:
+- a running React frontend
+- a running Express API
+- shared packages for cross-workspace foundations
+- environment and local runtime conventions
+- documented build and verification commands
 
-The recommended starting point is a **modular monorepo** with a **modular monolith application core** and **event-oriented boundaries**.
+## Implemented Stack
 
-This approach is preferred because it:
-- reduces early operational overhead
-- allows fast iteration across shared modules
-- keeps domain boundaries explicit
-- supports later extraction of services when usage justifies it
+### Workspace and Tooling
 
-## Repository Structure Direction
+- npm workspaces
+- root scripts for local development, build, and typecheck
+- shared TypeScript base configuration
+
+### Frontend
+
+- React 18
+- TypeScript
+- Vite
+- React Router
+- Tailwind CSS
+- ShadCN-ready component structure
+
+### Backend
+
+- Node.js
+- Express
+- TypeScript
+- Zod
+- Pino
+
+## Repository Structure
 
 ### Applications
 
-- `apps/web`: future operator-facing application
-- `apps/api`: future API, orchestration, and command/query entry point
+#### `apps/web`
+
+Purpose:
+- frontend runtime
+- application shell
+- route definitions
+- placeholder product pages
+- shared UI composition
+
+Key implemented areas:
+- `src/router.tsx`
+- `src/components/layout`
+- `src/components/ui`
+- `src/pages`
+- `src/providers`
+
+#### `apps/api`
+
+Purpose:
+- API bootstrap
+- middleware composition
+- versioned routing
+- health endpoints
+- environment validation
+
+Key implemented areas:
+- `src/server.ts`
+- `src/app.ts`
+- `src/config`
+- `src/common`
+- `src/modules/health`
+- `src/platform`
 
 ### Shared Packages
 
-- `packages/ui`: design system primitives and shared UI contracts
-- `packages/config`: runtime configuration contracts and helpers
-- `packages/types`: shared domain, DTO, and platform types
-- `packages/auth`: reserved for future identity and access contracts
-- `packages/ai`: reserved for future AI platform contracts
-- `packages/database`: reserved for future persistence contracts and migration tooling
+#### `packages/types`
 
-### Operational Assets
+Holds shared platform and API-facing TypeScript types.
 
-- `docs/`: design, product, AI, security, testing, and deployment guidance
-- `scripts/`: future local automation and operational helper scripts
-- `tests/`: future automated quality suites
+#### `packages/config`
 
-## Technical Principles
+Holds shared metadata such as platform naming, API versioning, and workspace-level configuration constants.
 
-### Clear Contracts
+#### `packages/ui`
 
-Domain modules should interact through defined contracts rather than through incidental direct coupling.
+Holds shared UI constants and layout tokens that can later expand into a design system package.
 
-### Tenant Context Everywhere
+#### `packages/auth`
 
-Tenant context should be treated as a required part of business execution, not as an optional filter added later.
+Holds authentication-related placeholders and route metadata without implementing auth behavior yet.
 
-### Shared Platform Services
+#### `packages/ai`
 
-Audit, configuration, AI routing, and workflow execution should be shared platform services rather than duplicated module logic.
+Holds AI capability placeholder definitions used by the frontend foundation.
 
-### Observability Before Scale
+#### `packages/database`
 
-Structured logs, traces, and important domain events should be designed early so scaling and debugging are practical.
+Holds placeholder database and Redis contracts used by the API health surface.
 
-### AI Governance by Architecture
+## Frontend Technical Design
 
-Prompts, agents, and model access should be routed through dedicated platform constructs, not embedded inline across modules.
+### Routing
 
-## Recommended Technical Composition
+The frontend uses React Router with:
+- a public login route
+- a shared application shell route
+- placeholder module routes under the shell
 
-### Frontend Direction
+### Layout System
 
-- operator-facing web application
-- admin-facing configuration surfaces
-- shared UI package for design consistency and reusable component contracts
+The shell includes:
+- a responsive sidebar
+- a topbar
+- theme switching
+- a reusable card and badge foundation
 
-### Backend Direction
+### Styling Direction
 
-- API layer for request handling and orchestration
-- domain modules for business logic
-- platform modules for cross-cutting concerns
-- background workers for long-running jobs, ingestion, and workflow execution
+The frontend uses:
+- Tailwind CSS utility composition
+- CSS custom properties for theme tokens
+- ShadCN-ready `components.json`
+- a `lib/utils.ts` utility for `cn()` composition
 
-### AI Runtime Direction
+### Current Boundary
 
-- AI Gateway for routing and policy enforcement
-- retrieval and ingestion workers for knowledge processing
-- agent and prompt registry resolution at runtime through shared platform interfaces
+The frontend is intentionally presentation-only at this stage. It does not:
+- fetch live API data
+- guard routes
+- submit forms
+- implement business objects
 
-## Cross-Cutting Technical Concerns
+## Backend Technical Design
 
-### Configuration
+### API Versioning
 
-- environment-driven configuration for infrastructure and runtime
-- governed configuration contracts for tenant-specific overrides
-- future support for feature flags and policy toggles
+The API is mounted under:
 
-### Auditability
+```text
+/api/v1
+```
 
-- material administrative and business events should be loggable through a consistent mechanism
-- AI operations should emit auditable metadata
+This is defined centrally and already in use by the health endpoint.
 
-### Workflow Support
+### Middleware Stack
 
-- platform events should be structured so workflows and automation can subscribe or react reliably
-- long-running processes should be offloaded to workers rather than blocking interactive paths
+The API currently includes:
+- request logging middleware
+- JSON and URL-encoded body parsing
+- CORS
+- Helmet
+- centralized 404 handling
+- centralized error handling
 
-### Search and Reporting Readiness
+### Validation Structure
 
-- domain objects should preserve lineage and timestamps suitable for search and analytics
-- reporting needs should be considered during object and event modeling
+Validation is organized through shared middleware so future routes can adopt consistent request parsing and error behavior.
 
-## Non-Goals for Early Phases
+### Placeholder Dependency Services
 
-- premature microservice fragmentation
-- hard-coding provider-specific AI logic into business modules
-- module-specific configuration silos
-- untracked cross-module dependencies
+The API includes placeholder services for:
+- PostgreSQL
+- Redis
+
+These do not create live connections yet. They exist to provide health output structure and future extension points.
+
+## Cross-Cutting Technical Conventions
+
+### Type Safety
+
+- both apps are TypeScript-based
+- shared packages define reusable types
+- workspace-wide typecheck is part of the development workflow
+
+### Versioning
+
+- API versioning starts at `/api/v1`
+- package versions remain aligned at `0.1.0` for now
+- changelog documents phase-based delivery
+
+### Environment Handling
+
+- local environment variables are documented in `.env.example`
+- API env values are parsed and validated through Zod
+- frontend env expectations are documented even when not yet heavily used
+
+## Current Non-Goals
+
+Phase 1 does not implement:
+- persistence repositories
+- migrations
+- auth
+- tenancy resolution
+- background workers
+- AI execution
+- module-specific APIs
 
 ## Implementation Guidance
 
-When coding begins:
-- create shared contracts before module-specific convenience abstractions
-- define tenant context propagation rules early
-- establish consistent naming and lifecycle semantics for objects and events
-- require documentation updates alongside changes to core behavior or architecture
-- keep initial runtime structure simple, but preserve separation between domain and platform concerns
+The next implementation phase should:
+- introduce authentication and authorization before business-module CRUD work
+- propagate tenant context through API request handling
+- begin defining shared API contracts for CRM core entities
+- keep frontend data access centralized instead of sprinkling fetch logic through page components
+- preserve the current separation between platform foundations and business modules
 
-## Open Technical Decisions for Phase 1
+## Phase 1 Note
 
-The next phase should formalize:
-- workspace tooling and package management
-- linting and formatting standards
-- API contract format
-- event naming conventions
-- migration and persistence conventions
-- observability library choices
-
-## Phase 0 Note
-
-This document defines design direction only. No runtime implementation exists yet.
+This document reflects actual initialized runtime code, but the platform remains at the foundation stage rather than the feature-complete stage.
