@@ -7,14 +7,16 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n web,api -c cyan,green \"npm run dev:web\" \"npm run dev:api\"",
-    "dev:web": "npm run dev --workspace @crm/web",
-    "dev:api": "npm run dev --workspace @crm/api",
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "build:packages": "npm run build --workspace @crm/types && npm run build --workspace @crm/config && npm run build --workspace @crm/ui && npm run build --workspace @crm/auth && npm run build --workspace @crm/ai && npm run build --workspace @crm/database",
+    "build:web-deps": "npm run build --workspace @crm/types && npm run build --workspace @crm/config && npm run build --workspace @crm/ui && npm run build --workspace @crm/auth && npm run build --workspace @crm/ai",
+    "build:api-deps": "npm run build --workspace @crm/types && npm run build --workspace @crm/config && npm run build --workspace @crm/database",
+    "dev": "npm run build:packages && concurrently -n web,api -c cyan,green \"npm run dev --workspace @crm/web\" \"npm run dev --workspace @crm/api\"",
+    "dev:web": "npm run build:web-deps && npm run dev --workspace @crm/web",
+    "dev:api": "npm run build:api-deps && npm run dev --workspace @crm/api",
+    "build": "npm run build:packages && npm run build --workspace @crm/web && npm run build --workspace @crm/api",
+    "typecheck": "npm run typecheck --workspace @crm/types && npm run typecheck --workspace @crm/config && npm run typecheck --workspace @crm/ui && npm run typecheck --workspace @crm/auth && npm run typecheck --workspace @crm/ai && npm run typecheck --workspace @crm/database && npm run typecheck --workspace @crm/web && npm run typecheck --workspace @crm/api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
   }
 }
-
