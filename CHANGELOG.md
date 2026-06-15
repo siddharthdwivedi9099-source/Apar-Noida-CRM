@@ -59,6 +59,7 @@ This section represents the **current implemented repository state after `v0.1.0
 - `.env.example` now includes database pool, admin bootstrap, JWT, cookie, and login rate-limit configuration
 - platform metadata now reflects the database and authentication implementation phase
 - the API health surface now reports real PostgreSQL connection status instead of a placeholder response
+- the API now allows credentialed CORS for the configured frontend origin allowlist so browser-based login and refresh flows work reliably in local development
 
 ### Security
 

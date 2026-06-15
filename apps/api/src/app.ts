@@ -11,8 +11,24 @@ import { createV1Router } from "./routes/v1.router.js";
 import { DatabaseService } from "./platform/database/database.service.js";
 import { RedisService } from "./platform/redis/redis.service.js";
 
+function normalizeOrigin(value: string) {
+  return value.trim().replace(/\/+$/, "");
+}
+
+function getAllowedCorsOrigins(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((origin) => normalizeOrigin(origin))
+        .filter(Boolean)
+    )
+  );
+}
+
 export function createApp() {
   const app = express();
+  const allowedCorsOrigins = getAllowedCorsOrigins(env.API_CORS_ORIGIN);
   const databaseService = new DatabaseService({
     enabled: env.DATABASE_ENABLED,
     driver: "postgresql",
@@ -32,7 +48,15 @@ export function createApp() {
   app.use(helmet());
   app.use(
     cors({
-      origin: env.API_CORS_ORIGIN
+      credentials: true,
+      origin(requestOrigin, callback) {
+        if (!requestOrigin) {
+          callback(null, true);
+          return;
+        }
+
+        callback(null, allowedCorsOrigins.includes(normalizeOrigin(requestOrigin)));
+      }
     })
   );
   app.use(express.json({ limit: "1mb" }));

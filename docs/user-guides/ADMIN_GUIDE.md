@@ -30,6 +30,8 @@ npm run db:seed
 npm run dev
 ```
 
+If you access the frontend as `http://localhost:5173` instead of `http://127.0.0.1:5173`, keep `API_CORS_ORIGIN` aligned. The local default now allows both origins.
+
 ### 5. Sign in
 
 Open:

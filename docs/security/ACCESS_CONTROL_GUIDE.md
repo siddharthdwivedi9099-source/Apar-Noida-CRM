@@ -33,6 +33,7 @@ The web app now:
 - redirects unauthenticated users to `/login`
 - keeps the shell routes behind a protected route gate
 - exposes logout from the top bar
+- restores sessions through an HTTP-only refresh token cookie over credentialed CORS
 
 ## Seeded Access
 

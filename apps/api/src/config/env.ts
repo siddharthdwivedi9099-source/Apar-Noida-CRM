@@ -27,7 +27,7 @@ const envSchema = z.object({
   API_LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
-  API_CORS_ORIGIN: z.string().default("http://localhost:5173"),
+  API_CORS_ORIGIN: z.string().default("http://127.0.0.1:5173,http://localhost:5173"),
   DATABASE_ENABLED: booleanish.default(true),
   DATABASE_URL: z.string().default("postgresql://crm:crm@localhost:5433/crm"),
   DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),

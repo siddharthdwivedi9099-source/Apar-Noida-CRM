@@ -10,6 +10,7 @@ Implemented in code today:
 - JWT refresh tokens with database-backed rotation
 - hashed refresh token storage in `auth_sessions`
 - HTTP-only refresh token cookie
+- credentialed CORS support for the web client origin list
 - auth middleware for protected API routes
 - login rate limiting
 - failed login tracking and timed account lockout
@@ -63,6 +64,7 @@ Sensitive runtime values now include:
 - `JWT_REFRESH_TOKEN_SECRET`
 - `DEFAULT_ADMIN_PASSWORD`
 - `DATABASE_URL`
+- `API_CORS_ORIGIN`
 
 These must not remain at development defaults outside local use.
 

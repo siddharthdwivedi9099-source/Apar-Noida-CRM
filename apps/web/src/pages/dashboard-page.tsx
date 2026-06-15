@@ -8,17 +8,17 @@ const foundationHighlights = [
   {
     label: "Frontend shell",
     value: "Responsive",
-    detail: "Sidebar, topbar, theme toggle, and routed placeholder surfaces are in place."
+    detail: "Sidebar, topbar, login page, protected routes, and session-aware navigation are in place."
   },
   {
     label: "Backend API",
     value: "/api/v1",
-    detail: "Express foundation with health, validation structure, logging, and centralized errors."
+    detail: "Express now serves login, logout, refresh, current-user, health, and centralized error handling."
   },
   {
     label: "Shared packages",
     value: "6 packages",
-    detail: "Config, types, UI, auth, AI, and database placeholders are ready for reuse."
+    detail: "Config, types, UI, auth, AI, and database packages are wired into the current runtime."
   }
 ] as const;
 
@@ -34,8 +34,9 @@ export function DashboardPage() {
                 The workspace foundation is live, documented, and ready for secure domain development.
               </h2>
               <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-                This dashboard is intentionally centered on platform readiness rather than business metrics. It is
-                proving routing, theming, layout, API initialization, shared packages, and the first local run path.
+                This dashboard is intentionally centered on platform readiness rather than business metrics. It now
+                reflects the authenticated shell, PostgreSQL-backed identity flow, shared packages, and the local
+                runtime needed before CRM domain features begin.
               </p>
             </div>
           </div>
@@ -44,9 +45,10 @@ export function DashboardPage() {
             <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Current guardrails</p>
             <div className="mt-4 space-y-4">
               <div>
-                <p className="font-semibold">Authentication remains out of scope</p>
+                <p className="font-semibold">Authentication foundation is now live</p>
                 <p className="mt-1 text-sm text-slate-300">
-                  The login route is present, but no auth logic is implemented yet.
+                  Login, logout, refresh rotation, session tracking, and protected routes are implemented for the
+                  seeded tenant admin flow.
                 </p>
               </div>
               <div>
@@ -58,7 +60,7 @@ export function DashboardPage() {
               <div>
                 <p className="font-semibold">AI remains governed but non-executable</p>
                 <p className="mt-1 text-sm text-slate-300">
-                  The UI and shared package foundations reference the architecture without invoking models.
+                  The platform keeps the AI architecture visible, but model-backed workflows are still future work.
                 </p>
               </div>
             </div>
@@ -69,8 +71,10 @@ export function DashboardPage() {
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Phase 1 acceptance overview</CardTitle>
-            <CardDescription>Each card maps to the initialization outcomes we need before feature work begins.</CardDescription>
+            <CardTitle>Phase 3 platform overview</CardTitle>
+            <CardDescription>
+              These cards summarize the current authenticated platform foundation before business modules are built out.
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
             {foundationHighlights.map((highlight) => (
@@ -118,13 +122,15 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>What comes next</CardTitle>
-            <CardDescription>Phase 1 gives us a real execution surface. Phase 2 can start implementing secure platform features.</CardDescription>
+            <CardDescription>
+              The secure platform baseline is in place. The next phase can focus on domain workflows and deeper access control.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {[
-              "Introduce authentication, authorization, and tenant context propagation.",
-              "Establish the core API contracts and initial persistence adapters.",
-              "Start the CRM kernel with accounts, contacts, leads, and activity structures."
+              "Start the CRM kernel with accounts, contacts, leads, and activity structures.",
+              "Layer fine-grained RBAC enforcement onto business endpoints and UI surfaces.",
+              "Expand tenant administration into real user management, role governance, and settings workflows."
             ].map((nextStep) => (
               <div key={nextStep} className="rounded-[1rem] bg-background/75 px-4 py-4 text-sm leading-6 text-muted-foreground">
                 {nextStep}
@@ -136,4 +142,3 @@ export function DashboardPage() {
     </div>
   );
 }
-

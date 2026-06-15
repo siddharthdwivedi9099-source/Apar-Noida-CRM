@@ -8,6 +8,8 @@ Local default:
 http://127.0.0.1:4000/api/v1
 ```
 
+Browser clients use cookie-backed refresh flows, so the API must allow credentialed CORS for the configured web origin list in `API_CORS_ORIGIN`.
+
 ## Current Endpoints
 
 ### `GET /`
@@ -78,6 +80,7 @@ Behavior:
 - also sets an HTTP-only refresh token cookie
 - writes success or failure audit logs
 - applies rate limiting and failed-login handling
+- is intended to be called with `credentials: include` from the web app
 
 ### `POST /auth/refresh`
 

@@ -128,6 +128,7 @@ The canonical template lives in [`.env.example`](/Users/apar/Documents/CRM for A
 Important variables:
 - `DATABASE_URL`
 - `DATABASE_ENABLED`
+- `API_CORS_ORIGIN`
 - `JWT_ACCESS_TOKEN_SECRET`
 - `JWT_REFRESH_TOKEN_SECRET`
 - `DEFAULT_TENANT_SLUG`
@@ -137,6 +138,8 @@ Important variables:
 - `SESSION_COOKIE_NAME`
 - `VITE_API_BASE_URL`
 - `VITE_DEFAULT_TENANT_SLUG`
+
+For local browser auth, `API_CORS_ORIGIN` now supports a comma-separated allowlist. The default local setup includes both `http://127.0.0.1:5173` and `http://localhost:5173` so the refresh-cookie flow works in either dev URL.
 
 ## Current Limitations
 

@@ -392,7 +392,8 @@ export class AuthService {
       email: user.email,
       secret: this.config.accessTokenSecret,
       expiresInSeconds: this.getAccessTokenTtlSeconds(),
-      type: "access"
+      type: "access",
+      nonce: createTokenNonce()
     });
     const refreshTokenResult = signJwt({
       subject: user.id,
@@ -822,7 +823,8 @@ export class AuthService {
         email: session.email,
         secret: this.config.accessTokenSecret,
         expiresInSeconds: this.getAccessTokenTtlSeconds(),
-        type: "access"
+        type: "access",
+        nonce: createTokenNonce()
       });
       const refreshTokenResult = signJwt({
         subject: session.user_id,
