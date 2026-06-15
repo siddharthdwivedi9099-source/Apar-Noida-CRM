@@ -6,7 +6,7 @@ import type {
   CurrentUserResponse,
   LoginRequestBody
 } from "@crm/types";
-import { apiRequest } from "@/lib/api-client";
+import { ApiClientError, apiRequest } from "@/lib/api-client";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -16,18 +16,43 @@ interface AuthContextValue {
   session: AuthSessionSummary | null;
   accessToken: string | null;
   isAuthenticated: boolean;
+  hasPermission: (permissionCode: string) => boolean;
+  hasAnyPermission: (permissionCodes: string[]) => boolean;
+  hasAllPermissions: (permissionCodes: string[]) => boolean;
   login: (credentials: LoginRequestBody) => Promise<void>;
   logout: () => Promise<void>;
   reloadCurrentUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+let bootstrapSessionRequest: Promise<AuthResponse | null> | null = null;
 
 async function loadCurrentUser(accessToken: string) {
   return apiRequest<CurrentUserResponse>("/auth/me", {
     method: "GET",
     accessToken
   });
+}
+
+async function requestBootstrapSession() {
+  if (!bootstrapSessionRequest) {
+    bootstrapSessionRequest = apiRequest<AuthResponse>("/auth/refresh", {
+      method: "POST",
+      body: {}
+    })
+      .catch((error) => {
+        if (error instanceof ApiClientError && error.statusCode === 401) {
+          return null;
+        }
+
+        throw error;
+      })
+      .finally(() => {
+        bootstrapSessionRequest = null;
+      });
+  }
+
+  return bootstrapSessionRequest;
 }
 
 interface AuthProviderProps {
@@ -40,16 +65,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<AuthSessionSummary | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
-  async function applyAuthenticatedState(authResponse: AuthResponse) {
+  async function applyAuthenticatedState(
+    authResponse: AuthResponse,
+    isCancelled: (() => boolean) | null = null
+  ) {
+    if (isCancelled?.()) {
+      return;
+    }
+
     setAccessToken(authResponse.tokens.accessToken);
 
     try {
       const currentUserResponse = await loadCurrentUser(authResponse.tokens.accessToken);
+
+      if (isCancelled?.()) {
+        return;
+      }
+
       setUser(currentUserResponse.user);
       setSession(currentUserResponse.session);
     } catch {
+      if (isCancelled?.()) {
+        return;
+      }
+
       setUser(authResponse.user);
       setSession(authResponse.session);
+    }
+
+    if (isCancelled?.()) {
+      return;
     }
 
     setStatus("authenticated");
@@ -64,10 +109,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   async function bootstrapSession() {
     try {
-      const authResponse = await apiRequest<AuthResponse>("/auth/refresh", {
-        method: "POST",
-        body: {}
-      });
+      const authResponse = await requestBootstrapSession();
+
+      if (!authResponse) {
+        clearAuthState();
+        return;
+      }
 
       await applyAuthenticatedState(authResponse);
     } catch {
@@ -76,7 +123,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   useEffect(() => {
-    void bootstrapSession();
+    let isCancelled = false;
+
+    void (async () => {
+      try {
+        const authResponse = await requestBootstrapSession();
+
+        if (isCancelled) {
+          return;
+        }
+
+        if (!authResponse) {
+          clearAuthState();
+          return;
+        }
+
+        await applyAuthenticatedState(authResponse, () => isCancelled);
+      } catch {
+        if (!isCancelled) {
+          clearAuthState();
+        }
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   async function login(credentials: LoginRequestBody) {
@@ -114,6 +186,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setStatus("authenticated");
   }
 
+  function hasPermission(permissionCode: string) {
+    return (user?.permissionCodes ?? []).includes(permissionCode);
+  }
+
+  function hasAnyPermission(permissionCodes: string[]) {
+    return permissionCodes.some((permissionCode) => hasPermission(permissionCode));
+  }
+
+  function hasAllPermissions(permissionCodes: string[]) {
+    return permissionCodes.every((permissionCode) => hasPermission(permissionCode));
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -122,6 +206,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         session,
         accessToken,
         isAuthenticated: status === "authenticated",
+        hasPermission,
+        hasAnyPermission,
+        hasAllPermissions,
         login,
         logout,
         reloadCurrentUser

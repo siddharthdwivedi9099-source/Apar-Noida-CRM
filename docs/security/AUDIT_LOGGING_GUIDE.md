@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide explains the current audit logging behavior implemented in the Phase 2 and Phase 3 foundation.
+This guide explains the current audit logging behavior implemented in the Phase 2, Phase 3, and Phase 4 foundation.
 
 ## Storage Model
 
@@ -27,13 +27,18 @@ Key fields:
 
 ## Events Logged Today
 
-The authentication system currently records:
+The platform currently records:
 - successful login
 - failed login
 - denied login for disabled or locked users
 - successful refresh token rotation
 - failed refresh token usage when a session is known
 - logout
+- role creation
+- role updates
+- role deletion
+- role-permission replacement
+- user-role replacement
 
 ## Event Shape
 
@@ -42,6 +47,12 @@ Typical values include:
 - `action = 'auth.login' | 'auth.refresh' | 'auth.logout'`
 - `resource_type = 'session'`
 - `status = 'success' | 'failure' | 'denied'`
+
+RBAC events now also include examples such as:
+- `event_type = 'rbac'`
+- `action = 'rbac.role.create' | 'rbac.role.update' | 'rbac.role.delete'`
+- `action = 'rbac.role.permissions.replace' | 'rbac.user.roles.replace'`
+- `resource_type = 'role' | 'user'`
 
 The `metadata` payload captures contextual details such as:
 - tenant slug used at login
@@ -61,6 +72,7 @@ Use audit logs to answer questions such as:
 
 What is covered now:
 - authentication lifecycle events
+- RBAC administration events
 - request-level identifiers for auth flows
 - tenant and actor correlation when available
 
@@ -82,7 +94,6 @@ Common filters:
 
 Later phases should extend audit coverage to:
 - user creation and deactivation
-- role and permission changes
 - tenant configuration changes
 - data exports
 - AI governance and tool execution

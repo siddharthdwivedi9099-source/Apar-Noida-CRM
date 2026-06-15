@@ -20,7 +20,7 @@ Returns API phase and version metadata.
 
 Returns service health plus dependency state.
 
-Database status is now live rather than placeholder-only.
+## Authentication Endpoints
 
 ### `POST /auth/login`
 
@@ -36,7 +36,7 @@ Request body:
 }
 ```
 
-Response:
+Response shape:
 
 ```json
 {
@@ -55,11 +55,16 @@ Response:
     "roles": [
       {
         "id": "uuid",
-        "slug": "tenant-admin",
-        "name": "Tenant Admin"
+        "slug": "super-admin",
+        "name": "Super Admin"
       }
     ],
-    "permissionCodes": ["users.manage", "roles.manage"],
+    "permissionCodes": [
+      "admin.view",
+      "admin.assign",
+      "dashboards.view_dashboard",
+      "ai.manage_ai"
+    ],
     "metadata": {}
   },
   "session": {
@@ -104,11 +109,132 @@ Requires:
 Authorization: Bearer <access-token>
 ```
 
+## RBAC Endpoints
+
+All RBAC routes require a valid access token.
+
+### `GET /rbac/catalog`
+
+Returns:
+- permission modules
+- permission action categories
+- the current permission catalog
+- seeded role templates
+
+Requires one of:
+- `admin.view`
+- `admin.configure`
+
+### `GET /rbac/roles`
+
+Returns all active tenant roles with:
+- role metadata
+- resolved permission list
+- permission codes
+- active user count
+
+Requires one of:
+- `admin.view`
+- `admin.configure`
+
+### `POST /rbac/roles`
+
+Creates a tenant role or restores a soft-deleted role with the same slug.
+
+Request body:
+
+```json
+{
+  "name": "Growth Analyst",
+  "slug": "growth-analyst",
+  "description": "Custom reporting and campaign analysis role.",
+  "templateKey": "marketing-executive"
+}
+```
+
+Requires one of:
+- `admin.create`
+- `admin.configure`
+
+### `PATCH /rbac/roles/:roleId`
+
+Updates role name, slug, or description.
+
+Requires one of:
+- `admin.edit`
+- `admin.configure`
+
+### `DELETE /rbac/roles/:roleId`
+
+Soft-deletes a non-system role and soft-deletes its assignments.
+
+Requires one of:
+- `admin.delete`
+- `admin.configure`
+
+### `PUT /rbac/roles/:roleId/permissions`
+
+Replaces the active permission bundle for a role.
+
+Request body:
+
+```json
+{
+  "permissionCodes": [
+    "marketing.view",
+    "marketing.edit",
+    "campaigns.view",
+    "campaigns.create",
+    "dashboards.view_dashboard"
+  ]
+}
+```
+
+Requires one of:
+- `admin.assign`
+- `admin.configure`
+
+### `GET /rbac/users`
+
+Returns tenant users with:
+- current roles
+- resolved permission codes
+- team and department names when present
+- account status and last login timestamps
+
+Requires one of:
+- `admin.view`
+- `admin.configure`
+
+### `PUT /rbac/users/:userId/roles`
+
+Replaces the active role set for a user.
+
+Request body:
+
+```json
+{
+  "roleIds": ["uuid-1", "uuid-2"]
+}
+```
+
+Requires one of:
+- `admin.assign`
+- `admin.configure`
+
+Behavior:
+- soft-deletes removed assignments
+- restores matching soft-deleted assignments
+- prevents the current admin from removing their own active administrative access in the same session
+
 ## Error Behavior
 
 Current error conventions:
-- `400` for validation failures
+- `400` for validation failures or invalid permission/role input
 - `401` for authentication failures
+- `403` for permission failures
+- `404` when a requested role or user does not exist
+- `409` for protected or conflicting role operations
 - `429` for login rate limiting
 - `500` for unexpected server errors
 

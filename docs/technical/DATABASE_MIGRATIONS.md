@@ -84,10 +84,12 @@ The seed system is intentionally idempotent for the current bootstrap scope.
 
 Repeated seed runs will:
 - restore the default tenant if it was soft-deleted
-- restore or update the seeded permission catalog
-- restore or update the `tenant-admin` role
+- restore or update the full seeded permission catalog
+- restore or update seeded role templates
+- restore or update the default tenant role set derived from those templates
 - reset the seeded admin user password to the current `DEFAULT_ADMIN_PASSWORD`
-- ensure the admin role assignment exists
+- ensure the `super-admin` assignment exists for the bootstrap user
+- migrate a legacy bootstrap `tenant-admin` role into `super-admin` when possible
 
 ## Rollback Guidance
 

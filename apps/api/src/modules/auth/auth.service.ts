@@ -50,6 +50,9 @@ interface AuthIdentity {
   tenantId: string;
   sessionId: string;
   email: string;
+  displayName: string;
+  roles: RoleSummary[];
+  permissionCodes: string[];
 }
 
 interface UserLoginRow {
@@ -742,11 +745,16 @@ export class AuthService {
         throw new AppError(401, "Authentication is required.", undefined, "AUTHENTICATION_ERROR");
       }
 
+      const userSummary = await this.loadUserSummary(client, session.user_id, session.tenant_id);
+
       return {
         userId: session.user_id,
         tenantId: session.tenant_id,
         sessionId: session.id,
-        email: session.email
+        email: session.email,
+        displayName: session.display_name,
+        roles: userSummary.roles,
+        permissionCodes: userSummary.permissionCodes
       };
     });
   }

@@ -7,18 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 const foundationHighlights = [
   {
     label: "Frontend shell",
-    value: "Responsive",
-    detail: "Sidebar, topbar, login page, protected routes, and session-aware navigation are in place."
+    value: "Permission-aware",
+    detail: "Sidebar, topbar, login page, protected routes, and permission-aware navigation are in place."
   },
   {
     label: "Backend API",
     value: "/api/v1",
-    detail: "Express now serves login, logout, refresh, current-user, health, and centralized error handling."
+    detail: "Express now serves auth, health, RBAC management, permission checks, and centralized error handling."
   },
   {
     label: "Shared packages",
     value: "6 packages",
-    detail: "Config, types, UI, auth, AI, and database packages are wired into the current runtime."
+    detail: "Config, types, UI, auth, AI, and database packages now share a single RBAC vocabulary."
   }
 ] as const;
 
@@ -31,12 +31,12 @@ export function DashboardPage() {
             <Badge>{platformMetadata.currentPhase}</Badge>
             <div className="space-y-4">
               <h2 className="max-w-3xl font-display text-4xl font-semibold leading-tight">
-                The workspace foundation is live, documented, and ready for secure domain development.
+                The workspace foundation now includes tenant-aware RBAC and a working role management surface.
               </h2>
               <p className="max-w-3xl text-base leading-7 text-muted-foreground">
                 This dashboard is intentionally centered on platform readiness rather than business metrics. It now
-                reflects the authenticated shell, PostgreSQL-backed identity flow, shared packages, and the local
-                runtime needed before CRM domain features begin.
+                reflects the authenticated shell, PostgreSQL-backed identity flow, shared packages, RBAC controls,
+                and the local runtime needed before CRM domain features begin.
               </p>
             </div>
           </div>
@@ -45,22 +45,24 @@ export function DashboardPage() {
             <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Current guardrails</p>
             <div className="mt-4 space-y-4">
               <div>
-                <p className="font-semibold">Authentication foundation is now live</p>
+                <p className="font-semibold">Authentication and RBAC are now live</p>
                 <p className="mt-1 text-sm text-slate-300">
-                  Login, logout, refresh rotation, session tracking, and protected routes are implemented for the
-                  seeded tenant admin flow.
+                  Login, logout, refresh rotation, session tracking, protected routes, and admin role management are
+                  implemented for the seeded tenant flow.
                 </p>
               </div>
               <div>
-                <p className="font-semibold">Business modules remain placeholders</p>
+                <p className="font-semibold">Module access now follows permission bundles</p>
                 <p className="mt-1 text-sm text-slate-300">
-                  Leads, accounts, campaigns, support, and success pages are navigation-ready shells only.
+                  Leads, accounts, campaigns, support, success, admin, and AI routes only appear when the current
+                  user has matching module permissions.
                 </p>
               </div>
               <div>
                 <p className="font-semibold">AI remains governed but non-executable</p>
                 <p className="mt-1 text-sm text-slate-300">
-                  The platform keeps the AI architecture visible, but model-backed workflows are still future work.
+                  The platform keeps the AI architecture visible, and RBAC now distinguishes between AI use and AI
+                  management before model-backed workflows arrive.
                 </p>
               </div>
             </div>
@@ -71,9 +73,10 @@ export function DashboardPage() {
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Phase 3 platform overview</CardTitle>
+            <CardTitle>Phase 4 platform overview</CardTitle>
             <CardDescription>
-              These cards summarize the current authenticated platform foundation before business modules are built out.
+              These cards summarize the current authenticated and authorized platform foundation before business
+              modules are fully built out.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
@@ -108,7 +111,9 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Route inventory</CardTitle>
-            <CardDescription>The protected route map comes from the shared auth package foundation.</CardDescription>
+            <CardDescription>
+              The protected route map comes from the shared auth package foundation and is now filtered by permission.
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             {authFoundation.protectedRoutes.map((routePath) => (
@@ -123,14 +128,15 @@ export function DashboardPage() {
           <CardHeader>
             <CardTitle>What comes next</CardTitle>
             <CardDescription>
-              The secure platform baseline is in place. The next phase can focus on domain workflows and deeper access control.
+              The secure platform baseline is in place. The next phase can focus on domain workflows that plug into
+              the RBAC layer already shipping here.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {[
               "Start the CRM kernel with accounts, contacts, leads, and activity structures.",
-              "Layer fine-grained RBAC enforcement onto business endpoints and UI surfaces.",
-              "Expand tenant administration into real user management, role governance, and settings workflows."
+              "Connect real business APIs to the module-level and action-level permissions already seeded.",
+              "Expand tenant administration into full user lifecycle management, audit review, and settings workflows."
             ].map((nextStep) => (
               <div key={nextStep} className="rounded-[1rem] bg-background/75 px-4 py-4 text-sm leading-6 text-muted-foreground">
                 {nextStep}

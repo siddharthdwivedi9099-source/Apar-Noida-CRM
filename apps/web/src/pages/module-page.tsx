@@ -35,8 +35,8 @@ export function ModulePage({
                 <Orbit className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold">Phase 1 stance</p>
-                <p className="text-sm text-slate-300">Structure now, feature logic later.</p>
+                <p className="text-sm font-semibold">Current stance</p>
+                <p className="text-sm text-slate-300">Routed placeholder now, workflow logic later.</p>
               </div>
             </div>
             <p className="mt-4 text-sm leading-6 text-slate-300">
@@ -73,7 +73,7 @@ export function ModulePage({
           <CardHeader>
             <CardTitle>Implementation guidance</CardTitle>
             <CardDescription>
-              These notes keep Phase 1 scoped correctly while giving us a clear build runway.
+              These notes keep placeholder modules consistent while giving us a clear build runway.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -91,4 +91,3 @@ export function ModulePage({
     </div>
   );
 }
-

@@ -1,3 +1,7 @@
+import type { PermissionActionKey, PermissionModuleKey } from "./rbac.js";
+
+export * from "./rbac.js";
+
 export type EnvironmentName = "development" | "test" | "production";
 
 export type HealthDependencyStatus = "connected" | "placeholder" | "disabled" | "error";
@@ -44,6 +48,107 @@ export interface RoleSummary {
   id: string;
   slug: string;
   name: string;
+}
+
+export interface PermissionSummary {
+  id: string;
+  code: string;
+  moduleKey: PermissionModuleKey;
+  moduleLabel: string;
+  actionKey: PermissionActionKey;
+  actionLabel: string;
+  description: string;
+}
+
+export interface RoleDetail extends RoleSummary {
+  description: string | null;
+  isSystemRole: boolean;
+  templateKey: string | null;
+  permissions: PermissionSummary[];
+  permissionCodes: string[];
+  userCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoleTemplateSummary {
+  id: string;
+  key: string;
+  slug: string;
+  name: string;
+  description: string;
+  permissionCodes: string[];
+  permissions: PermissionSummary[];
+  metadata: Record<string, unknown>;
+}
+
+export interface RbacModuleSummary {
+  key: PermissionModuleKey;
+  label: string;
+}
+
+export interface RbacActionSummary {
+  key: PermissionActionKey;
+  label: string;
+}
+
+export interface RbacCatalogResponse {
+  modules: RbacModuleSummary[];
+  actions: RbacActionSummary[];
+  permissions: PermissionSummary[];
+  roleTemplates: RoleTemplateSummary[];
+}
+
+export interface RbacRolesResponse {
+  roles: RoleDetail[];
+}
+
+export interface CreateRoleRequestBody {
+  name: string;
+  slug: string;
+  description?: string;
+  templateKey?: string;
+  permissionCodes?: string[];
+}
+
+export interface UpdateRoleRequestBody {
+  name?: string;
+  slug?: string;
+  description?: string | null;
+}
+
+export interface ReplaceRolePermissionsRequestBody {
+  permissionCodes: string[];
+}
+
+export interface RoleResponse {
+  role: RoleDetail;
+}
+
+export interface RbacUserSummary {
+  id: string;
+  email: string;
+  displayName: string;
+  status: string;
+  teamName: string | null;
+  departmentName: string | null;
+  roles: RoleSummary[];
+  permissionCodes: string[];
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+export interface RbacUsersResponse {
+  users: RbacUserSummary[];
+}
+
+export interface ReplaceUserRolesRequestBody {
+  roleIds: string[];
+}
+
+export interface UserRolesResponse {
+  user: RbacUserSummary;
 }
 
 export interface AuthSessionSummary {

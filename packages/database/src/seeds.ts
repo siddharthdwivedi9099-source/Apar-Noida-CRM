@@ -1,116 +1,26 @@
 import { createHash } from "node:crypto";
-import type { Pool } from "pg";
+import {
+  defaultPermissionCatalog,
+  defaultRoleTemplateDefinitions,
+  type RoleTemplateDefinition
+} from "@crm/types";
+import type { Pool, PoolClient } from "pg";
 import type { CoreSeedOptions, PermissionCatalogEntry, SeedResult } from "./types.js";
 
-export const DEFAULT_PERMISSION_CATALOG: PermissionCatalogEntry[] = [
-  {
-    code: "tenants.manage",
-    resource: "tenants",
-    action: "manage",
-    description: "Manage tenant profile, configuration, and lifecycle state.",
-    category: "platform"
-  },
-  {
-    code: "users.manage",
-    resource: "users",
-    action: "manage",
-    description: "Create, edit, deactivate, and restore tenant users.",
-    category: "identity"
-  },
-  {
-    code: "teams.manage",
-    resource: "teams",
-    action: "manage",
-    description: "Manage teams, departments, and ownership assignments.",
-    category: "identity"
-  },
-  {
-    code: "roles.manage",
-    resource: "roles",
-    action: "manage",
-    description: "Create roles and assign permissions within a tenant.",
-    category: "identity"
-  },
-  {
-    code: "permissions.view",
-    resource: "permissions",
-    action: "view",
-    description: "View the platform permission catalog.",
-    category: "identity"
-  },
-  {
-    code: "audit_logs.view",
-    resource: "audit_logs",
-    action: "view",
-    description: "Review audit history for authentication and privileged actions.",
-    category: "security"
-  },
-  {
-    code: "system_settings.manage",
-    resource: "system_settings",
-    action: "manage",
-    description: "Manage tenant and platform configuration settings.",
-    category: "platform"
-  },
-  {
-    code: "dashboard.view",
-    resource: "dashboard",
-    action: "view",
-    description: "View platform dashboards and scorecards.",
-    category: "workspace"
-  },
-  {
-    code: "leads.manage",
-    resource: "leads",
-    action: "manage",
-    description: "Manage leads and qualification workflows.",
-    category: "sales"
-  },
-  {
-    code: "accounts.manage",
-    resource: "accounts",
-    action: "manage",
-    description: "Manage accounts and customer records.",
-    category: "sales"
-  },
-  {
-    code: "opportunities.manage",
-    resource: "opportunities",
-    action: "manage",
-    description: "Manage revenue opportunities and pipeline state.",
-    category: "sales"
-  },
-  {
-    code: "campaigns.manage",
-    resource: "campaigns",
-    action: "manage",
-    description: "Manage campaign planning and execution.",
-    category: "marketing"
-  },
-  {
-    code: "support.manage",
-    resource: "support",
-    action: "manage",
-    description: "Manage support tickets and service workflows.",
-    category: "service"
-  },
-  {
-    code: "customer_success.manage",
-    resource: "customer_success",
-    action: "manage",
-    description: "Manage customer success plans, onboarding, and health.",
-    category: "service"
-  },
-  {
-    code: "ai_assistant.use",
-    resource: "ai_assistant",
-    action: "use",
-    description: "Use AI assistant workflows within the tenant boundary.",
-    category: "ai"
-  }
-];
+export const DEFAULT_PERMISSION_CATALOG: PermissionCatalogEntry[] = defaultPermissionCatalog.map((permission) => ({
+  code: permission.code,
+  resource: permission.moduleKey,
+  action: permission.actionKey,
+  description: permission.description,
+  category: permission.actionKey
+}));
+const DEFAULT_PERMISSION_CODES = DEFAULT_PERMISSION_CATALOG.map((permission) => permission.code);
+
+export const DEFAULT_ROLE_TEMPLATES = defaultRoleTemplateDefinitions;
 
 const CORE_SEED_NAME = "core-bootstrap";
+const LEGACY_BOOTSTRAP_ADMIN_ROLE_SLUG = "tenant-admin";
+const DEFAULT_ADMIN_TEMPLATE_KEY = "super-admin";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -122,7 +32,8 @@ function createSeedChecksum(options: CoreSeedOptions) {
       JSON.stringify({
         ...options,
         adminPassword: "[redacted]",
-        permissionCatalog: DEFAULT_PERMISSION_CATALOG
+        permissionCatalog: DEFAULT_PERMISSION_CATALOG,
+        roleTemplates: DEFAULT_ROLE_TEMPLATES
       })
     )
     .digest("hex");
@@ -137,6 +48,304 @@ async function ensureSeedRunsTable(pool: Pool) {
       executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+}
+
+async function upsertPermission(client: PoolClient, permission: PermissionCatalogEntry) {
+  const updateResult = await client.query(
+    `
+      UPDATE permissions
+      SET
+        resource = $2,
+        action = $3,
+        description = $4,
+        category = $5,
+        deleted_at = NULL,
+        updated_at = NOW(),
+        metadata = permissions.metadata || jsonb_build_object('seeded', true, 'phase', 'phase-4-rbac')
+      WHERE code = $1
+    `,
+    [
+      permission.code,
+      permission.resource,
+      permission.action,
+      permission.description,
+      permission.category
+    ]
+  );
+
+  if (updateResult.rowCount === 0) {
+    await client.query(
+      `
+        INSERT INTO permissions (code, resource, action, description, category, metadata)
+        VALUES (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          jsonb_build_object('seeded', true, 'phase', 'phase-4-rbac')
+        )
+      `,
+      [
+        permission.code,
+        permission.resource,
+        permission.action,
+        permission.description,
+        permission.category
+      ]
+    );
+  }
+}
+
+async function retireLegacySeededPermissions(client: PoolClient) {
+  await client.query(
+    `
+      WITH retired_permissions AS (
+        SELECT id
+        FROM permissions
+        WHERE deleted_at IS NULL
+          AND metadata @> '{"seeded": true}'::jsonb
+          AND code <> ALL($1::text[])
+      )
+      UPDATE role_template_permissions
+      SET
+        deleted_at = NOW(),
+        updated_at = NOW()
+      WHERE permission_id IN (SELECT id FROM retired_permissions)
+        AND deleted_at IS NULL
+    `,
+    [DEFAULT_PERMISSION_CODES]
+  );
+
+  await client.query(
+    `
+      WITH retired_permissions AS (
+        SELECT id
+        FROM permissions
+        WHERE deleted_at IS NULL
+          AND metadata @> '{"seeded": true}'::jsonb
+          AND code <> ALL($1::text[])
+      )
+      UPDATE role_permissions
+      SET
+        deleted_at = NOW(),
+        updated_at = NOW()
+      WHERE permission_id IN (SELECT id FROM retired_permissions)
+        AND deleted_at IS NULL
+    `,
+    [DEFAULT_PERMISSION_CODES]
+  );
+
+  await client.query(
+    `
+      UPDATE permissions
+      SET
+        deleted_at = NOW(),
+        updated_at = NOW(),
+        metadata = permissions.metadata || jsonb_build_object('retiredBy', 'phase-4-rbac')
+      WHERE deleted_at IS NULL
+        AND metadata @> '{"seeded": true}'::jsonb
+        AND code <> ALL($1::text[])
+    `,
+    [DEFAULT_PERMISSION_CODES]
+  );
+}
+
+async function upsertRoleTemplate(client: PoolClient, template: RoleTemplateDefinition) {
+  const templateResult = await client.query<{ id: string }>(
+    `
+      INSERT INTO role_templates (template_key, slug, name, description, metadata)
+      VALUES ($1, $2, $3, $4, $5::jsonb)
+      ON CONFLICT (template_key)
+      DO UPDATE SET
+        slug = EXCLUDED.slug,
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        deleted_at = NULL,
+        updated_at = NOW(),
+        metadata = role_templates.metadata || EXCLUDED.metadata
+      RETURNING id
+    `,
+    [
+      template.key,
+      template.slug,
+      template.name,
+      template.description,
+      JSON.stringify(template.metadata)
+    ]
+  );
+
+  const templateId = templateResult.rows[0]?.id;
+
+  if (!templateId) {
+    throw new Error(`Role template seed failed for "${template.key}".`);
+  }
+
+  await client.query(
+    `
+      INSERT INTO role_template_permissions (
+        role_template_id,
+        permission_id,
+        metadata
+      )
+      SELECT
+        $1,
+        permissions.id,
+        jsonb_build_object('seeded', true, 'templateKey', $2::text)
+      FROM permissions
+      WHERE permissions.code = ANY($3::text[])
+      ON CONFLICT (role_template_id, permission_id)
+      DO UPDATE SET
+        deleted_at = NULL,
+        updated_at = NOW(),
+        metadata = role_template_permissions.metadata || EXCLUDED.metadata
+    `,
+    [templateId, template.key, template.permissionCodes]
+  );
+
+  return templateId;
+}
+
+async function migrateLegacyBootstrapRole(client: PoolClient, tenantId: string) {
+  await client.query(
+    `
+      UPDATE roles
+      SET
+        slug = 'super-admin',
+        name = 'Super Admin',
+        description = 'Migrated bootstrap administrator role with full tenant-wide access.',
+        is_system_role = true,
+        deleted_at = NULL,
+        updated_at = NOW(),
+        metadata = roles.metadata
+          || jsonb_build_object(
+            'seeded', true,
+            'templateKey', $2::text,
+            'migratedFromRoleSlug', $3::text
+          )
+      WHERE tenant_id = $1
+        AND slug = $3
+        AND NOT EXISTS (
+          SELECT 1
+          FROM roles existing_roles
+          WHERE existing_roles.tenant_id = $1
+            AND existing_roles.slug = 'super-admin'
+        )
+    `,
+    [tenantId, DEFAULT_ADMIN_TEMPLATE_KEY, LEGACY_BOOTSTRAP_ADMIN_ROLE_SLUG]
+  );
+}
+
+async function syncTenantRoleFromTemplate(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    template: RoleTemplateDefinition;
+  }
+) {
+  const { tenantId, actorUserId, template } = input;
+  const roleResult = await client.query<{ id: string }>(
+    `
+      INSERT INTO roles (
+        tenant_id,
+        slug,
+        name,
+        description,
+        is_system_role,
+        owner_id,
+        created_by,
+        updated_by,
+        metadata
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $6,
+        $6,
+        $7::jsonb
+      )
+      ON CONFLICT (tenant_id, slug)
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        deleted_at = NULL,
+        updated_at = NOW(),
+        updated_by = $6,
+        is_system_role = roles.is_system_role OR EXCLUDED.is_system_role,
+        metadata = roles.metadata || EXCLUDED.metadata
+      RETURNING id
+    `,
+    [
+      tenantId,
+      template.slug,
+      template.name,
+      template.description,
+      template.key === DEFAULT_ADMIN_TEMPLATE_KEY || template.key === "crm-admin",
+      actorUserId,
+      JSON.stringify({
+        ...template.metadata,
+        seeded: true,
+        templateKey: template.key,
+        templateName: template.name
+      })
+    ]
+  );
+
+  const roleId = roleResult.rows[0]?.id;
+
+  if (!roleId) {
+    throw new Error(`Tenant role seed failed for "${template.slug}".`);
+  }
+
+  await client.query(
+    `
+      INSERT INTO role_permissions (
+        tenant_id,
+        role_id,
+        permission_id,
+        created_by,
+        updated_by,
+        metadata
+      )
+      SELECT
+        $1,
+        $2,
+        permissions.id,
+        $3,
+        $3,
+        jsonb_build_object('seeded', true, 'templateKey', $4::text)
+      FROM permissions
+      WHERE permissions.code = ANY($5::text[])
+      ON CONFLICT (tenant_id, role_id, permission_id)
+      DO UPDATE SET
+        deleted_at = NULL,
+        updated_at = NOW(),
+        updated_by = EXCLUDED.updated_by,
+        metadata = role_permissions.metadata || EXCLUDED.metadata
+    `,
+    [tenantId, roleId, actorUserId, template.key, template.permissionCodes]
+  );
+
+  return roleId;
+}
+
+async function ensureSeedRunsRecord(client: PoolClient, checksum: string) {
+  await client.query(
+    `
+      INSERT INTO seed_runs (name, checksum, executed_at)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (name)
+      DO UPDATE SET
+        checksum = EXCLUDED.checksum,
+        executed_at = NOW()
+    `,
+    [CORE_SEED_NAME, checksum]
+  );
 }
 
 export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise<SeedResult> {
@@ -173,62 +382,16 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
     }
 
     for (const permission of DEFAULT_PERMISSION_CATALOG) {
-      const updateResult = await client.query(
-        `
-          UPDATE permissions
-          SET
-            resource = $2,
-            action = $3,
-            description = $4,
-            category = $5,
-            deleted_at = NULL,
-            updated_at = NOW(),
-            metadata = permissions.metadata || jsonb_build_object('seeded', true)
-          WHERE code = $1
-        `,
-        [permission.code, permission.resource, permission.action, permission.description, permission.category]
-      );
-
-      if (updateResult.rowCount === 0) {
-        await client.query(
-          `
-            INSERT INTO permissions (code, resource, action, description, category, metadata)
-            VALUES ($1, $2, $3, $4, $5, jsonb_build_object('seeded', true))
-          `,
-          [permission.code, permission.resource, permission.action, permission.description, permission.category]
-        );
-      }
+      await upsertPermission(client, permission);
     }
 
-    const roleResult = await client.query<{ id: string }>(
-      `
-        INSERT INTO roles (tenant_id, slug, name, description, is_system_role, metadata)
-        VALUES (
-          $1,
-          'tenant-admin',
-          'Tenant Admin',
-          'Bootstrap administrator role for tenant setup and governance.',
-          true,
-          jsonb_build_object('seeded', true)
-        )
-        ON CONFLICT (tenant_id, slug)
-        DO UPDATE SET
-          name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          is_system_role = true,
-          deleted_at = NULL,
-          updated_at = NOW(),
-          metadata = roles.metadata || jsonb_build_object('seeded', true)
-        RETURNING id
-      `,
-      [tenantId]
-    );
+    await retireLegacySeededPermissions(client);
 
-    const roleId = roleResult.rows[0]?.id;
-
-    if (!roleId) {
-      throw new Error("Role seed failed to return a role id.");
+    for (const template of DEFAULT_ROLE_TEMPLATES) {
+      await upsertRoleTemplate(client, template);
     }
+
+    await migrateLegacyBootstrapRole(client, tenantId);
 
     const userResult = await client.query<{ id: string }>(
       `
@@ -301,27 +464,23 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       [tenantId, adminUserId]
     );
 
-    await client.query(
-      `
-        INSERT INTO role_permissions (tenant_id, role_id, permission_id, created_by, updated_by, metadata)
-        SELECT
-          $1,
-          $2,
-          permissions.id,
-          $3,
-          $3,
-          jsonb_build_object('seeded', true)
-        FROM permissions
-        WHERE permissions.code = ANY($4::text[])
-        ON CONFLICT (tenant_id, role_id, permission_id)
-        DO UPDATE SET
-          deleted_at = NULL,
-          updated_at = NOW(),
-          updated_by = EXCLUDED.updated_by,
-          metadata = role_permissions.metadata || jsonb_build_object('seeded', true)
-      `,
-      [tenantId, roleId, adminUserId, DEFAULT_PERMISSION_CATALOG.map((permission) => permission.code)]
-    );
+    const tenantRoleIds = new Map<string, string>();
+
+    for (const template of DEFAULT_ROLE_TEMPLATES) {
+      const roleId = await syncTenantRoleFromTemplate(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        template
+      });
+
+      tenantRoleIds.set(template.key, roleId);
+    }
+
+    const adminRoleId = tenantRoleIds.get(DEFAULT_ADMIN_TEMPLATE_KEY);
+
+    if (!adminRoleId) {
+      throw new Error("Super Admin role seed failed to return a role id.");
+    }
 
     await client.query(
       `
@@ -332,36 +491,53 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
           $3,
           $2,
           $2,
-          jsonb_build_object('seeded', true)
+          jsonb_build_object('seeded', true, 'templateKey', $4::text)
         )
         ON CONFLICT (tenant_id, user_id, role_id)
         DO UPDATE SET
           deleted_at = NULL,
           updated_at = NOW(),
           updated_by = EXCLUDED.updated_by,
-          metadata = user_roles.metadata || jsonb_build_object('seeded', true)
+          metadata = user_roles.metadata || EXCLUDED.metadata
       `,
-      [tenantId, adminUserId, roleId]
+      [tenantId, adminUserId, adminRoleId, DEFAULT_ADMIN_TEMPLATE_KEY]
     );
 
     await client.query(
       `
         UPDATE system_settings
         SET
-          setting_value = jsonb_build_object('slug', $2::text, 'name', $3::text, 'adminEmail', $4::text),
+          setting_value = jsonb_build_object(
+            'slug', $2::text,
+            'name', $3::text,
+            'adminEmail', $4::text,
+            'rbacTemplateCount', $5::int
+          ),
           description = 'Bootstrap metadata for the default development tenant.',
           deleted_at = NULL,
           updated_at = NOW(),
-          updated_by = $5,
-          metadata = system_settings.metadata || jsonb_build_object('seeded', true)
+          updated_by = $6,
+          metadata = system_settings.metadata || jsonb_build_object('seeded', true, 'phase', 'phase-4-rbac')
         WHERE tenant_id = $1 AND setting_key = 'tenant.bootstrap'
       `,
-      [tenantId, options.defaultTenantSlug, options.defaultTenantName, normalizedEmail, adminUserId]
+      [
+        tenantId,
+        options.defaultTenantSlug,
+        options.defaultTenantName,
+        normalizedEmail,
+        DEFAULT_ROLE_TEMPLATES.length,
+        adminUserId
+      ]
     );
 
-    if ((await client.query("SELECT 1 FROM system_settings WHERE tenant_id = $1 AND setting_key = 'tenant.bootstrap'", [
-      tenantId
-    ])).rowCount === 0) {
+    if (
+      (
+        await client.query(
+          "SELECT 1 FROM system_settings WHERE tenant_id = $1 AND setting_key = 'tenant.bootstrap'",
+          [tenantId]
+        )
+      ).rowCount === 0
+    ) {
       await client.query(
         `
           INSERT INTO system_settings (
@@ -377,30 +553,31 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
           VALUES (
             $1,
             'tenant.bootstrap',
-            jsonb_build_object('slug', $2::text, 'name', $3::text, 'adminEmail', $4::text),
+            jsonb_build_object(
+              'slug', $2::text,
+              'name', $3::text,
+              'adminEmail', $4::text,
+              'rbacTemplateCount', $5::int
+            ),
             'Bootstrap metadata for the default development tenant.',
-            $5,
-            $5,
-            $5,
-            jsonb_build_object('seeded', true)
+            $6,
+            $6,
+            $6,
+            jsonb_build_object('seeded', true, 'phase', 'phase-4-rbac')
           )
         `,
-        [tenantId, options.defaultTenantSlug, options.defaultTenantName, normalizedEmail, adminUserId]
+        [
+          tenantId,
+          options.defaultTenantSlug,
+          options.defaultTenantName,
+          normalizedEmail,
+          DEFAULT_ROLE_TEMPLATES.length,
+          adminUserId
+        ]
       );
     }
 
-    await client.query(
-      `
-        INSERT INTO seed_runs (name, checksum, executed_at)
-        VALUES ($1, $2, NOW())
-        ON CONFLICT (name)
-        DO UPDATE SET
-          checksum = EXCLUDED.checksum,
-          executed_at = NOW()
-      `,
-      [CORE_SEED_NAME, checksum]
-    );
-
+    await ensureSeedRunsRecord(client, checksum);
     await client.query("COMMIT");
 
     return {

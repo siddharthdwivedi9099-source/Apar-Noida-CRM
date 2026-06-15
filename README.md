@@ -6,6 +6,7 @@ This repository now contains the implemented foundation for:
 - Phase 1: web and API initialization
 - Phase 2: PostgreSQL integration, migrations, seeds, and base schema
 - Phase 3: authentication, session handling, and protected frontend routing
+- Phase 4: RBAC, role templates, permission middleware, and admin role management
 
 The current codebase is intentionally platform-first. CRM business entities and workflows are still future work.
 
@@ -19,6 +20,8 @@ The current codebase is intentionally platform-first. CRM business entities and 
 - auth state provider
 - logout from the application shell
 - redirected access to protected routes
+- permission-aware navigation and route access states
+- admin role-management workspace
 
 ### Backend
 
@@ -28,9 +31,11 @@ The current codebase is intentionally platform-first. CRM business entities and 
 - idempotent seed system
 - base multi-tenant schema
 - login, logout, refresh, and current-user endpoints
+- RBAC catalog, role-management, and user-role assignment endpoints
 - JWT access and refresh token handling
 - database-backed session tracking
 - login rate limiting, account lockout, and auth audit logs
+- permission middleware for RBAC-protected endpoints
 
 ### Shared Packages
 
@@ -145,9 +150,9 @@ For local browser auth, `API_CORS_ORIGIN` now supports a comma-separated allowli
 
 Not implemented yet:
 - public registration
-- user-management UI
+- user-creation lifecycle UI
 - business-module CRUD
-- RBAC enforcement on business endpoints
+- record-level authorization
 - Redis-backed caching and workers
 - AI execution runtime
 

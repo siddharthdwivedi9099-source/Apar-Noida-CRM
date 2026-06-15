@@ -2,65 +2,91 @@
 
 ## Purpose
 
-This guide explains the current access-control foundation that now exists in code.
+This guide explains the implemented authentication and authorization controls that currently exist in code.
 
 ## Current Access-Control Layers
 
 ### Authentication
 
 - users sign in with `tenantSlug`, email, and password
-- the backend issues an access token and refresh token
-- protected API routes require a valid access token and an active backing session
+- the backend issues a JWT access token plus an HTTP-only refresh token
+- protected API routes require a valid access token and an active database-backed session
+- refresh rotation, logout, failed-login tracking, and login rate limiting are enabled
 
 ### Authorization Data Model
 
-The schema uses:
+The current RBAC schema uses:
 - `roles`
 - `permissions`
 - `role_permissions`
 - `user_roles`
+- `role_templates`
+- `role_template_permissions`
 
 Current model:
 - permissions are global catalog entries
 - roles are tenant-scoped
 - users receive roles within a tenant
-- roles map to permissions within a tenant
+- role templates provide seeded starting bundles
+- role permissions and user-role assignments are soft-delete-aware
 
-### Frontend Protection
+### Request Authorization Context
+
+When an authenticated request reaches the API:
+- the access token is validated
+- the session is validated
+- the current user roles are resolved
+- the current permission codes are resolved
+- permission middleware can then allow or block the request
+
+### API Enforcement
+
+The API now enforces permissions on the RBAC management surface:
+- `GET /rbac/catalog` requires administrative view access
+- role creation requires `admin.create` or `admin.configure`
+- role updates require `admin.edit` or `admin.configure`
+- role deletion requires `admin.delete` or `admin.configure`
+- role-permission assignment requires `admin.assign` or `admin.configure`
+- user-role assignment requires `admin.assign` or `admin.configure`
+
+### Frontend Enforcement
 
 The web app now:
-- loads current auth state during startup
+- restores the current session during startup
 - redirects unauthenticated users to `/login`
-- keeps the shell routes behind a protected route gate
-- exposes logout from the top bar
-- restores sessions through an HTTP-only refresh token cookie over credentialed CORS
+- hides sidebar modules when the current user lacks access to that module
+- blocks protected module routes with an access-denied state when visited manually
+- exposes the active permission set through the auth provider
 
-## Seeded Access
+## Seeded Access Baseline
 
-The core seed creates:
-- the `tenant-admin` role
-- the global permission catalog
-- a default admin user
-- the admin role assignment for that user
+The core seed now creates or updates:
+- the default tenant
+- the full Phase 4 permission catalog
+- global role templates
+- the default tenant role set derived from those templates
+- the default admin user
+- a `super-admin` assignment for that user
 
-## Current Permission Philosophy
+If a legacy bootstrap `tenant-admin` role exists from earlier phases, the seed migrates it into `super-admin` when possible.
 
-The present implementation establishes the structure but does not yet enforce fine-grained permissions on module APIs.
+## Permission Philosophy
 
-What exists now:
+Implemented today:
+- configurable roles
+- role templates
 - permission catalog
-- role assignment model
-- middleware-authenticated user identity
-- current-user endpoint for downstream UI and API decisions
+- permission middleware
+- permission-aware navigation
+- permission-aware route rendering
+- tenant-scoped user-role assignment
 
-What still needs later enforcement work:
-- role checks on each business endpoint
-- route or menu trimming by permission
-- record-level ownership rules
+Still future work:
+- record-level ownership checks
 - field-level redaction
+- domain-specific approval policies
+- richer user lifecycle administration beyond seeded users
 
-## Relationship to RBAC Matrix
+## Relationship to the RBAC Matrix
 
-The intended capability direction still lives in [RBAC_MATRIX.md](./RBAC_MATRIX.md).
-
-The current schema is the persistence foundation that future RBAC enforcement will use.
+[RBAC_MATRIX.md](./RBAC_MATRIX.md) now reflects the actual seeded modules, action categories, and role templates rather than a planning-only access sketch.

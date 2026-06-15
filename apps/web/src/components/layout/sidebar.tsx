@@ -2,10 +2,11 @@ import { platformMetadata } from "@crm/config";
 import { shellLayout } from "@crm/ui";
 import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { appNavItems } from "@/components/navigation/nav-items";
+import { getVisibleNavItems } from "@/components/navigation/nav-items";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -20,6 +21,9 @@ export function Sidebar({
   onToggleCollapsed,
   onCloseMobile
 }: SidebarProps) {
+  const { user } = useAuth();
+  const navItems = getVisibleNavItems(user?.permissionCodes ?? []);
+
   return (
     <>
       <div
@@ -41,7 +45,7 @@ export function Sidebar({
         <div className="flex w-full flex-col gap-6 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className={cn("space-y-2", collapsed && "md:hidden")}>
-              <Badge variant="success">Phase 3</Badge>
+              <Badge variant="success">Phase 4</Badge>
               <div>
                 <p className="font-display text-lg font-semibold">{platformMetadata.name}</p>
                 <p className="text-sm text-muted-foreground">{platformMetadata.currentPhase}</p>
@@ -63,7 +67,7 @@ export function Sidebar({
           </div>
 
           <nav className="flex flex-1 flex-col gap-2">
-            {appNavItems.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
 
               return (
@@ -94,8 +98,10 @@ export function Sidebar({
           </nav>
 
           <div className={cn("rounded-2xl bg-background/70 p-4", collapsed && "md:hidden")}>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Foundation</p>
-            <p className="mt-2 text-sm font-medium">Responsive shell, shared packages, and API wiring are live.</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">RBAC</p>
+            <p className="mt-2 text-sm font-medium">
+              Navigation now follows the active user&apos;s tenant roles and permission set.
+            </p>
           </div>
         </div>
       </aside>
