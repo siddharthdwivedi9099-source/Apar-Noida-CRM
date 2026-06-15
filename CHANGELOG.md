@@ -38,35 +38,39 @@ Recommended headings for future releases:
 
 ## [Unreleased]
 
-This section represents the **current implemented repository state after `v0.1.0`**. It has been completed in the repository, but it has not yet been cut as a separately documented release version.
+This section represents the **current implemented repository state after `v0.1.0`**. It now includes the Phase 1 runtime foundation plus Phase 2 database work and Phase 3 authentication work.
 
 ### Added
 
-- npm workspace setup for `apps/*` and `packages/*`
-- runnable React + TypeScript + Vite frontend in `apps/web`
-- Tailwind CSS and ShadCN-ready frontend structure
-- responsive web shell with sidebar, topbar, theme toggle, and placeholder module pages
-- runnable Express + TypeScript API in `apps/api`
-- versioned API routing under `/api/v1`
-- health check endpoint at `/api/v1/health`
-- API environment parsing and validation
-- centralized API error handling and request logging middleware
-- database and Redis connection placeholder services
-- initialized shared packages for config, types, UI, auth, AI, and database concerns
-- DevOps guide for local development and workspace operations
+- PostgreSQL-backed `@crm/database` package with a real connection pool and live database health checks
+- SQL migration runner with create, status, migrate, and rollback commands
+- idempotent core seed system for the default tenant, admin role, permission catalog, and admin user
+- base tenant-aware schema including tenants, users, teams, departments, roles, permissions, role assignments, audit logs, system settings, and auth sessions
+- soft-delete-ready metadata and timestamp conventions across core mutable tables
+- authentication API endpoints for login, logout, refresh, and current user
+- JWT access and refresh token flow with database-backed session tracking
+- failed login handling, account lockout, login rate limiting, and auth audit logging
+- frontend auth state provider, protected routes, working login page, current-user loading, and logout control
+- technical, architecture, security, admin, audit, access-control, and API documentation for the new database and auth foundation
 
 ### Changed
 
-- `README.md` now reflects the actual Phase 1 workspace and run commands
-- technical and architecture documentation now describe the implemented stack rather than only the Phase 0 intent
-- testing strategy now includes concrete Phase 1 verification steps
+- `README.md` now documents database setup, migration commands, seed flow, and seeded admin login
+- `.env.example` now includes database pool, admin bootstrap, JWT, cookie, and login rate-limit configuration
+- platform metadata now reflects the database and authentication implementation phase
+- the API health surface now reports real PostgreSQL connection status instead of a placeholder response
+
+### Security
+
+- auth refresh tokens are now rotated and stored as hashes in the database
+- password hashes are generated with PostgreSQL `pgcrypto`
+- authentication failures now write structured audit events with request correlation metadata
 
 ### Notes
 
-- Phase 0 is complete
-- Phase 1 initialization is complete in the repository
-- Authentication, RBAC, tenant-context propagation, business modules, persistence, and AI execution remain intentionally out of scope so far
-- The next implementation phase should begin with Authentication and RBAC rather than with new CRM module delivery
+- public self-signup is still intentionally out of scope
+- business-module CRUD and permission enforcement beyond authenticated access are still future work
+- local verification of migrations and seeds requires a reachable PostgreSQL instance at `DATABASE_URL`
 
 ## [v0.1.0] - 2026-06-14
 

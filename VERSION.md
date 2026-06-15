@@ -6,15 +6,17 @@ Latest documented release version: **v0.1.0**
 
 ## Current Repository State
 
-The repository currently contains **completed Phase 1 initialization work** on `main`, including:
+The repository currently contains **completed Phase 1, Phase 2, and Phase 3 foundation work** on `main`, including:
 - a runnable frontend in `apps/web`
 - a runnable backend API in `apps/api`
-- initialized shared packages
-- updated technical, architecture, testing, and DevOps documentation
+- PostgreSQL integration with migrations and seeds
+- tenant-aware core schema
+- implemented authentication and session handling
+- updated technical, architecture, security, and admin documentation
 
 This means:
 - `v0.1.0` is still the latest formally documented release baseline
-- Phase 1 implementation work is present in the repository and recorded in `CHANGELOG.md` under `Unreleased`
+- Phase 1 through Phase 3 implementation work are present in the repository and recorded in `CHANGELOG.md` under `Unreleased`
 - the next formal release should be cut separately rather than silently assumed
 
 ## Why This Matters
@@ -25,7 +27,7 @@ The version file needs to distinguish between:
 
 At the moment, those are not the same thing:
 - the latest formal release baseline is `v0.1.0`
-- the repository has progressed beyond that baseline with completed Phase 1 initialization work
+- the repository has progressed beyond that baseline with completed initialization, database foundation, and authentication work
 
 ## Meaning of `v0.1.0`
 
@@ -37,13 +39,19 @@ In practical terms, `v0.1.0` refers to the original foundation-and-documentation
 
 ## Next Expected Release
 
-When the current Phase 1 work is cut as a formal release, it should be versioned as the next minor release rather than treated as a patch to `v0.1.0`.
+When the current implemented work is cut as a formal release, it should be versioned as the next minor release rather than treated as a patch to `v0.1.0`.
 
 That is because Phase 1 added:
 - runnable application code
 - a versioned API surface
 - local runtime workflows
 - shared package initialization
+
+And Phases 2 and 3 added:
+- database contracts and migration tooling
+- base multi-tenant persistence
+- authentication and session controls
+- new security-sensitive runtime behavior
 
 ## Scope of the Latest Formal Release
 
@@ -102,7 +110,7 @@ The platform version is only one dimension. The following assets must also be ve
 - Every formal release should have matching entries in `CHANGELOG.md` and `RELEASE_NOTES.md`
 - Repository progress may appear in `Unreleased`, but should not be mistaken for a cut release
 - Breaking changes should be called out explicitly, even before `v1.0.0`
-- The next implementation phase is **Authentication and RBAC**, which is not yet implemented
+- The next implementation phase should focus on tenant-aware business modules and deeper RBAC enforcement rather than foundational auth bootstrap
 
 ## Future Implementation Guidance
 

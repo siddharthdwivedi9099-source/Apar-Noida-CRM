@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@crm/types": "file:../types"
+    "@crm/types": "file:../types",
+    "pg": "^8.21.0"
   },
   "exports": {
     ".": {
@@ -19,6 +20,7 @@
     }
   },
   "devDependencies": {
+    "@types/pg": "^8.20.0",
     "typescript": "^5.8.3"
   }
 }

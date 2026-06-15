@@ -10,7 +10,7 @@ export class HealthService {
     private readonly redisService: RedisService
   ) {}
 
-  getHealth(): HealthResponse {
+  async getHealth(): Promise<HealthResponse> {
     return {
       status: "ok",
       service: `${env.APP_NAME}-api`,
@@ -19,10 +19,9 @@ export class HealthService {
       uptimeSeconds: Math.round(process.uptime()),
       environment: env.NODE_ENV,
       dependencies: {
-        database: this.databaseService.getHealth(),
+        database: await this.databaseService.getHealth(),
         redis: this.redisService.getHealth()
       }
     };
   }
 }
-

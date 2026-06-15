@@ -21,10 +21,11 @@ export function errorHandler(
   }
 
   if (error instanceof AppError) {
-    logger.error({ details: error.details }, error.message);
+    const logMethod = error.statusCode >= 500 ? logger.error.bind(logger) : logger.warn.bind(logger);
+    logMethod({ code: error.code, details: error.details }, error.message);
     return response.status(error.statusCode).json({
       error: {
-        code: error.name,
+        code: error.code,
         message: error.message,
         details: error.details ?? null
       }

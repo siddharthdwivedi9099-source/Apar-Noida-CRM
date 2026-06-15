@@ -1,125 +1,94 @@
 # Multi-Tenancy Design
 
-## Purpose
+## Current Implementation
 
-This document defines how tenant isolation should shape the platform across data, permissions, configuration, AI behavior, and operational controls.
+The platform now starts with logical multi-tenancy on shared PostgreSQL infrastructure.
 
-## Scope
-
-This document covers:
-- tenant isolation objectives
-- supported tenancy concepts
-- data and configuration boundaries
-- AI and search isolation expectations
-- implementation guidance for future phases
-
-This document does not cover:
-- final database schema strategy
-- environment-by-environment infrastructure topology
-- commercial packaging decisions
-
-## Design Objectives
-
-- protect tenant data and operational separation
-- allow multiple organizations or business units to operate safely on shared infrastructure
-- support tenant-specific configuration and AI policies
-- preserve scalability without sacrificing isolation guarantees
-
-## Tenant Model
-
-Each tenant represents a distinct operating boundary with:
-- isolated users, teams, and role assignments
-- tenant-scoped commercial and service records
-- tenant-specific configuration and feature enablement
-- tenant-aware AI prompts, agents, and retrieval behavior
-- tenant-relevant audit visibility
+The implemented model is:
+- one `tenants` table as the primary isolation boundary
+- tenant-owned records carry `tenant_id`
+- tenant-specific role assignment tables also carry `tenant_id`
+- authentication requires tenant context through `tenantSlug + email + password`
 
 ## Isolation Strategy
 
-### Recommended Initial Approach
+### Database Layer
 
-Use **logical isolation on shared infrastructure** with strict tenant scoping across:
-- data access
-- cache keys
-- background jobs
-- search indexes or filters
-- AI memory and conversation context
+Tenant scope is applied directly in the schema for:
+- `users`
+- `teams`
+- `departments`
+- `roles`
+- `role_permissions`
+- `user_roles`
+- `auth_sessions`
+- tenant-scoped `system_settings`
+- tenant-scoped `audit_logs`
 
-### Potential Future Evolution
+Composite foreign keys are used where helpful to reduce accidental cross-tenant joins between related records.
 
-Support future escalation toward:
-- dedicated schemas for higher-assurance tenants
-- isolated storage domains for regulated tenants
-- dedicated infrastructure footprints for premium or compliance-driven scenarios
+### Identity Layer
 
-## Isolation Domains
+The current identity model is tenant-first:
+- a user belongs to one tenant in the current foundation
+- login resolves tenant context from `tenantSlug`
+- JWT access tokens carry `tenantId`
+- refresh sessions are stored with both `tenant_id` and `user_id`
 
-### Data Isolation
+### Authorization Layer
 
-- every tenant-owned object should carry a tenant boundary
-- cross-tenant reads should be disallowed unless explicitly part of controlled platform operations
-- exports and backups should preserve tenant traceability
+The current authorization foundation is:
+- global permission catalog
+- tenant roles
+- tenant user-role assignments
+- tenant role-permission assignments
 
-### Identity and Access Isolation
+This keeps the permission vocabulary stable while allowing tenant-local role composition.
 
-- user membership should be tenant-aware
-- role assignments should be scoped to the relevant tenant context
-- privileged cross-tenant roles must be rare and auditable
+## Shared vs Tenant-Scoped Data
 
-### Configuration Isolation
+### Shared Today
 
-- feature flags
-- workflow settings
-- AI policies
-- field or view behavior
-- reporting preferences
+- `permissions`
+- `schema_migrations`
+- `seed_runs`
 
-All of the above should be safely overrideable at tenant scope under governance.
+### Tenant-Scoped Today
 
-### Search and Retrieval Isolation
+- `users`
+- `teams`
+- `departments`
+- `roles`
+- `role_permissions`
+- `user_roles`
+- `auth_sessions`
 
-- search results must filter by tenant and role access
-- retrieval indexes must prevent cross-tenant context leakage
-- global content must be explicitly classified as shared
+### Hybrid Today
 
-### Workflow Isolation
+- `audit_logs`
+- `system_settings`
 
-- background jobs must retain tenant context
-- workflow triggers must resolve the correct tenant before executing actions
-- automation rules must be tenant-configurable without affecting other tenants
+These can be global or tenant-specific depending on the use case.
 
-## Tenant Lifecycle Considerations
+## Runtime Boundary Rules
 
-Future phases should support:
-- tenant provisioning
-- tenant configuration initialization
-- role template seeding
-- usage metering
-- suspension or deactivation
-- data export and retention workflows
+Current runtime rules:
+- protected API routes require a valid access token
+- access token verification confirms the backing session is still active
+- the frontend redirects unauthenticated users to `/login`
+- current-user loading is tenant-aware through `/api/v1/auth/me`
 
-## Risks to Avoid
+## Current Limits
 
-- deriving tenant context implicitly from request assumptions
-- shared caches with incomplete tenant-safe keys
-- analytics jobs that aggregate tenant data without authorization boundaries
-- AI retrieval that applies tenant filters inconsistently
-- admin tooling that bypasses tenant scope without explicit guardrails
+- cross-tenant memberships are not implemented yet
+- tenant resolution from subdomain or custom domain is not implemented yet
+- row-level security policies are not enabled yet
+- platform-operator cross-tenant tooling is not implemented yet
 
-## Implementation Guidance
+## Next Multi-Tenancy Steps
 
-When implementation begins:
-- make tenant context a first-class runtime input
-- design repository and service interfaces to require tenant scope
-- define tenant-aware event and job payloads
-- enforce tenant boundaries in AI request, retrieval, and memory handling
-- document any intentional shared-global data types explicitly
-
-## Phase 1 Follow-Up
-
-The next phase should formalize:
-- tenant context propagation rules
-- tenant provisioning workflow
-- tenant configuration contracts
-- tenant deprovisioning and data retention policy
-- tenant-aware logging and observability conventions
+Future phases should add:
+- explicit tenant context propagation across jobs and automation
+- tenant-aware business domain tables
+- cross-tenant operator controls with stronger audit coverage
+- optional higher-isolation strategies for regulated tenants

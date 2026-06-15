@@ -14,7 +14,13 @@
     "dev:web": "npm run build:web-deps && npm run dev --workspace @crm/web",
     "dev:api": "npm run build:api-deps && npm run dev --workspace @crm/api",
     "build": "npm run build:packages && npm run build --workspace @crm/web && npm run build --workspace @crm/api",
-    "typecheck": "npm run typecheck --workspace @crm/types && npm run typecheck --workspace @crm/config && npm run typecheck --workspace @crm/ui && npm run typecheck --workspace @crm/auth && npm run typecheck --workspace @crm/ai && npm run typecheck --workspace @crm/database && npm run typecheck --workspace @crm/web && npm run typecheck --workspace @crm/api"
+    "typecheck": "npm run typecheck --workspace @crm/types && npm run typecheck --workspace @crm/config && npm run typecheck --workspace @crm/ui && npm run typecheck --workspace @crm/auth && npm run typecheck --workspace @crm/ai && npm run typecheck --workspace @crm/database && npm run typecheck --workspace @crm/web && npm run typecheck --workspace @crm/api",
+    "db:build": "npm run build --workspace @crm/database",
+    "db:create:migration": "npm run db:build && node scripts/database.mjs create-migration",
+    "db:migrate": "npm run db:build && node scripts/database.mjs migrate",
+    "db:rollback": "npm run db:build && node scripts/database.mjs rollback",
+    "db:seed": "npm run db:build && node scripts/database.mjs seed",
+    "db:status": "npm run db:build && node scripts/database.mjs status"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

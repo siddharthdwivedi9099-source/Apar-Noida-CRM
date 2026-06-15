@@ -1,5 +1,5 @@
 export const authFoundation = {
-  phase: "planned",
+  phase: "implemented",
   publicRoutes: ["/login"],
   protectedRoutes: [
     "/dashboard",
@@ -14,3 +14,7 @@ export const authFoundation = {
   ]
 } as const;
 
+export const authRouting = {
+  login: "/login",
+  defaultAuthenticatedRoute: "/dashboard"
+} as const;

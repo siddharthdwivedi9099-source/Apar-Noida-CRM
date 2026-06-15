@@ -1,83 +1,45 @@
 # AI-Native CRM Platform
 
-## Purpose
+## Current State
 
-This repository contains the Phase 1 foundation of a production-ready, AI-native CRM platform designed to support the full customer lifecycle across marketing, sales, partner ecosystems, support, onboarding, and customer success.
+This repository now contains the implemented foundation for:
+- Phase 1: web and API initialization
+- Phase 2: PostgreSQL integration, migrations, seeds, and base schema
+- Phase 3: authentication, session handling, and protected frontend routing
 
-The product target remains:
-- a CRM system of record
-- an AI system of intelligence
-- a workflow and automation system of action
-
-## Current Phase
-
-The repository is currently in **Phase 1: Backend and Frontend Project Initialization**.
-
-Phase 1 builds on the Phase 0 documentation baseline and introduces:
-- a runnable frontend application in `apps/web`
-- a runnable backend API in `apps/api`
-- shared package initialization in `packages/*`
-- local environment documentation and workspace scripts
-
-## Release Status
-
-- Latest formal release baseline: `v0.1.0`
-- Current repository state: Phase 1 initialization is implemented and recorded in `CHANGELOG.md` under `Unreleased`
-- Next implementation phase: **Authentication and RBAC**
+The current codebase is intentionally platform-first. CRM business entities and workflows are still future work.
 
 ## What Exists Now
 
 ### Frontend
 
 - React + TypeScript + Vite
-- Tailwind CSS
-- ShadCN-ready structure
-- React Router-based navigation
-- responsive application shell with sidebar and topbar
-- theme foundation with light and dark mode support
-- placeholder pages for:
-  - Login
-  - Dashboard
-  - Admin
-  - Leads
-  - Accounts
-  - Opportunities
-  - Campaigns
-  - Support
-  - Customer Success
-  - AI Assistant
+- protected routing with current-user loading
+- working login page
+- auth state provider
+- logout from the application shell
+- redirected access to protected routes
 
 ### Backend
 
-- Node.js + Express + TypeScript
-- `/api/v1` versioning structure
-- health check endpoint
-- centralized error handling
-- request logging middleware
-- environment parsing and validation
-- database and Redis connection placeholders
-- modular folder structure ready for future domain modules
+- Express + TypeScript API
+- PostgreSQL-backed database health
+- migration CLI and SQL migration chain
+- idempotent seed system
+- base multi-tenant schema
+- login, logout, refresh, and current-user endpoints
+- JWT access and refresh token handling
+- database-backed session tracking
+- login rate limiting, account lockout, and auth audit logs
 
 ### Shared Packages
 
-- `packages/types`
-- `packages/config`
-- `packages/ui`
-- `packages/auth`
-- `packages/ai`
-- `packages/database`
-
-## What Still Does Not Exist
-
-Phase 1 intentionally does **not** implement:
-- authentication flows
-- authorization logic
-- CRM business workflows
-- database persistence logic
-- Redis caching logic
-- AI model execution
-- RAG pipelines
-- production DevOps automation
+- `@crm/types`
+- `@crm/config`
+- `@crm/ui`
+- `@crm/auth`
+- `@crm/ai`
+- `@crm/database`
 
 ## Repository Structure
 
@@ -87,206 +49,112 @@ apps/
   api/                Express + TypeScript API
 
 packages/
-  ui/                 Shared UI constants and design primitives
-  config/             Shared platform and environment metadata
-  types/              Shared platform and API types
-  auth/               Authentication foundation placeholders
-  ai/                 AI capability foundation placeholders
-  database/           Database and Redis placeholder contracts
+  types/              Shared contracts
+  config/             Shared platform constants
+  ui/                 Shared UI primitives and tokens
+  auth/               Shared auth route metadata
+  ai/                 AI foundation package
+  database/           PostgreSQL client, migrations, and seeds
 
 docs/
-  business/           Product and business definitions
-  technical/          Technical design and data model
-  architecture/       Architecture and multi-tenancy design
-  security/           Security and RBAC direction
-  ai/                 AI platform architecture
-  customer-success/   Post-sales functional design
-  testing/            Testing strategy
-  deployment/         Deployment, DevOps, and production guidance
+  technical/          Data model, API, migrations
+  architecture/       System and multi-tenancy design
+  security/           Security, audit logging, and access control
+  user-guides/        Admin workflow guidance
 ```
 
-## Technology Choices
+## Quick Start
 
-### Frontend
-
-- React 18
-- TypeScript
-- Vite
-- React Router
-- Tailwind CSS
-- ShadCN-ready component structure
-
-### Backend
-
-- Node.js
-- Express
-- TypeScript
-- Zod for environment and validation structure
-- Pino for API logging
-
-### Workspace
-
-- npm workspaces
-- shared root scripts for local development, build, and typecheck
-
-## Getting Started
-
-### Install dependencies
+### 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-### Run the web app
+### 2. Start PostgreSQL
 
-```bash
-npm run dev:web
+Use a local PostgreSQL instance or the repository `docker-compose.yml` service.
+
+Default connection string:
+
+```text
+postgresql://crm:crm@localhost:5433/crm
 ```
 
-The frontend runs at:
-- [http://127.0.0.1:5173](http://127.0.0.1:5173)
-
-### Run the API
+### 3. Run migrations and seeds
 
 ```bash
-npm run dev:api
+npm run db:migrate
+npm run db:seed
 ```
 
-The API runs at:
-- [http://127.0.0.1:4000](http://127.0.0.1:4000)
-
-### Run both together
+### 4. Start the applications
 
 ```bash
 npm run dev
 ```
 
-## Verification Commands
+Frontend:
+- `http://127.0.0.1:5173`
 
-### Frontend
+API:
+- `http://127.0.0.1:4000/api/v1`
 
-Open the frontend and verify the sidebar and placeholder routes:
-- `/login`
-- `/dashboard`
-- `/admin`
-- `/leads`
-- `/accounts`
-- `/opportunities`
-- `/campaigns`
-- `/support`
-- `/customer-success`
-- `/ai-assistant`
+## Seeded Admin Login
 
-### API health check
+Default local bootstrap values:
+- tenant slug: `sample-tenant`
+- email: `admin@sample-tenant.local`
+- password: `ChangeMe123!`
 
-```bash
-curl http://127.0.0.1:4000/api/v1/health
-```
+Change these through environment variables before using anything beyond local development.
 
-Expected behavior:
-- HTTP `200`
-- JSON response with service status, version, timestamp, environment, and database and Redis placeholder health
-
-### Typecheck
+## Useful Commands
 
 ```bash
+npm run db:create:migration -- add_contacts_table
+npm run db:status
+npm run db:migrate
+npm run db:rollback
+npm run db:seed
 npm run typecheck
-```
-
-### Build
-
-```bash
 npm run build
 ```
 
-## Environment Variables
+## Environment Highlights
 
-The canonical baseline lives in [`.env.example`](/Users/apar/Documents/CRM for Apar and eLite/.env.example).
+The canonical template lives in [`.env.example`](/Users/apar/Documents/CRM for Apar and eLite/.env.example).
 
-### Frontend
+Important variables:
+- `DATABASE_URL`
+- `DATABASE_ENABLED`
+- `JWT_ACCESS_TOKEN_SECRET`
+- `JWT_REFRESH_TOKEN_SECRET`
+- `DEFAULT_TENANT_SLUG`
+- `DEFAULT_TENANT_NAME`
+- `DEFAULT_ADMIN_EMAIL`
+- `DEFAULT_ADMIN_PASSWORD`
+- `SESSION_COOKIE_NAME`
+- `VITE_API_BASE_URL`
+- `VITE_DEFAULT_TENANT_SLUG`
 
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `VITE_APP_NAME` | Web application display name | `AI-Native CRM` |
-| `VITE_API_BASE_URL` | API base URL used by future frontend integrations | `http://127.0.0.1:4000/api/v1` |
-| `VITE_DEFAULT_THEME` | Default theme mode | `light` |
-| `WEB_PORT` | Documented local frontend port | `5173` |
+## Current Limitations
 
-### API
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `API_HOST` | API bind host | `127.0.0.1` |
-| `API_PORT` | API port | `4000` |
-| `API_CORS_ORIGIN` | Allowed local frontend origin | `http://127.0.0.1:5173` |
-| `API_LOG_LEVEL` | API logging verbosity | `info` |
-| `NODE_ENV` | Runtime environment | `development` |
-
-### Placeholder Infrastructure
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `DATABASE_ENABLED` | Enables future database connection bootstrap | `false` |
-| `DATABASE_URL` | Future database connection string | `postgresql://crm:crm@localhost:5432/crm` |
-| `REDIS_ENABLED` | Enables future Redis bootstrap | `false` |
-| `REDIS_URL` | Future Redis connection string | `redis://localhost:6379` |
-
-## Frontend Foundations
-
-The frontend currently includes:
-- routed placeholder pages for the initial product areas
-- a responsive sidebar and topbar shell
-- theme switching
-- reusable `components/ui` primitives
-- `components.json` and `lib/utils.ts` for ShadCN compatibility
-
-The frontend does not yet include:
-- authentication guards
-- RBAC-aware route enforcement
-- live data fetching
-- tables, forms, or CRUD flows
-- business logic
-
-## API Foundations
-
-The API currently includes:
-- root bootstrap in `apps/api/src/server.ts`
-- app composition in `apps/api/src/app.ts`
-- versioned router mounted at `/api/v1`
-- health endpoint in `apps/api/src/modules/health`
-- middleware for logging, not found handling, and centralized errors
-- environment parsing in `apps/api/src/config/env.ts`
-
-The API does not yet include:
-- domain controllers
-- persistence repositories
-- queue workers
-- auth middleware
-- RBAC enforcement
-- tenant resolution
+Not implemented yet:
+- public registration
+- user-management UI
+- business-module CRUD
+- RBAC enforcement on business endpoints
+- Redis-backed caching and workers
+- AI execution runtime
 
 ## Documentation Map
 
-### Core technical docs
-
-- [docs/technical/TECHNICAL_DESIGN.md](docs/technical/TECHNICAL_DESIGN.md)
-- [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)
-- [docs/testing/TESTING_STRATEGY.md](docs/testing/TESTING_STRATEGY.md)
-- [docs/deployment/DEVOPS_GUIDE.md](docs/deployment/DEVOPS_GUIDE.md)
-
-### Platform and product docs
-
-- [docs/business/PRODUCT_VISION.md](docs/business/PRODUCT_VISION.md)
-- [docs/business/FUNCTIONAL_SPECIFICATION.md](docs/business/FUNCTIONAL_SPECIFICATION.md)
-- [docs/security/SECURITY_DESIGN.md](docs/security/SECURITY_DESIGN.md)
-- [docs/ai/AI_ARCHITECTURE.md](docs/ai/AI_ARCHITECTURE.md)
-
-## Next Recommended Phase
-
-The next recommended phase after this initialization is **Phase 2: Platform Core and Secure Access**, where we should implement:
-- authentication and authorization
-- RBAC enforcement
-- tenant context propagation
-- initial API contracts
-- persistence adapters
-- the first CRM kernel entities such as accounts, contacts, leads, and activities
+- data model: [docs/technical/DATA_MODEL.md](docs/technical/DATA_MODEL.md)
+- migrations and seeds: [docs/technical/DATABASE_MIGRATIONS.md](docs/technical/DATABASE_MIGRATIONS.md)
+- API surface: [docs/technical/API_DOCUMENTATION.md](docs/technical/API_DOCUMENTATION.md)
+- multi-tenancy: [docs/architecture/MULTI_TENANCY_DESIGN.md](docs/architecture/MULTI_TENANCY_DESIGN.md)
+- security design: [docs/security/SECURITY_DESIGN.md](docs/security/SECURITY_DESIGN.md)
+- access control: [docs/security/ACCESS_CONTROL_GUIDE.md](docs/security/ACCESS_CONTROL_GUIDE.md)
+- audit logging: [docs/security/AUDIT_LOGGING_GUIDE.md](docs/security/AUDIT_LOGGING_GUIDE.md)
+- admin workflow: [docs/user-guides/ADMIN_GUIDE.md](docs/user-guides/ADMIN_GUIDE.md)

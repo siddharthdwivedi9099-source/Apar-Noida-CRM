@@ -41,7 +41,7 @@ This guide does not cover:
 - Redis in `docker-compose.yml`
 - MinIO in `docker-compose.yml`
 
-These services are available for future phases, but the Phase 1 API only reports placeholder health and does not connect to them yet.
+PostgreSQL is now used by the application for migrations, seeds, authentication, and live health checks. Redis and MinIO remain provisioned for future phases.
 
 ## Workspace Commands
 

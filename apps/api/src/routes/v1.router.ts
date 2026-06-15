@@ -1,18 +1,31 @@
 import { Router } from "express";
 import { apiConfig } from "@crm/config";
-import { healthRouter } from "../modules/health/health.router.js";
+import { createAuthRouter } from "../modules/auth/auth.router.js";
+import { createHealthRouter } from "../modules/health/health.router.js";
+import { DatabaseService } from "../platform/database/database.service.js";
+import { RedisService } from "../platform/redis/redis.service.js";
 
-const router = Router();
+interface V1RouterDependencies {
+  databaseService: DatabaseService;
+  redisService: RedisService;
+}
 
-router.get("/", (_request, response) => {
-  response.status(200).json({
-    name: "AI-Native CRM API",
-    version: apiConfig.version,
-    status: "ready-for-foundation-work"
+export function createV1Router({
+  databaseService,
+  redisService
+}: V1RouterDependencies) {
+  const router = Router();
+
+  router.get("/", (_request, response) => {
+    response.status(200).json({
+      name: "AI-Native CRM API",
+      version: apiConfig.version,
+      status: "phase-3-operational"
+    });
   });
-});
 
-router.use(healthRouter);
+  router.use(createHealthRouter({ databaseService, redisService }));
+  router.use("/auth", createAuthRouter({ databaseService }));
 
-export { router as v1Router };
-
+  return router;
+}

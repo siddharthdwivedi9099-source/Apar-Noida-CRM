@@ -28,10 +28,31 @@ const envSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   API_CORS_ORIGIN: z.string().default("http://localhost:5173"),
-  DATABASE_ENABLED: booleanish.default(false),
-  DATABASE_URL: z.string().default("postgresql://crm:crm@localhost:5432/crm"),
+  DATABASE_ENABLED: booleanish.default(true),
+  DATABASE_URL: z.string().default("postgresql://crm:crm@localhost:5433/crm"),
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
+  DATABASE_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  DATABASE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  DEFAULT_TENANT_SLUG: z.string().default("sample-tenant"),
+  DEFAULT_TENANT_NAME: z.string().default("Sample Tenant"),
+  DEFAULT_ADMIN_EMAIL: z.string().email().default("admin@sample-tenant.local"),
+  DEFAULT_ADMIN_PASSWORD: z.string().min(8).default("ChangeMe123!"),
+  DEFAULT_ADMIN_FIRST_NAME: z.string().default("Platform"),
+  DEFAULT_ADMIN_LAST_NAME: z.string().default("Admin"),
+  ENABLE_AUDIT_LOGS: booleanish.default(true),
+  JWT_ACCESS_TOKEN_SECRET: z.string().min(16).default("dev-access-secret-change-me"),
+  JWT_REFRESH_TOKEN_SECRET: z.string().min(16).default("dev-refresh-secret-change-me"),
+  JWT_ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),
+  JWT_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  AUTH_LOGIN_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+  AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),
+  AUTH_ACCOUNT_LOCK_THRESHOLD: z.coerce.number().int().positive().default(5),
+  AUTH_ACCOUNT_LOCK_MINUTES: z.coerce.number().int().positive().default(30),
+  SESSION_COOKIE_NAME: z.string().default("crm_refresh_token"),
+  AUTH_COOKIE_SECURE: booleanish.default(false),
+  AUTH_COOKIE_SAME_SITE: z.enum(["lax", "strict", "none"]).default("lax"),
   REDIS_ENABLED: booleanish.default(false),
-  REDIS_URL: z.string().default("redis://localhost:6379")
+  REDIS_URL: z.string().default("redis://localhost:6380")
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

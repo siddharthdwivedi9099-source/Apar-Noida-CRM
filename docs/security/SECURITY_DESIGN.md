@@ -1,148 +1,86 @@
 # Security Design
 
-## Purpose
+## Current Security Posture
 
-This document defines the security model and control direction for the platform. It is intended to ensure that security is treated as an architectural foundation rather than a late-stage hardening task.
+The repository now includes the first implemented security controls rather than only design intent.
 
-## Scope
+Implemented in code today:
+- password hashing through PostgreSQL `pgcrypto`
+- JWT access tokens
+- JWT refresh tokens with database-backed rotation
+- hashed refresh token storage in `auth_sessions`
+- HTTP-only refresh token cookie
+- auth middleware for protected API routes
+- login rate limiting
+- failed login tracking and timed account lockout
+- audit logging for auth lifecycle events
+- environment-based secrets for access and refresh token signing
+- tenant-aware current-user resolution
+- generic authentication error responses
 
-This document covers:
-- security objectives
-- trust boundaries
-- access and data protection direction
-- application, infrastructure, and supply-chain controls
-- AI-specific security concerns
-- implementation guidance
+## Authentication Controls
 
-This document does not cover:
-- final vendor selections
-- detailed runbooks
-- code-level security implementation
+### Access Tokens
 
-## Security Objectives
+- short-lived JWTs
+- signed with `JWT_ACCESS_TOKEN_SECRET`
+- include `tenantId`, `sessionId`, and subject user id
 
-- protect tenant isolation
-- protect sensitive customer and operational data
-- ensure strong access control and auditable administrative behavior
-- reduce application abuse and AI misuse risk
-- support future compliance and production-readiness requirements
+### Refresh Tokens
 
-## Security Principles
+- signed with `JWT_REFRESH_TOKEN_SECRET`
+- rotated on refresh
+- hashed before persistence
+- stored in `auth_sessions`
+- revoked on logout or invalid refresh-session use
 
-### Least Privilege
+### Password Handling
 
-Users, services, and AI agents should have only the permissions they need.
+- passwords are stored as hashes, never plaintext
+- the current implementation uses `crypt(..., gen_salt('bf', 12))`
+- the seeded admin password should be changed through environment configuration in any non-local environment
 
-### Defense in Depth
+## Abuse Protection
 
-Security should not depend on a single control layer. Identity, application, data, infrastructure, and monitoring controls should reinforce each other.
+The login flow currently has two layers:
+- endpoint rate limiting by tenant, email, and IP window
+- user-level failed login counting with timed lockout
 
-### Secure by Default
+## Audit and Traceability
 
-Defaults should favor safety, reviewability, and explicit enablement over permissive behavior.
+Authentication events capture:
+- actor user when known
+- tenant when known
+- session id when known
+- request id
+- IP and user agent
+- structured failure reason metadata
 
-### Explicit Trust Boundaries
+## Secrets and Environment
 
-Cross-tenant, administrative, and AI-tool execution boundaries should be clearly defined and auditable.
+Sensitive runtime values now include:
+- `JWT_ACCESS_TOKEN_SECRET`
+- `JWT_REFRESH_TOKEN_SECRET`
+- `DEFAULT_ADMIN_PASSWORD`
+- `DATABASE_URL`
 
-### AI as a Security Domain
+These must not remain at development defaults outside local use.
 
-Prompt injection, data leakage, unsafe tool use, and retrieval abuse must be treated as security issues, not merely quality issues.
+## Current Gaps
 
-## Trust Boundaries
+Still not implemented:
+- MFA
+- SSO or enterprise identity federation
+- CSRF-specific hardening for cross-site deployments
+- record-level or field-level authorization
+- secrets manager integration
+- automated dependency and secret scanning in CI
 
-Primary trust boundaries include:
-- between tenants
-- between platform administration and tenant administration
-- between internal operators and external users where future portals exist
-- between application modules and external services
-- between AI orchestration and provider execution
+## Design Direction for Next Phases
 
-## Identity and Access Direction
-
-- central identity model with enterprise-ready authentication direction
-- role-based access with future fine-grained policy controls
-- strong separation between platform-level and tenant-level administration
-- short-lived credentials and secure session practices where possible
-
-## Data Protection Direction
-
-### Data in Transit
-
-- all service communication should be encrypted
-- administrative and AI traffic should follow the same baseline
-
-### Data at Rest
-
-- transactional, object, and backup data should be encrypted
-- sensitive fields may require additional protection layers depending on classification
-
-### Sensitive Data Handling
-
-- classify sensitive fields and documents
-- define retention and deletion rules
-- support least-necessary exposure in logs, AI prompts, and exports
-
-## Application Security Direction
-
-- strong input validation
-- safe output encoding
-- secure file handling for future uploads
-- request rate limiting for sensitive surfaces
-- defensive logging for suspicious access patterns
-
-## Infrastructure and Operational Security
-
-- secrets managed outside source control
-- environment separation across local, non-production, and production
-- infrastructure access restricted and logged
-- backups and restores validated through documented procedures
-
-## Supply Chain and Build Security
-
-- dependency scanning
-- static analysis
-- secret scanning
-- software bill of materials generation
-- release provenance and traceability
-
-## AI-Specific Security Controls
-
-### Prompt and Retrieval Safety
-
-- protect against prompt injection and malicious context manipulation
-- require authorization-aware retrieval before context assembly
-- restrict prompt overrides through governance workflows
-
-### Tool Use Controls
-
-- agent tools must be explicitly allowed
-- sensitive tools should require stronger policies or human approval
-- tool calls should be attributable and reviewable
-
-### Output Controls
-
-- log material outputs with privacy-aware treatment
-- apply moderation or policy checks where needed
-- avoid exposing restricted or cross-tenant information in responses
-
-## Monitoring and Incident Readiness
-
-Future phases should support:
-- security event logging
-- anomaly detection where practical
-- incident response procedures
-- post-incident audit review
-
-## Implementation Guidance
-
-When implementation begins:
-- define a threat model for each major platform capability
-- integrate security checks into CI and release gates
-- require access-control review for tenant, admin, and AI-sensitive changes
-- ensure audit coverage for role changes, data exports, prompt updates, and agent execution
-- document accepted risks explicitly rather than leaving them implicit
-
-## Phase 0 Note
-
-This document defines the security design baseline only. No security controls are yet implemented in code.
+Future security work should prioritize:
+- administrative user creation workflows
+- RBAC enforcement on business endpoints
+- CSRF strategy for production cookie usage
+- tenant-aware business audit trails
+- operational alerting for suspicious auth activity

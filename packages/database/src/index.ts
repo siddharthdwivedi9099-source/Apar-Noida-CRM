@@ -1,25 +1,23 @@
-import type { ConnectionHealth } from "@crm/types";
-
-export interface DatabasePlaceholderConfig {
-  enabled: boolean;
-  driver: "postgresql";
-  url: string;
-}
-
-export interface RedisPlaceholderConfig {
-  enabled: boolean;
-  driver: "redis";
-  url: string;
-}
-
-export const createPlaceholderHealth = (
-  enabled: boolean,
-  driver: string,
-  message: string
-): ConnectionHealth => ({
-  enabled,
-  driver,
-  status: enabled ? "placeholder" : "disabled",
-  message
-});
-
+export { DatabaseClient } from "./client.js";
+export {
+  createMigrationFile,
+  getMigrationStatus,
+  rollbackMigrations,
+  runMigrations
+} from "./migrations.js";
+export { createPlaceholderHealth } from "./placeholders.js";
+export { DEFAULT_PERMISSION_CATALOG, runCoreSeed } from "./seeds.js";
+export type {
+  AppliedMigration,
+  CoreSeedOptions,
+  DatabaseConfig,
+  DatabaseHealth,
+  DatabaseQueryResult,
+  MigrationFile,
+  MigrationResult,
+  MigrationStatus,
+  PermissionCatalogEntry,
+  RedisPlaceholderConfig,
+  RollbackResult,
+  SeedResult
+} from "./types.js";

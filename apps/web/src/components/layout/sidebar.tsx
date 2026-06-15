@@ -34,14 +34,14 @@ export function Sidebar({
           "fixed inset-y-4 left-4 z-40 flex rounded-[1.75rem] border border-white/50 bg-white/88 backdrop-blur-xl shadow-panel transition-all duration-300 dark:border-white/10 dark:bg-slate-950/88",
           mobileOpen ? "translate-x-0" : "-translate-x-[120%] md:translate-x-0"
         )}
-        style={{
+            style={{
           width: collapsed ? shellLayout.sidebarCollapsedWidth : shellLayout.sidebarWidth
         }}
       >
         <div className="flex w-full flex-col gap-6 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className={cn("space-y-2", collapsed && "md:hidden")}>
-              <Badge variant="success">Phase 1</Badge>
+              <Badge variant="success">Phase 3</Badge>
               <div>
                 <p className="font-display text-lg font-semibold">{platformMetadata.name}</p>
                 <p className="text-sm text-muted-foreground">{platformMetadata.currentPhase}</p>
@@ -102,4 +102,3 @@ export function Sidebar({
     </>
   );
 }
-

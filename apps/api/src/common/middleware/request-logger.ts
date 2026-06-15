@@ -7,6 +7,7 @@ export function requestLogger(request: Request, response: Response, next: NextFu
   response.on("finish", () => {
     logger.info(
       {
+        requestId: request.requestId,
         method: request.method,
         url: request.originalUrl,
         statusCode: response.statusCode,
