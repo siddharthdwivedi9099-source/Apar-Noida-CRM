@@ -675,3 +675,140 @@ export interface CampaignOptionsResponse {
   contactCandidates: CampaignMemberRecordSummary[];
   accountCandidates: CampaignMemberRecordSummary[];
 }
+
+export const socialPostSortFields = [
+  "createdAt",
+  "updatedAt",
+  "title",
+  "scheduledAt",
+  "status",
+  "approvalStatus",
+  "campaign",
+  "owner"
+] as const;
+export type SocialPostSortField = (typeof socialPostSortFields)[number];
+
+export interface SocialPostListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  approvalStatus?: string;
+  channel?: string;
+  ownerId?: string;
+  campaignId?: string;
+  scheduledFrom?: string;
+  scheduledTo?: string;
+  sortBy?: SocialPostSortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface SocialLinkedCampaignSummary {
+  id: string;
+  name: string;
+  status: CrmOptionValueSummary | null;
+}
+
+export interface SocialEngagementPlaceholder {
+  impressions: null;
+  reactions: null;
+  comments: null;
+  shares: null;
+  clicks: null;
+  message: string;
+}
+
+export interface SocialPlaceholderSurface {
+  available: false;
+  message: string;
+}
+
+export interface SocialAiPlaceholderAction {
+  key:
+    | "generate_caption"
+    | "suggest_hashtags"
+    | "generate_creative_brief"
+    | "summarize_engagement"
+    | "detect_lead_intent";
+  label: string;
+  description: string;
+}
+
+export interface SocialAiPlaceholderSummary {
+  actions: SocialAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface SocialPostSummary {
+  id: string;
+  title: string;
+  caption: string | null;
+  creativeBrief: string | null;
+  hashtags: string[];
+  scheduledAt: string | null;
+  status: CrmOptionValueSummary | null;
+  approvalStatus: CrmOptionValueSummary | null;
+  channels: CrmOptionValueSummary[];
+  owner: CrmLookupUserSummary | null;
+  campaign: SocialLinkedCampaignSummary | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialPostDetail extends SocialPostSummary {
+  engagementPlaceholder: SocialEngagementPlaceholder;
+  leadCapturePlaceholder: SocialPlaceholderSurface;
+  listeningPlaceholder: SocialPlaceholderSurface;
+  competitorTrackingPlaceholder: SocialPlaceholderSurface;
+  aiPlaceholders: SocialAiPlaceholderSummary;
+}
+
+export interface CreateSocialPostRequestBody {
+  title: string;
+  caption?: string | null;
+  creativeBrief?: string | null;
+  hashtags?: string[];
+  scheduledAt?: string | null;
+  ownerId?: string | null;
+  campaignId?: string | null;
+  statusKey: string;
+  approvalStatusKey: string;
+  channelKeys: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateSocialPostRequestBody {
+  title?: string;
+  caption?: string | null;
+  creativeBrief?: string | null;
+  hashtags?: string[];
+  scheduledAt?: string | null;
+  ownerId?: string | null;
+  campaignId?: string | null;
+  statusKey?: string;
+  approvalStatusKey?: string;
+  channelKeys?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface SocialPostResponse {
+  post: SocialPostDetail;
+}
+
+export interface SocialPostsResponse {
+  posts: SocialPostSummary[];
+  pagination: CrmPagination;
+}
+
+export interface SocialChannelsResponse {
+  channels: CrmOptionValueSummary[];
+}
+
+export interface SocialOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  campaigns: SocialLinkedCampaignSummary[];
+  statuses: CrmOptionValueSummary[];
+  approvalStatuses: CrmOptionValueSummary[];
+  channels: CrmOptionValueSummary[];
+}

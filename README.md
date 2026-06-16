@@ -11,6 +11,7 @@ This repository now contains the implemented foundation for:
 - Phase 6: leads, accounts, and contacts CRM foundation
 - Phase 7: activities, tasks, notes, and customer timeline
 - Phase 8: campaign management and marketing foundation
+- Phase 9: social media marketing module
 
 ## What Exists Now
 

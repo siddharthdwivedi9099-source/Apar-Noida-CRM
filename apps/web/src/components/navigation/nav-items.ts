@@ -3,6 +3,7 @@ import {
   BarChart3,
   BriefcaseBusiness,
   Building2,
+  CalendarRange,
   ContactRound,
   LayoutDashboard,
   LifeBuoy,
@@ -76,6 +77,14 @@ export const appNavItems: AppNavItem[] = [
     icon: Megaphone,
     moduleKey: "campaigns",
     requiredPermissionCodes: routePermissionRequirements.campaigns
+  },
+  {
+    title: "Social",
+    href: "/social",
+    description: "Social calendars, approvals, and channel planning.",
+    icon: CalendarRange,
+    moduleKey: "social",
+    requiredPermissionCodes: routePermissionRequirements.social
   },
   {
     title: "Support",

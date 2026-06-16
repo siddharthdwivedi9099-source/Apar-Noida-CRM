@@ -15,24 +15,26 @@ The repository now contains completed implementation work through:
 - Phase 5: tenant configuration
 - Phase 6: leads, accounts, and contacts CRM foundation
 - Phase 7: activities, tasks, notes, and customer timeline
+- Phase 8: campaign management and marketing foundation
+- Phase 9: social media marketing module
 
 This means:
 - `v0.1.0` is still the latest formally documented release baseline
 - the repository has progressed significantly beyond that baseline
 - the next formal release should be cut separately rather than assumed automatically
 
-## What Phase 7 Added
+## What Phase 9 Added
 
-Phase 7 introduced:
-- shared productivity schema for tasks and timeline events
-- customer-facing note support and note editing
-- richer activity logging with owner and outcome tracking
-- task creation, assignment, and status tracking
-- unified timeline responses and filterable frontend timeline views
-- updated technical, functional, and user documentation for the shared productivity layer
+Phase 9 introduced:
+- tenant-scoped social post and social channel schema
+- social media dashboard, post list, and content calendar views
+- create and edit flows for social posts with campaign linkage
+- approval-aware and role-aware social post updates
+- placeholder AI actions for caption, hashtag, brief, engagement, and lead-intent workflows
+- updated technical, functional, and marketing documentation for the social workspace
 
 ## Versioning Guidance
 
 - Major: breaking API or schema compatibility changes
-- Minor: new backward-compatible module capabilities such as Phase 7
+- Minor: new backward-compatible module capabilities such as Phase 9
 - Patch: bug fixes, non-breaking refinements, and documentation corrections

@@ -50,7 +50,7 @@ export function Sidebar({
         <div className="flex w-full flex-col gap-6 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className={cn("space-y-2", collapsed && "md:hidden")}>
-              <Badge variant="success">Phase 7</Badge>
+              <Badge variant="success">{platformMetadata.currentPhase.split(":")[0]}</Badge>
               <div>
                 {theme.logo ? (
                   <img

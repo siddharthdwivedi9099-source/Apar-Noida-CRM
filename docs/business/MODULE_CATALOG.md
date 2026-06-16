@@ -98,6 +98,24 @@ This catalog records the major platform and business modules in the product and 
   - permission-aware AI placeholder actions
 - Shared dependencies: RBAC, tenant option sets, audit logging, leads, accounts, contacts, and shared productivity routes
 
+### Social Media Marketing
+
+- Status: implemented in Phase 9
+- Purpose: social post planning, approvals, calendar visibility, and campaign-linked channel execution
+- Primary users: social media marketing executives, marketing managers, campaign owners, approvers
+- Implemented capabilities:
+  - social media dashboard
+  - content calendar
+  - social post list, detail, create, edit, and soft delete
+  - multi-channel selection
+  - campaign linkage
+  - post status and approval status tracking
+  - owner assignment
+  - caption, creative brief, scheduled time, and hashtags
+  - engagement, lead capture, listening, and competitor placeholders
+  - permission-aware AI placeholder actions
+- Shared dependencies: RBAC, tenant option sets, audit logging, campaigns, tenant terminology, and the AI permission model
+
 ## Planned Revenue and Service Modules
 
 ### Opportunities

@@ -24,6 +24,9 @@ import { LeadsPage } from "./pages/leads-page";
 import { LoginPage } from "./pages/login-page";
 import { ModuleSettingsPage } from "./pages/module-settings-page";
 import { OpportunitiesPage } from "./pages/opportunities-page";
+import { SocialDetailPage } from "./pages/social-detail-page";
+import { SocialFormPage } from "./pages/social-form-page";
+import { SocialPage } from "./pages/social-page";
 import { ThemeSettingsPage } from "./pages/theme-settings-page";
 import { TerminologySettingsPage } from "./pages/terminology-settings-page";
 import { SupportPage } from "./pages/support-page";
@@ -460,6 +463,58 @@ export const router = createBrowserRouter([
                 moduleKey="campaigns"
               >
                 <CampaignFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "social",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.social}
+                title="Social workspace access is limited by role."
+                description="Open this module with a role that includes Social access."
+                moduleKey="social"
+              >
+                <SocialPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "social/new",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["social.create", "social.configure"]}
+                title="Social post creation requires create permissions."
+                description="Only roles with social creation permissions can open the social post form."
+                moduleKey="social"
+              >
+                <SocialFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "social/:postId",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.social}
+                title="Social post detail access is limited by role."
+                description="Open this record with a role that includes Social access."
+                moduleKey="social"
+              >
+                <SocialDetailPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "social/:postId/edit",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["social.edit", "social.assign", "social.approve", "social.configure"]}
+                title="Social post editing requires edit, assign, or approve permissions."
+                description="Only roles with social edit, assignment, approval, or configuration permissions can update this record."
+                moduleKey="social"
+              >
+                <SocialFormPage />
               </PermissionRoute>
             )
           },

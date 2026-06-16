@@ -56,7 +56,7 @@ Implemented route groups:
 
 These remain unchanged from Phases 4 and 5 and continue to require authenticated, permission-aware access.
 
-## CRM Foundations and Campaign Management
+## CRM Foundations, Campaigns, and Social Marketing
 
 All CRM routes require:
 
@@ -116,6 +116,49 @@ Permission checks map to module families:
 - `aiPlaceholders`
 
 Campaign notes, activities, tasks, and timeline items are read through the shared productivity routes using `entityType = campaign`.
+
+## Social Media Marketing
+
+### Social routes
+
+- `GET /social/channels`
+- `GET /social/options`
+- `GET /social`
+- `POST /social`
+- `GET /social/:postId`
+- `PATCH /social/:postId`
+- `DELETE /social/:postId`
+
+### Social detail payload behavior
+
+`GET /social/:postId` now returns:
+- base social post planning fields
+- owner and linked campaign summary
+- `channels`
+- `engagementPlaceholder`
+- `leadCapturePlaceholder`
+- `listeningPlaceholder`
+- `competitorTrackingPlaceholder`
+- `aiPlaceholders`
+
+### Social request example
+
+`POST /social`
+
+```json
+{
+  "title": "Q3 launch teaser",
+  "caption": "Something big is landing this quarter. Stay tuned.",
+  "creativeBrief": "Use the orange gradient brand treatment with product silhouette reveal.",
+  "hashtags": ["#launch", "#pipeline", "#crm"],
+  "scheduledAt": "2026-06-25T09:30:00.000Z",
+  "ownerId": "00000000-0000-0000-0000-000000000000",
+  "campaignId": "11111111-1111-1111-1111-111111111111",
+  "statusKey": "planned",
+  "approvalStatusKey": "pending_review",
+  "channelKeys": ["linkedin", "instagram"]
+}
+```
 
 ## Lead, Account, and Contact CRUD
 
@@ -356,5 +399,8 @@ Shared productivity writes produce CRM audit events such as:
 - `campaign.create`
 - `campaign.update`
 - `campaign.delete`
+- `social.create`
+- `social.update`
+- `social.delete`
 
 Equivalent action patterns apply to `account`, `contact`, `opportunity`, `ticket`, and `customer_success_account`.

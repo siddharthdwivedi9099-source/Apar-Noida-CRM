@@ -8,18 +8,18 @@ import { useTenantConfig } from "@/providers/tenant-config-provider";
 const foundationHighlights = [
   {
     label: "CRM modules",
-    value: "Timeline live",
-    detail: "Leads, accounts, and contacts now ship with notes, activities, tasks, and a shared customer timeline."
+    value: "Social live",
+    detail: "Campaigns now extend into a live social planning workspace with calendar visibility, approvals, and campaign-linked posts."
   },
   {
     label: "Backend API",
     value: "/api/v1",
-    detail: "Express now serves auth, RBAC, tenant config, tenant-safe CRM CRUD, and shared productivity record APIs."
+    detail: "Express now serves auth, RBAC, tenant config, tenant-safe CRM CRUD, campaign flows, and social media marketing APIs."
   },
   {
     label: "Shared packages",
     value: "6 packages",
-    detail: "Config, types, UI, auth, AI, and database packages now share CRM, productivity, and RBAC contracts."
+    detail: "Config, types, UI, auth, AI, and database packages now share CRM, campaign, social, productivity, and RBAC contracts."
   }
 ] as const;
 
@@ -34,12 +34,13 @@ export function DashboardPage() {
             <Badge>{platformMetadata.currentPhase}</Badge>
             <div className="space-y-4">
               <h2 className="max-w-3xl font-display text-4xl font-semibold leading-tight">
-                The workspace now includes a live CRM productivity layer on top of tenant-aware auth, RBAC, and configuration.
+                The workspace now includes live campaign and social marketing execution on top of tenant-aware auth, RBAC, and configuration.
               </h2>
               <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-                This dashboard is still platform-forward, but the CRM kernel now includes shared touchpoint tracking.
-                It reflects the authenticated shell, PostgreSQL-backed identity flow, tenant configuration, and the live
-                lead, account, and contact detail experiences with notes, activities, tasks, and customer timeline views.
+                This dashboard is still platform-forward, but the CRM kernel now includes campaigns, social post planning,
+                shared touchpoint tracking, and approval-aware marketing workflows. It reflects the authenticated shell,
+                PostgreSQL-backed identity flow, tenant configuration, the live lead, account, and contact detail
+                experiences, and the new campaign-to-social execution path.
               </p>
             </div>
           </div>
@@ -48,24 +49,24 @@ export function DashboardPage() {
             <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Current guardrails</p>
             <div className="mt-4 space-y-4">
               <div>
-                <p className="font-semibold">Authentication, RBAC, tenant settings, and shared CRM productivity are now live</p>
+                <p className="font-semibold">Authentication, RBAC, tenant settings, campaigns, and social planning are now live</p>
                 <p className="mt-1 text-sm text-slate-300">
                   Login, logout, refresh rotation, session tracking, protected routes, admin role management, theme
-                  settings, and the first tenant-safe CRM records now run on the seeded workspace.
+                  settings, and the tenant-safe CRM, campaign, and social marketing records now run on the seeded workspace.
                 </p>
               </div>
               <div>
-                <p className="font-semibold">CRM records now follow permission bundles, tenant switches, audit logs, and unified timelines</p>
+                <p className="font-semibold">CRM and marketing records now follow permission bundles, tenant switches, audit logs, and unified timelines</p>
                 <p className="mt-1 text-sm text-slate-300">
                   Leads, accounts, and contacts now support CRUD, owner assignment, notes, activities, tasks, timeline
-                  views, and soft delete while respecting module toggles and route-level permissions.
+                  views, and soft delete while campaigns and social posts add approval, scheduling, member, and channel-aware planning.
                 </p>
               </div>
               <div>
-                <p className="font-semibold">Tenant configuration now feeds live CRM forms</p>
+                <p className="font-semibold">Tenant configuration now feeds live CRM and marketing forms</p>
                 <p className="mt-1 text-sm text-slate-300">
                   {settings.workspaceName} now carries its own theme, terminology, module map, option sets, and
-                  form-layout metadata, and the CRM forms are already consuming those tenant-managed labels and dropdowns.
+                  form-layout metadata, and the CRM, campaign, and social forms are already consuming those tenant-managed labels and dropdowns.
                 </p>
               </div>
             </div>
@@ -76,9 +77,9 @@ export function DashboardPage() {
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Phase 7 platform overview</CardTitle>
+            <CardTitle>Phase 9 platform overview</CardTitle>
             <CardDescription>
-              These cards summarize the current authenticated platform foundation now that shared CRM productivity is live.
+              These cards summarize the current authenticated platform foundation now that campaigns and social marketing are live.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
@@ -112,7 +113,7 @@ export function DashboardPage() {
               {
                 title: "Form layouts",
                 value: String(summary.formLayoutCount),
-                description: "Seeded lead, account, and contact layout scaffolds are already stored per tenant."
+                description: "Seeded lead, account, contact, campaign, and social layout scaffolds are already stored per tenant."
               }
             ].map((item) => (
               <div key={item.title} className="rounded-[1.25rem] bg-background/75 p-5 shadow-sm">
@@ -146,13 +147,13 @@ export function DashboardPage() {
           <CardHeader>
             <CardTitle>What comes next</CardTitle>
             <CardDescription>
-              The secure platform baseline and shared touchpoint model are in place. The next phase can deepen those
-              workflows instead of rebuilding foundation pieces.
+              The secure platform baseline, campaign engine, and social workspace are in place. The next phase can deepen those workflows instead of rebuilding foundation pieces.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {[
               "Extend the CRM kernel into downstream opportunity, sales, and customer lifecycle workflows.",
+              "Connect social publishing, engagement ingestion, and social lead capture to the new planning workspace.",
               "Keep applying module-level and action-level permissions to every new workflow surface.",
               "Read more custom fields, option sets, and layouts directly from the tenant configuration engine."
             ].map((nextStep) => (

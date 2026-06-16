@@ -445,6 +445,12 @@ export const defaultTenantTerminologyEntries: TenantTerminologyEntry[] = [
     description: "Marketing initiatives and coordinated outreach."
   },
   {
+    moduleKey: "social",
+    singular: "Social Post",
+    plural: "Social",
+    description: "Social media planning, scheduling, and approval workflows."
+  },
+  {
     moduleKey: "support",
     singular: "Ticket",
     plural: "Support",
@@ -693,6 +699,63 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "social-channel",
+    moduleKey: "social",
+    kind: "dropdown",
+    name: "Social Channel",
+    description: "Default publishing channels for social content planning and scheduling.",
+    values: [
+      { key: "linkedin", label: "LinkedIn", color: "#0a66c2", sortOrder: 0, isDefault: true },
+      { key: "instagram", label: "Instagram", color: "#e1306c", sortOrder: 1 },
+      { key: "facebook", label: "Facebook", color: "#1877f2", sortOrder: 2 },
+      { key: "x", label: "X", color: "#0f172a", sortOrder: 3 },
+      { key: "youtube", label: "YouTube", color: "#ff0033", sortOrder: 4 },
+      { key: "threads", label: "Threads", color: "#111827", sortOrder: 5 },
+      { key: "tiktok", label: "TikTok", color: "#14b8a6", sortOrder: 6 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "social-config"
+    }
+  },
+  {
+    setKey: "social-post-status",
+    moduleKey: "social",
+    kind: "dropdown",
+    name: "Social Post Status",
+    description: "Default lifecycle states for social post planning and publishing readiness.",
+    values: [
+      { key: "draft", label: "Draft", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "planned", label: "Planned", color: "#0ea5e9", sortOrder: 1 },
+      { key: "scheduled", label: "Scheduled", color: "#14b8a6", sortOrder: 2 },
+      { key: "published", label: "Published", color: "#22c55e", sortOrder: 3 },
+      { key: "paused", label: "Paused", color: "#f59e0b", sortOrder: 4 },
+      { key: "archived", label: "Archived", color: "#475569", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "social-config"
+    }
+  },
+  {
+    setKey: "social-approval-status",
+    moduleKey: "social",
+    kind: "dropdown",
+    name: "Social Approval Status",
+    description: "Default approval workflow states for social content review and publishing controls.",
+    values: [
+      { key: "not_submitted", label: "Not Submitted", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "pending_review", label: "Pending Review", color: "#0ea5e9", sortOrder: 1 },
+      { key: "approved", label: "Approved", color: "#22c55e", sortOrder: 2 },
+      { key: "changes_requested", label: "Changes Requested", color: "#f59e0b", sortOrder: 3 },
+      { key: "rejected", label: "Rejected", color: "#ef4444", sortOrder: 4 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "social-config"
+    }
+  },
+  {
     setKey: "opportunity-pipeline",
     moduleKey: "opportunities",
     kind: "pipeline",
@@ -857,6 +920,35 @@ export const defaultCustomFormLayoutDefinitions: CustomFormLayoutSeedDefinition[
           id: "campaign-assets",
           title: "Assets and Members",
           fields: ["related_assets", "member_status", "notes"]
+        }
+      ]
+    },
+    metadata: {
+      seeded: true
+    }
+  },
+  {
+    moduleKey: "social",
+    entityKey: "social_post",
+    layoutKey: "default-social-post-layout",
+    name: "Default Social Post Layout",
+    description: "Primary layout scaffold for social post create, review, and scheduling flows.",
+    layoutSchema: {
+      sections: [
+        {
+          id: "social-post-planning",
+          title: "Post Planning",
+          fields: ["title", "caption", "creative_brief", "hashtags"]
+        },
+        {
+          id: "social-post-scheduling",
+          title: "Scheduling and Ownership",
+          fields: ["scheduled_at", "owner_id", "campaign_id", "status", "approval_status"]
+        },
+        {
+          id: "social-post-distribution",
+          title: "Distribution and AI",
+          fields: ["channels", "engagement_placeholder", "lead_capture_placeholder", "ai_placeholders"]
         }
       ]
     },

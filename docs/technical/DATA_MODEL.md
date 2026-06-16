@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document describes the implemented database model after Phase 8.
+This document describes the implemented database model after Phase 9.
 
 ## Implemented Scope
 
@@ -22,6 +22,8 @@ The database now covers:
 - contacts
 - campaigns
 - campaign members
+- social posts
+- social post channels
 - shared CRM notes
 - shared CRM activities
 - shared CRM tasks
@@ -101,6 +103,8 @@ The standard pattern is:
 | `contacts` | tenant | Stakeholder records linked to accounts |
 | `campaigns` | tenant | Campaign strategy, ownership, channel, budget, and related asset references |
 | `campaign_members` | tenant | Lead, contact, and account membership records attached to campaigns |
+| `social_posts` | tenant | Social post planning, scheduling, approval, ownership, and campaign linkage |
+| `social_post_channels` | tenant | Tenant-scoped channel selections attached to social posts |
 | `crm_notes` | tenant | Shared notes attached to supported CRM record types |
 | `crm_activities` | tenant | Shared activities attached to supported CRM record types |
 | `crm_tasks` | tenant | Shared work items attached to supported CRM record types |
@@ -173,6 +177,27 @@ Key columns:
 - `member_entity_id`
 - `status_option_id`
 - `response_text`
+- `metadata`
+
+### `social_posts`
+
+Key columns:
+- `title`
+- `caption`
+- `creative_brief`
+- `hashtags`
+- `scheduled_at`
+- `campaign_id`
+- `owner_id`
+- `status_option_id`
+- `approval_status_option_id`
+- `metadata`
+
+### `social_post_channels`
+
+Key columns:
+- `social_post_id`
+- `channel_option_id`
 - `metadata`
 
 ## Shared Productivity Tables
@@ -293,9 +318,11 @@ Supported `touchpoint_type` values:
 - a `contact` belongs to one tenant, may be owned by one tenant user, and may belong to one tenant account
 - a `campaign` belongs to one tenant, may be owned by one tenant user, and stores configurable type, objective, status, and channel option references
 - a `campaign_member` belongs to one tenant campaign and points to one tenant lead, contact, or account through a typed polymorphic reference
+- a `social_post` belongs to one tenant, may be linked to one tenant campaign, may be owned by one tenant user, and stores configurable status and approval references
+- a `social_post_channel` belongs to one tenant social post and points to one tenant-configured social channel option value
 - shared productivity tables are keyed by `entity_type` plus `entity_id`
 - notes, activities, tasks, and timeline events are all soft-delete-aware and tenant-scoped
-- tenant option sets provide configurable dropdown values for lead, account, contact, and campaign fields
+- tenant option sets provide configurable dropdown values for lead, account, contact, campaign, and social fields
 
 ## Seeded Bootstrap Records
 
@@ -318,13 +345,17 @@ The seed now creates or updates:
   - campaign status
   - campaign channel
   - campaign member status
+  - social channel
+  - social post status
+  - social approval status
   - opportunity pipeline
   - support ticket status
   - customer-success stage
-- seeded lead, account, contact, and campaign form-layout metadata
+- seeded lead, account, contact, campaign, and social form-layout metadata
 
 ## Current Limits
 
 - dedicated `opportunities`, `tickets`, and `customer_success_accounts` primary tables are still a later phase
 - shared productivity tables already accept those entity types to avoid schema rewrites later
 - campaign performance metrics, attribution, and true calendar scheduling remain placeholders on top of the now-live campaign schema
+- social publishing, engagement ingestion, lead capture, listening, and competitor benchmarking remain placeholders on top of the now-live social planning schema

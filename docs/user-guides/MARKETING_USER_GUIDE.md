@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide explains how marketing users work with the Phase 8 campaign management foundation.
+This guide explains how marketing users work with the Phase 8 campaign foundation and the Phase 9 social media marketing workspace.
 
 ## Where to Work
 
@@ -11,6 +11,12 @@ Use the campaign module from:
 - `/campaigns/new`
 - `/campaigns/:campaignId`
 - `/campaigns/:campaignId/edit`
+
+Use the social module from:
+- `/social`
+- `/social/new`
+- `/social/:postId`
+- `/social/:postId/edit`
 
 ## Campaign List
 
@@ -93,3 +99,68 @@ Typical behavior:
 - users with delete or configure access can soft delete campaigns
 
 If an action is unavailable, ask your administrator to review your assigned roles and permissions.
+
+## Social Workspace
+
+The social workspace now supports:
+- a social media dashboard
+- a content calendar for the selected month
+- a searchable and filterable post list
+- campaign linkage
+- owner assignment
+- approval status visibility
+- post status visibility
+
+Use the social list page when you need to:
+- review upcoming social work for the month
+- find posts by status, approval state, owner, campaign, or channel
+- open a post detail view
+- soft delete a post if your role allows it
+
+## Creating and Editing Social Posts
+
+The social post form captures:
+- post title
+- caption
+- creative brief
+- hashtags
+- scheduled date and time
+- owner
+- linked campaign
+- post status
+- approval status
+- one or more social channels
+
+Channel, status, and approval values come from tenant configuration, so your administrator can evolve the marketing vocabulary without a schema rewrite.
+
+## Social Detail and Placeholders
+
+Social post detail now shows:
+- channel badges
+- campaign linkage
+- approval state
+- engagement placeholder
+- social lead capture placeholder
+- social listening placeholder
+- competitor tracking placeholder
+
+## AI Placeholders in Social
+
+Social post detail can show:
+- Generate caption
+- Suggest hashtags
+- Generate creative brief
+- Summarize engagement
+- Detect lead intent
+
+These are placeholders only in Phase 9. If you do not see them, your role probably lacks social or AI usage permissions.
+
+## Social Permissions
+
+Typical behavior:
+- users with social read access can review the dashboard, calendar, list, and detail views
+- users with create or configure access can create social posts
+- users with edit or configure access can fully edit social posts
+- users with assign access can remap owner and campaign linkage
+- users with approve access can update approval status only
+- users with delete or configure access can soft delete social posts

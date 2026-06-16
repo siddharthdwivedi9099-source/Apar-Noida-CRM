@@ -5,6 +5,7 @@ import { createCampaignRouter } from "../modules/campaigns/campaigns.router.js";
 import { createCrmRouter } from "../modules/crm/crm.router.js";
 import { createHealthRouter } from "../modules/health/health.router.js";
 import { createRbacRouter } from "../modules/rbac/rbac.router.js";
+import { createSocialRouter } from "../modules/social/social.router.js";
 import { createTenantConfigRouter } from "../modules/tenant-config/tenant-config.router.js";
 import { DatabaseService } from "../platform/database/database.service.js";
 import { RedisService } from "../platform/redis/redis.service.js";
@@ -24,7 +25,7 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-8-operational"
+      status: "phase-9-operational"
     });
   });
 
@@ -33,6 +34,7 @@ export function createV1Router({
   router.use("/rbac", createRbacRouter({ databaseService }));
   router.use("/tenant-config", createTenantConfigRouter({ databaseService }));
   router.use("/campaigns", createCampaignRouter({ databaseService }));
+  router.use("/social", createSocialRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;

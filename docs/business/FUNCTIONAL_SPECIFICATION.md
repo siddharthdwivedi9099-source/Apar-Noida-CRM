@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document summarizes the platform behavior now implemented through Phase 7.
+This document summarizes the platform behavior now implemented through Phase 9.
 
 ## Functional Principles
 
@@ -55,6 +55,7 @@ Implemented:
 - RBAC audit events
 - tenant configuration audit events
 - CRM create, update, delete, note, activity, and task audit events
+- campaign and social marketing create, update, and delete audit events
 
 ## Implemented CRM Functions
 
@@ -115,6 +116,55 @@ Implemented:
 - tasks
 - timeline
 
+### Campaign Module
+
+Implemented:
+- campaign list
+- campaign detail
+- create campaign
+- edit campaign
+- soft delete campaign
+- campaign type
+- campaign objective
+- campaign target audience
+- campaign budget
+- campaign owner
+- campaign status
+- campaign channel
+- campaign start and end dates
+- campaign member management for leads, contacts, and accounts
+- campaign performance placeholder
+- campaign calendar placeholder
+- AI campaign placeholders
+
+### Social Media Marketing Module
+
+Implemented:
+- social media dashboard
+- content calendar
+- social post list
+- create social post
+- edit social post
+- soft delete social post
+- channel selection
+- campaign mapping
+- post status
+- approval status
+- content owner
+- scheduled date and time
+- caption
+- creative brief
+- hashtags
+- engagement placeholder
+- social lead capture placeholder
+- social listening placeholder
+- competitor tracking placeholder
+- AI caption placeholder
+- AI hashtag placeholder
+- AI creative brief placeholder
+- AI engagement summary placeholder
+- AI lead intent placeholder
+
 ## Shared Productivity and Touchpoint Tracking
 
 Implemented:
@@ -172,6 +222,8 @@ Implemented:
 - list pages for leads, accounts, and contacts
 - detail pages for leads, accounts, and contacts
 - create and edit forms for leads, accounts, and contacts
+- campaign list, detail, create, and edit flows
+- social dashboard, calendar, list, detail, create, and edit flows
 - notes panel on detail pages
 - activity panel on detail pages
 - task list on detail pages
@@ -184,6 +236,8 @@ Current UX behavior:
 - disabled tenant modules are blocked at the route layer
 - form dropdowns use tenant-configured option sets
 - notes, activities, tasks, and the timeline are managed directly from detail pages
+- campaign and social forms use tenant-configured marketing vocabularies
+- social approval and channel choices are enforced through role-aware routes and APIs
 
 ## Functions Still Pending
 
