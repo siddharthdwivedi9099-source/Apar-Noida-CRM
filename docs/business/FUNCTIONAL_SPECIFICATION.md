@@ -2,17 +2,16 @@
 
 ## Purpose
 
-This document describes the platform-level functional behavior expected from the product and highlights what is now implemented through Phase 5.
+This document summarizes the platform behavior now implemented through Phase 6.
 
-## Functional Design Principles
+## Functional Principles
 
-- Every function operates within tenant context.
-- Access is role-based and policy-aware.
-- Administrative changes are auditable.
-- Configuration should be tenant-specific from the beginning.
-- CRM business modules should consume shared tenant settings instead of hardcoding labels or catalogs.
+- Every function runs inside tenant context.
+- Every business module inherits RBAC and audit logging.
+- Tenant configuration should feed CRM behavior instead of hardcoded UI vocabulary.
+- Core CRM records should be soft-delete-safe and extensible from the beginning.
 
-## Implemented Shared Platform Functions
+## Implemented Platform Functions
 
 ### Authentication and Session Control
 
@@ -23,7 +22,7 @@ Implemented:
 - current-user loading
 - protected frontend routes
 - login audit logging
-- failed login handling and rate limiting
+- failed-login handling and rate limiting
 
 ### Role and Permission Management
 
@@ -41,20 +40,18 @@ Implemented:
 Implemented:
 - tenant workspace settings
 - tenant theme settings
-- module enable/disable settings
+- module enable and disable settings
 - terminology configuration
 - configurable option-set foundation
-- configurable pipeline stages foundation
-- configurable support ticket status foundation
-- configurable customer-success stage foundation
+- configurable pipeline, ticket-status, and customer-success-stage catalogs
 - custom field metadata foundation
-- custom form layout metadata foundation
+- custom form layout foundation
 
 Current runtime behavior:
 - tenant theme changes affect the live shell
 - module switches affect navigation and route access
-- terminology changes affect navigation and module copy
-- custom fields are managed as metadata for later CRM forms
+- terminology changes affect navigation labels and CRM page copy
+- CRM forms now consume tenant-backed dropdown catalogs for lead, account, and contact fields
 
 ### Audit and Traceability
 
@@ -62,99 +59,104 @@ Implemented:
 - auth audit events
 - RBAC audit events
 - tenant configuration audit events
+- CRM create, update, delete, note, and activity audit events
 
-## Tenant Configuration Functional Detail
+## Implemented CRM Functions
 
-### Workspace Settings
+### Lead Module
 
-The tenant admin can define:
-- workspace name
-- timezone
-- locale
-- currency
-- date format
-- time format
+Implemented:
+- lead list
+- lead detail
+- create lead
+- edit lead
+- soft delete lead
+- assign owner
+- lead status
+- lead source
+- lead score placeholder
+- lead notes
+- lead activities
+- conversion placeholder
 
-### Theme Settings
+Cross-cutting behavior:
+- pagination, search, filters, and sorting
+- tenant isolation
+- API validation
+- RBAC-backed route and action gating
+- audit logging on write operations
 
-The tenant admin can define:
-- logo
-- primary color
-- secondary color
-- accent color
-- light or dark mode
-- sidebar style
-- card style
-- font preference
-- compact or comfortable density
+### Account Module
 
-### Module Settings
+Implemented:
+- account list
+- account detail
+- create account
+- edit account
+- soft delete account
+- owner assignment
+- account type
+- industry
+- website
+- account health placeholder
+- related contacts
+- related opportunities placeholder
+- notes
+- activities
 
-The tenant admin can:
-- enable a module
-- disable a module
-- immediately change whether the module appears in the shell
-- immediately block disabled module routes
+Cross-cutting behavior:
+- pagination, search, filters, and sorting
+- tenant isolation
+- API validation
+- RBAC-backed route and action gating
+- audit logging on write operations
 
-### Terminology Settings
+### Contact Module
 
-The tenant admin can rename key business-facing labels such as:
-- Leads
-- Accounts
-- Contacts
-- Opportunities
-- Campaigns
-- Support/Tickets
-- Customer Success
+Implemented:
+- contact list
+- contact detail
+- create contact
+- edit contact
+- soft delete contact
+- owner assignment
+- contact role
+- account relationship
+- email
+- phone
+- LinkedIn
+- notes
+- activities
 
-### Option-Set Foundation
+Cross-cutting behavior:
+- pagination, search, filters, and sorting
+- tenant isolation
+- API validation
+- RBAC-backed route and action gating
+- audit logging on write operations
 
-The tenant can hold configurable values for:
-- dropdown catalogs
-- opportunity pipeline stages
-- ticket statuses
-- customer-success stages
+## Frontend Functional Behavior
 
-These values are stored as tenant metadata so later CRM modules can consume them without new schema changes.
+Implemented:
+- list pages for leads, accounts, and contacts
+- detail pages for leads, accounts, and contacts
+- create and edit forms for leads, accounts, and contacts
+- empty states and loading states
+- role-aware action buttons
+- protected routes for list, detail, create, and edit flows
 
-### Custom Field Foundation
+Current UX behavior:
+- unauthorized users do not see modules in navigation
+- disabled tenant modules are blocked at the route layer
+- form dropdowns use tenant-configured option sets
+- notes and activities are managed directly from detail pages
 
-The tenant admin can define metadata including:
-- module
-- entity key
-- field key
-- label
-- data type
-- required flag
-- active flag
-- option-set linkage
+## Functions Still Pending
 
-These fields are not yet rendered in production CRM forms, but the foundation is implemented.
-
-### Custom Form Layout Foundation
-
-The platform stores tenant-scoped layout metadata so future CRM forms can:
-- group fields into sections
-- maintain different layouts per entity
-- evolve without destructive schema work
-
-## Functional Modules Still Pending
-
-The following business modules remain future work even though their configuration and permission vocabulary now exist:
-- leads
-- accounts
-- contacts
-- opportunities
-- campaigns
-- support
-- customer success
-- partner and reseller workflows
-- onboarding and training execution
-
-## Next Functional Step
-
-The next CRM phase should consume Phase 5 foundations directly by:
-- reading tenant terminology for labels
-- reading tenant option sets for dropdowns and stages
-- reading custom field metadata in forms
-- preserving RBAC and tenant isolation in all business CRUD workflows
+Still out of scope:
+- public registration
+- admin-created user lifecycle UI
+- opportunity management
+- lead conversion workflow
+- dynamic custom-field rendering in live CRM forms
+- record-level authorization beyond tenant boundaries

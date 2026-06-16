@@ -3,14 +3,21 @@ import { authRouting } from "@crm/auth";
 import type { PermissionModuleKey } from "@crm/types";
 import { AuthSplash } from "./components/auth/auth-splash";
 import { AppShell } from "./components/layout/app-shell";
+import { AccountDetailPage } from "./pages/account-detail-page";
+import { AccountFormPage } from "./pages/account-form-page";
 import { AccountsPage } from "./pages/accounts-page";
 import { AdminSettingsPage } from "./pages/admin-settings-page";
 import { AdminPage } from "./pages/admin-page";
 import { AiAssistantPage } from "./pages/ai-assistant-page";
 import { CampaignsPage } from "./pages/campaigns-page";
+import { ContactDetailPage } from "./pages/contact-detail-page";
+import { ContactFormPage } from "./pages/contact-form-page";
+import { ContactsPage } from "./pages/contacts-page";
 import { CustomFieldsPage } from "./pages/custom-fields-page";
 import { CustomerSuccessPage } from "./pages/customer-success-page";
 import { DashboardPage } from "./pages/dashboard-page";
+import { LeadDetailPage } from "./pages/lead-detail-page";
+import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
 import { LoginPage } from "./pages/login-page";
 import { ModuleSettingsPage } from "./pages/module-settings-page";
@@ -247,6 +254,45 @@ export const router = createBrowserRouter([
             )
           },
           {
+            path: "leads/new",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["leads.create", "leads.configure"]}
+                title="Lead creation requires create permissions."
+                description="Only roles with lead creation permissions can open the lead form."
+                moduleKey="leads"
+              >
+                <LeadFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "leads/:leadId",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.leads}
+                title="Lead detail access is limited by role."
+                description="Open this record with a role that includes Leads access."
+                moduleKey="leads"
+              >
+                <LeadDetailPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "leads/:leadId/edit",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["leads.edit", "leads.configure"]}
+                title="Lead editing requires edit permissions."
+                description="Only roles with lead editing permissions can update this record."
+                moduleKey="leads"
+              >
+                <LeadFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
             path: "accounts",
             element: (
               <PermissionRoute
@@ -256,6 +302,97 @@ export const router = createBrowserRouter([
                 moduleKey="accounts"
               >
                 <AccountsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "accounts/new",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["accounts.create", "accounts.configure"]}
+                title="Account creation requires create permissions."
+                description="Only roles with account creation permissions can open the account form."
+                moduleKey="accounts"
+              >
+                <AccountFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "accounts/:accountId",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.accounts}
+                title="Account detail access is limited by role."
+                description="Open this record with a role that includes Accounts access."
+                moduleKey="accounts"
+              >
+                <AccountDetailPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "accounts/:accountId/edit",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["accounts.edit", "accounts.configure"]}
+                title="Account editing requires edit permissions."
+                description="Only roles with account editing permissions can update this record."
+                moduleKey="accounts"
+              >
+                <AccountFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "contacts",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.contacts}
+                title="Contact access is limited by role."
+                description="Open this module with a role that includes Contacts access."
+                moduleKey="contacts"
+              >
+                <ContactsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "contacts/new",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["contacts.create", "contacts.configure"]}
+                title="Contact creation requires create permissions."
+                description="Only roles with contact creation permissions can open the contact form."
+                moduleKey="contacts"
+              >
+                <ContactFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "contacts/:contactId",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.contacts}
+                title="Contact detail access is limited by role."
+                description="Open this record with a role that includes Contacts access."
+                moduleKey="contacts"
+              >
+                <ContactDetailPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "contacts/:contactId/edit",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["contacts.edit", "contacts.configure"]}
+                title="Contact editing requires edit permissions."
+                description="Only roles with contact editing permissions can update this record."
+                moduleKey="contacts"
+              >
+                <ContactFormPage />
               </PermissionRoute>
             )
           },

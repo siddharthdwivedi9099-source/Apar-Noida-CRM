@@ -533,6 +533,57 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "account-type",
+    moduleKey: "accounts",
+    kind: "dropdown",
+    name: "Account Type",
+    description: "Default account classifications for the CRM foundation.",
+    values: [
+      { key: "prospect", label: "Prospect", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "customer", label: "Customer", color: "#14b8a6", sortOrder: 1 },
+      { key: "partner", label: "Partner", color: "#8b5cf6", sortOrder: 2 },
+      { key: "vendor", label: "Vendor", color: "#f59e0b", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "account-config"
+    }
+  },
+  {
+    setKey: "account-health",
+    moduleKey: "accounts",
+    kind: "dropdown",
+    name: "Account Health",
+    description: "Placeholder health classifications for future customer signals.",
+    values: [
+      { key: "healthy", label: "Healthy", color: "#22c55e", sortOrder: 0, isDefault: true },
+      { key: "monitor", label: "Monitor", color: "#f59e0b", sortOrder: 1 },
+      { key: "at_risk", label: "At Risk", color: "#ef4444", sortOrder: 2 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "account-config"
+    }
+  },
+  {
+    setKey: "contact-role",
+    moduleKey: "contacts",
+    kind: "dropdown",
+    name: "Contact Role",
+    description: "Default contact relationship roles for account mapping.",
+    values: [
+      { key: "decision_maker", label: "Decision Maker", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "champion", label: "Champion", color: "#14b8a6", sortOrder: 1 },
+      { key: "influencer", label: "Influencer", color: "#8b5cf6", sortOrder: 2 },
+      { key: "evaluator", label: "Evaluator", color: "#f59e0b", sortOrder: 3 },
+      { key: "billing", label: "Billing", color: "#64748b", sortOrder: 4 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "contact-config"
+    }
+  },
+  {
     setKey: "opportunity-pipeline",
     moduleKey: "opportunities",
     kind: "pipeline",

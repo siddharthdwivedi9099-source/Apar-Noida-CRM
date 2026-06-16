@@ -6,6 +6,7 @@ export const authFoundation = {
     "/admin",
     "/leads",
     "/accounts",
+    "/contacts",
     "/opportunities",
     "/campaigns",
     "/support",

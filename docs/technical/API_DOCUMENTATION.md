@@ -38,7 +38,7 @@ Request body:
 
 Behavior:
 - issues a JWT access token
-- rotates/stores a hashed refresh token session
+- rotates and stores a hashed refresh token session
 - sets an HTTP-only refresh token cookie
 - writes audit logs
 - applies rate limiting and failed-login handling
@@ -127,14 +127,6 @@ Write routes require one of:
 
 Returns the tenant bootstrap configuration used by the frontend shell.
 
-Response includes:
-- tenant summary
-- workspace settings
-- theme settings
-- module states
-- terminology entries
-- configuration summary counts
-
 ### `GET /tenant-config/settings`
 
 Returns tenant workspace settings.
@@ -142,19 +134,6 @@ Returns tenant workspace settings.
 ### `PUT /tenant-config/settings`
 
 Updates tenant workspace settings.
-
-Request body:
-
-```json
-{
-  "workspaceName": "Sample Tenant Workspace",
-  "timezone": "UTC",
-  "locale": "en-US",
-  "currency": "USD",
-  "dateFormat": "MMM d, yyyy",
-  "timeFormat": "12h"
-}
-```
 
 ### `GET /tenant-config/theme`
 
@@ -164,22 +143,6 @@ Returns the tenant theme settings.
 
 Updates tenant theme settings.
 
-Request body:
-
-```json
-{
-  "logo": null,
-  "primaryColor": "#f97316",
-  "secondaryColor": "#bae6fd",
-  "accentColor": "#14b8a6",
-  "mode": "light",
-  "sidebarStyle": "glass",
-  "cardStyle": "glass",
-  "fontPreference": "modern",
-  "density": "comfortable"
-}
-```
-
 ### `GET /tenant-config/modules`
 
 Returns tenant module states.
@@ -188,23 +151,6 @@ Returns tenant module states.
 
 Updates tenant module enablement.
 
-Request body:
-
-```json
-{
-  "modules": [
-    {
-      "moduleKey": "leads",
-      "enabled": true
-    },
-    {
-      "moduleKey": "support",
-      "enabled": false
-    }
-  ]
-}
-```
-
 ### `GET /tenant-config/terminology`
 
 Returns tenant terminology entries.
@@ -212,21 +158,6 @@ Returns tenant terminology entries.
 ### `PUT /tenant-config/terminology`
 
 Updates tenant terminology labels.
-
-Request body:
-
-```json
-{
-  "terminology": [
-    {
-      "moduleKey": "leads",
-      "singular": "Prospect",
-      "plural": "Prospects",
-      "description": "Early-stage demand records."
-    }
-  ]
-}
-```
 
 ### `GET /tenant-config/custom-fields`
 
@@ -239,20 +170,6 @@ Optional query params:
 ### `POST /tenant-config/custom-fields`
 
 Creates a tenant custom field definition.
-
-Request body example:
-
-```json
-{
-  "moduleKey": "leads",
-  "entityKey": "lead",
-  "label": "Campaign Focus",
-  "dataType": "text",
-  "isRequired": false,
-  "isActive": true,
-  "sortOrder": 0
-}
-```
 
 ### `PATCH /tenant-config/custom-fields/:fieldId`
 
@@ -270,25 +187,233 @@ Returns active tenant option sets and values.
 
 Replaces an option set and its active values.
 
-This endpoint supports tenant-configurable:
-- dropdown values
-- pipeline stages
-- ticket statuses
-- customer-success stages
-
 ### `GET /tenant-config/form-layouts`
 
 Returns tenant form-layout metadata.
 
+## CRM Endpoints
+
+All CRM routes require:
+
+```text
+Authorization: Bearer <access-token>
+```
+
+Every CRM route is tenant-scoped and uses soft-delete-aware reads.
+
+## Leads
+
+### `GET /leads/options`
+
+Returns:
+- assignable owners
+- lead statuses
+- lead sources
+
+Requires any active `leads.*` permission.
+
+### `GET /leads`
+
+Returns paginated leads.
+
+Supported query params:
+- `page`
+- `pageSize`
+- `search`
+- `status`
+- `source`
+- `ownerId`
+- `sortBy`: `createdAt | updatedAt | companyName | status | source | score | owner`
+- `sortOrder`: `asc | desc`
+
+### `POST /leads`
+
+Creates a lead.
+
+Requires one of:
+- `leads.create`
+- `leads.configure`
+
+Request body example:
+
+```json
+{
+  "firstName": "Riley",
+  "lastName": "Shah",
+  "companyName": "Northwind Labs",
+  "email": "riley@northwind.test",
+  "phone": "+1-415-555-0101",
+  "statusKey": "new",
+  "sourceKey": "website",
+  "score": 42,
+  "ownerId": null
+}
+```
+
+### `GET /leads/:leadId`
+
+Returns the lead plus:
+- notes
+- activities
+- conversion placeholder metadata
+
+### `PATCH /leads/:leadId`
+
+Updates a lead.
+
+Requires one of:
+- `leads.edit`
+- `leads.assign`
+- `leads.configure`
+
+Assignment-only actors can only update `ownerId`.
+
+### `DELETE /leads/:leadId`
+
+Soft-deletes a lead.
+
+### `POST /leads/:leadId/notes`
+
+Creates a note for the lead.
+
+### `POST /leads/:leadId/activities`
+
+Creates an activity for the lead.
+
+## Accounts
+
+### `GET /accounts/options`
+
+Returns:
+- assignable owners
+- account types
+- account health placeholders
+
+Requires any active `accounts.*` permission.
+
+### `GET /accounts`
+
+Returns paginated accounts.
+
+Supported query params:
+- `page`
+- `pageSize`
+- `search`
+- `accountType`
+- `industry`
+- `ownerId`
+- `sortBy`: `createdAt | updatedAt | name | accountType | industry | owner`
+- `sortOrder`: `asc | desc`
+
+### `POST /accounts`
+
+Creates an account.
+
+Requires one of:
+- `accounts.create`
+- `accounts.configure`
+
+### `GET /accounts/:accountId`
+
+Returns the account plus:
+- notes
+- activities
+- related contacts
+- related opportunities placeholder metadata
+
+### `PATCH /accounts/:accountId`
+
+Updates an account.
+
+Requires one of:
+- `accounts.edit`
+- `accounts.assign`
+- `accounts.configure`
+
+Assignment-only actors can only update `ownerId`.
+
+### `DELETE /accounts/:accountId`
+
+Soft-deletes an account.
+
+### `POST /accounts/:accountId/notes`
+
+Creates a note for the account.
+
+### `POST /accounts/:accountId/activities`
+
+Creates an activity for the account.
+
+## Contacts
+
+### `GET /contacts/options`
+
+Returns:
+- assignable owners
+- contact roles
+- active accounts for relationship assignment
+
+Requires any active `contacts.*` permission.
+
+### `GET /contacts`
+
+Returns paginated contacts.
+
+Supported query params:
+- `page`
+- `pageSize`
+- `search`
+- `accountId`
+- `role`
+- `ownerId`
+- `sortBy`: `createdAt | updatedAt | name | email | account | role | owner`
+- `sortOrder`: `asc | desc`
+
+### `POST /contacts`
+
+Creates a contact.
+
+Requires one of:
+- `contacts.create`
+- `contacts.configure`
+
+### `GET /contacts/:contactId`
+
+Returns the contact plus:
+- notes
+- activities
+- related account summary
+
+### `PATCH /contacts/:contactId`
+
+Updates a contact.
+
+Requires one of:
+- `contacts.edit`
+- `contacts.assign`
+- `contacts.configure`
+
+Assignment-only actors can only update `ownerId`.
+
+### `DELETE /contacts/:contactId`
+
+Soft-deletes a contact.
+
+### `POST /contacts/:contactId/notes`
+
+Creates a note for the contact.
+
+### `POST /contacts/:contactId/activities`
+
+Creates an activity for the contact.
+
 ## Error Behavior
 
 Current conventions:
-- `400` for validation errors
+- `400` for validation errors and invalid tenant option references
 - `401` for authentication failures
 - `403` for permission failures
 - `404` for missing tenant-scoped records
 - `409` for conflicting role or custom-field operations
 - `429` for login rate limiting
 - `500` for unexpected server errors
-
-Authentication and tenant-scoped admin responses intentionally avoid leaking sensitive identity details.

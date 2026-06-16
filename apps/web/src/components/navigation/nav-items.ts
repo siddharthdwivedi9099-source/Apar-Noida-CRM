@@ -3,6 +3,7 @@ import {
   BarChart3,
   BriefcaseBusiness,
   Building2,
+  ContactRound,
   LayoutDashboard,
   LifeBuoy,
   Megaphone,
@@ -51,6 +52,14 @@ export const appNavItems: AppNavItem[] = [
     icon: Building2,
     moduleKey: "accounts",
     requiredPermissionCodes: routePermissionRequirements.accounts
+  },
+  {
+    title: "Contacts",
+    href: "/contacts",
+    description: "Stakeholder identities and account relationships.",
+    icon: ContactRound,
+    moduleKey: "contacts",
+    requiredPermissionCodes: routePermissionRequirements.contacts
   },
   {
     title: "Opportunities",

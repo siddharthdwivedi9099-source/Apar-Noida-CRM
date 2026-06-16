@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { LeadListQuery, LeadOptionsResponse, LeadsResponse } from "@crm/types";
+import type { ContactListQuery, ContactOptionsResponse, ContactsResponse } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,35 +12,36 @@ import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
 import { Link } from "react-router-dom";
 
-const defaultQuery: LeadListQuery = {
+const defaultQuery: ContactListQuery = {
   page: 1,
   pageSize: 12,
   sortBy: "updatedAt",
   sortOrder: "desc"
 };
 
-export function LeadsPage() {
+export function ContactsPage() {
   const { accessToken, hasAnyPermission } = useAuth();
   const { getModuleLabel } = useTenantConfig();
-  const leadLabel = getModuleLabel("leads", "singular");
-  const leadsLabel = getModuleLabel("leads");
-  const [options, setOptions] = useState<LeadOptionsResponse | null>(null);
-  const [data, setData] = useState<LeadsResponse | null>(null);
-  const [query, setQuery] = useState<LeadListQuery>(defaultQuery);
+  const contactLabel = getModuleLabel("contacts", "singular");
+  const contactsLabel = getModuleLabel("contacts");
+  const accountLabel = getModuleLabel("accounts", "singular");
+  const [options, setOptions] = useState<ContactOptionsResponse | null>(null);
+  const [data, setData] = useState<ContactsResponse | null>(null);
+  const [query, setQuery] = useState<ContactListQuery>(defaultQuery);
   const [searchInput, setSearchInput] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [sourceFilter, setSourceFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [accountFilter, setAccountFilter] = useState("");
   const [ownerFilter, setOwnerFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
-  const canCreate = hasAnyPermission(["leads.create", "leads.configure"]);
-  const canEdit = hasAnyPermission(["leads.edit", "leads.configure"]);
-  const canDelete = hasAnyPermission(["leads.delete", "leads.configure"]);
+  const canCreate = hasAnyPermission(["contacts.create", "contacts.configure"]);
+  const canEdit = hasAnyPermission(["contacts.edit", "contacts.configure"]);
+  const canDelete = hasAnyPermission(["contacts.delete", "contacts.configure"]);
 
   const activeFilterCount = useMemo(
-    () => [query.search, query.status, query.source, query.ownerId].filter(Boolean).length,
+    () => [query.search, query.role, query.accountId, query.ownerId].filter(Boolean).length,
     [query]
   );
 
@@ -51,11 +52,12 @@ export function LeadsPage() {
 
     void (async () => {
       try {
-        const response = await apiRequest<LeadOptionsResponse>("/leads/options", {
-          method: "GET",
-          accessToken
-        });
-        setOptions(response);
+        setOptions(
+          await apiRequest<ContactOptionsResponse>("/contacts/options", {
+            method: "GET",
+            accessToken
+          })
+        );
       } catch (error) {
         setErrorMessage(getErrorMessage(error));
       }
@@ -72,11 +74,12 @@ export function LeadsPage() {
 
     void (async () => {
       try {
-        const response = await apiRequest<LeadsResponse>(`/leads${buildQueryString(query)}`, {
-          method: "GET",
-          accessToken
-        });
-        setData(response);
+        setData(
+          await apiRequest<ContactsResponse>(`/contacts${buildQueryString(query)}`, {
+            method: "GET",
+            accessToken
+          })
+        );
       } catch (error) {
         setErrorMessage(getErrorMessage(error));
       } finally {
@@ -90,38 +93,39 @@ export function LeadsPage() {
       ...currentValue,
       page: 1,
       search: searchInput.trim() || undefined,
-      status: statusFilter || undefined,
-      source: sourceFilter || undefined,
+      role: roleFilter || undefined,
+      accountId: accountFilter || undefined,
       ownerId: ownerFilter || undefined
     }));
   }
 
   function resetFilters() {
     setSearchInput("");
-    setStatusFilter("");
-    setSourceFilter("");
+    setRoleFilter("");
+    setAccountFilter("");
     setOwnerFilter("");
     setQuery(defaultQuery);
   }
 
-  async function handleDelete(leadId: string) {
-    if (!accessToken || !window.confirm(`Soft delete this ${leadLabel.toLowerCase()}?`)) {
+  async function handleDelete(contactId: string) {
+    if (!accessToken || !window.confirm(`Soft delete this ${contactLabel.toLowerCase()}?`)) {
       return;
     }
 
-    setIsDeletingId(leadId);
+    setIsDeletingId(contactId);
     setErrorMessage(null);
 
     try {
-      await apiRequest(`/leads/${leadId}`, {
+      await apiRequest(`/contacts/${contactId}`, {
         method: "DELETE",
         accessToken
       });
-      const response = await apiRequest<LeadsResponse>(`/leads${buildQueryString(query)}`, {
-        method: "GET",
-        accessToken
-      });
-      setData(response);
+      setData(
+        await apiRequest<ContactsResponse>(`/contacts${buildQueryString(query)}`, {
+          method: "GET",
+          accessToken
+        })
+      );
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -132,13 +136,13 @@ export function LeadsPage() {
   return (
     <div className="space-y-6">
       <CrmHero
-        eyebrow="Core CRM foundation"
-        title={`${leadsLabel} now run on tenant-safe CRUD, filters, assignment, notes, and activities.`}
-        summary={`This workspace is the production-ready entry point for ${leadLabel.toLowerCase()} intake, qualification visibility, source tracking, ownership handoff, and timeline capture.`}
+        eyebrow="Stakeholder mapping"
+        title={`${contactsLabel} now connect people, ${accountLabel.toLowerCase()} relationships, owner assignment, and shared activity history.`}
+        summary={`This workspace is the production-ready home for stakeholder identity, account mapping, contact roles, notes, activities, and role-aware actions within the tenant.`}
         actions={
           canCreate ? (
             <Button asChild>
-              <Link to="/leads/new">Create {leadLabel}</Link>
+              <Link to="/contacts/new">Create {contactLabel}</Link>
             </Button>
           ) : null
         }
@@ -147,12 +151,12 @@ export function LeadsPage() {
             <CrmMetricCard
               label="Visible records"
               value={String(data?.pagination.total ?? 0)}
-              description={`Tenant-scoped ${leadsLabel.toLowerCase()} available under your current role.`}
+              description={`Tenant-scoped ${contactsLabel.toLowerCase()} currently visible to your role.`}
             />
             <CrmMetricCard
               label="Applied filters"
               value={String(activeFilterCount)}
-              description="Search, ownership, source, and status filters all flow through the live API."
+              description="Search, account, role, and owner filters are now wired through the live contacts API."
             />
           </div>
         }
@@ -161,9 +165,9 @@ export function LeadsPage() {
       <section className="grid gap-6 xl:grid-cols-[1fr_1.4fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Find the right {leadsLabel.toLowerCase()}</CardTitle>
+            <CardTitle>Refine {contactsLabel.toLowerCase()}</CardTitle>
             <CardDescription>
-              Search and filter by owner, qualification status, and source while keeping pagination and sorting stable.
+              Search and filter stakeholders by account, role, owner, and sort order.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -172,36 +176,36 @@ export function LeadsPage() {
               <Input
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder={`Search ${leadsLabel.toLowerCase()} by name, company, email, or phone`}
+                placeholder={`Search ${contactsLabel.toLowerCase()} by name, email, phone, or account`}
               />
             </label>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-sm font-medium">Status</span>
+                <span className="text-sm font-medium">Role</span>
                 <select
                   className={selectClassName}
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  value={roleFilter}
+                  onChange={(event) => setRoleFilter(event.target.value)}
                 >
-                  <option value="">All statuses</option>
-                  {options?.statuses.map((status) => (
-                    <option key={status.id} value={status.key}>
-                      {status.label}
+                  <option value="">All roles</option>
+                  {options?.roles.map((role) => (
+                    <option key={role.id} value={role.key}>
+                      {role.label}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium">Source</span>
+                <span className="text-sm font-medium">Related account</span>
                 <select
                   className={selectClassName}
-                  value={sourceFilter}
-                  onChange={(event) => setSourceFilter(event.target.value)}
+                  value={accountFilter}
+                  onChange={(event) => setAccountFilter(event.target.value)}
                 >
-                  <option value="">All sources</option>
-                  {options?.sources.map((source) => (
-                    <option key={source.id} value={source.key}>
-                      {source.label}
+                  <option value="">All accounts</option>
+                  {options?.accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
                     </option>
                   ))}
                 </select>
@@ -254,16 +258,16 @@ export function LeadsPage() {
                     setQuery((currentValue) => ({
                       ...currentValue,
                       page: 1,
-                      sortBy: event.target.value as LeadListQuery["sortBy"]
+                      sortBy: event.target.value as ContactListQuery["sortBy"]
                     }))
                   }
                 >
                   <option value="updatedAt">Last updated</option>
                   <option value="createdAt">Created date</option>
-                  <option value="companyName">Company</option>
-                  <option value="status">Status</option>
-                  <option value="source">Source</option>
-                  <option value="score">Score</option>
+                  <option value="name">Name</option>
+                  <option value="email">Email</option>
+                  <option value="account">Account</option>
+                  <option value="role">Role</option>
                   <option value="owner">Owner</option>
                 </select>
               </label>
@@ -276,7 +280,7 @@ export function LeadsPage() {
                     setQuery((currentValue) => ({
                       ...currentValue,
                       page: 1,
-                      sortOrder: event.target.value as LeadListQuery["sortOrder"]
+                      sortOrder: event.target.value as ContactListQuery["sortOrder"]
                     }))
                   }
                 >
@@ -296,9 +300,9 @@ export function LeadsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>{leadsLabel} queue</CardTitle>
+            <CardTitle>{contactsLabel} list</CardTitle>
             <CardDescription>
-              Every row is already tenant-isolated and backed by audit-logged create, update, delete, note, and activity flows.
+              Every stakeholder record already supports account mapping, soft delete, audit logging, notes, and activities.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -306,60 +310,60 @@ export function LeadsPage() {
 
             {isLoading ? (
               <CrmLoadingState
-                title={`Loading ${leadsLabel.toLowerCase()}`}
-                description="The workspace is fetching filtered lead records from the CRM API."
+                title={`Loading ${contactsLabel.toLowerCase()}`}
+                description="The workspace is fetching tenant-safe contact records from the CRM API."
               />
-            ) : data && data.leads.length > 0 ? (
+            ) : data && data.contacts.length > 0 ? (
               <>
                 <div className="space-y-3">
-                  {data.leads.map((lead) => (
-                    <div key={lead.id} className="rounded-[1.5rem] bg-background/75 p-5 shadow-sm">
+                  {data.contacts.map((contact) => (
+                    <div key={contact.id} className="rounded-[1.5rem] bg-background/75 p-5 shadow-sm">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge>{lead.status?.label ?? "Status missing"}</Badge>
-                            <Badge variant="muted">{lead.source?.label ?? "Source missing"}</Badge>
-                            {lead.score !== null ? <Badge variant="success">Score {lead.score}</Badge> : null}
+                            {contact.role ? <Badge>{contact.role.label}</Badge> : null}
+                            {contact.account ? <Badge variant="muted">{contact.account.name}</Badge> : null}
+                            <Badge variant="success">{contact.activityCount} activities</Badge>
                           </div>
                           <div>
-                            <p className="font-display text-2xl font-semibold">{lead.companyName}</p>
+                            <p className="font-display text-2xl font-semibold">{contact.fullName}</p>
                             <p className="text-sm text-muted-foreground">
-                              {lead.fullName} {lead.email ? `• ${lead.email}` : ""} {lead.phone ? `• ${lead.phone}` : ""}
+                              {contact.email ?? "No email"} {contact.phone ? `• ${contact.phone}` : ""} {contact.linkedinUrl ? `• ${contact.linkedinUrl}` : ""}
                             </p>
                           </div>
                           <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
                             <div>
                               <p className="text-xs uppercase tracking-[0.18em]">Owner</p>
-                              <p className="mt-1 text-foreground">{lead.owner?.displayName ?? "Unassigned"}</p>
+                              <p className="mt-1 text-foreground">{contact.owner?.displayName ?? "Unassigned"}</p>
                             </div>
                             <div>
                               <p className="text-xs uppercase tracking-[0.18em]">Timeline</p>
                               <p className="mt-1 text-foreground">
-                                {lead.noteCount} notes • {lead.activityCount} activities
+                                {contact.noteCount} notes • {contact.activityCount} activities
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs uppercase tracking-[0.18em]">Last activity</p>
-                              <p className="mt-1 text-foreground">{formatDateTime(lead.lastActivityAt)}</p>
+                              <p className="text-xs uppercase tracking-[0.18em]">Last updated</p>
+                              <p className="mt-1 text-foreground">{formatDateTime(contact.updatedAt)}</p>
                             </div>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button variant="outline" asChild>
-                            <Link to={`/leads/${lead.id}`}>Open</Link>
+                            <Link to={`/contacts/${contact.id}`}>Open</Link>
                           </Button>
                           {canEdit ? (
                             <Button variant="secondary" asChild>
-                              <Link to={`/leads/${lead.id}/edit`}>Edit</Link>
+                              <Link to={`/contacts/${contact.id}/edit`}>Edit</Link>
                             </Button>
                           ) : null}
                           {canDelete ? (
                             <Button
                               variant="ghost"
-                              onClick={() => handleDelete(lead.id)}
-                              disabled={isDeletingId === lead.id}
+                              onClick={() => handleDelete(contact.id)}
+                              disabled={isDeletingId === contact.id}
                             >
-                              {isDeletingId === lead.id ? "Deleting..." : "Delete"}
+                              {isDeletingId === contact.id ? "Deleting..." : "Delete"}
                             </Button>
                           ) : null}
                         </div>
@@ -370,7 +374,7 @@ export function LeadsPage() {
 
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] bg-background/75 p-4 text-sm">
                   <p className="text-muted-foreground">
-                    Page {data.pagination.page} of {data.pagination.totalPages} • {data.pagination.total} total {leadsLabel.toLowerCase()}
+                    Page {data.pagination.page} of {data.pagination.totalPages} • {data.pagination.total} total {contactsLabel.toLowerCase()}
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -402,12 +406,12 @@ export function LeadsPage() {
               </>
             ) : (
               <CrmEmptyState
-                title={`No ${leadsLabel.toLowerCase()} matched the current criteria.`}
-                description={`Try widening your filters, changing the search term, or create the first ${leadLabel.toLowerCase()} for this tenant.`}
+                title={`No ${contactsLabel.toLowerCase()} matched the current criteria.`}
+                description={`Try a broader search, remove a filter, or create the first ${contactLabel.toLowerCase()} for this tenant.`}
                 action={
                   canCreate ? (
                     <Button asChild>
-                      <Link to="/leads/new">Create {leadLabel}</Link>
+                      <Link to="/contacts/new">Create {contactLabel}</Link>
                     </Button>
                   ) : null
                 }

@@ -8,8 +8,7 @@ This repository now contains the implemented foundation for:
 - Phase 3: authentication, session handling, and protected frontend routing
 - Phase 4: RBAC, role templates, permission middleware, and admin role management
 - Phase 5: tenant settings, theme configuration, module switches, terminology, and custom-field metadata foundations
-
-The codebase is still platform-first. Full CRM entity CRUD is the next phase.
+- Phase 6: leads, accounts, and contacts CRM foundation
 
 ## What Exists Now
 
@@ -24,6 +23,7 @@ The codebase is still platform-first. Full CRM entity CRUD is the next phase.
 - RBAC management workspace
 - live theme reflection from tenant settings
 - module-aware route blocking for disabled modules
+- live leads, accounts, and contacts list/detail/form flows
 
 ### Backend
 
@@ -34,7 +34,8 @@ The codebase is still platform-first. Full CRM entity CRUD is the next phase.
 - authentication and refresh-token session flow
 - RBAC catalog, role management, and user-role assignment APIs
 - tenant configuration APIs for settings, theme, modules, terminology, custom fields, option sets, and form layouts
-- audit logging for auth, RBAC, and tenant-config writes
+- CRM APIs for leads, accounts, contacts, notes, and activities
+- audit logging for auth, RBAC, tenant-config, and CRM writes
 
 ### Shared Packages
 
@@ -91,10 +92,20 @@ Default local bootstrap values:
 
 Change these through environment variables before using anything beyond local development.
 
+## CRM Routes
+
+- `/leads`
+- `/leads/new`
+- `/accounts`
+- `/accounts/new`
+- `/contacts`
+- `/contacts/new`
+
+Detail and edit routes are protected and permission-aware.
+
 ## Useful Commands
 
 ```bash
-npm run db:create:migration -- add_contacts_table
 npm run db:status
 npm run db:migrate
 npm run db:rollback
@@ -102,15 +113,6 @@ npm run db:seed
 npm run typecheck
 npm run build
 ```
-
-## Current Admin Routes
-
-- `/admin`
-- `/admin/theme`
-- `/admin/modules`
-- `/admin/terminology`
-- `/admin/custom-fields`
-- `/admin/rbac`
 
 ## Environment Highlights
 
@@ -126,20 +128,20 @@ Important variables:
 - `DEFAULT_ADMIN_PASSWORD`
 - `SESSION_COOKIE_NAME`
 - `VITE_API_BASE_URL`
-- `VITE_DEFAULT_TENANT_SLUG`
 
 For local browser auth, the default CORS configuration supports both:
 - `http://127.0.0.1:5173`
 - `http://localhost:5173`
 
-## Current Limitations
+## Current Limits
 
 Not implemented yet:
 - public registration
 - admin-created user lifecycle UI
-- business-module CRUD
-- record-level authorization
+- opportunities
+- lead conversion
 - dynamic form rendering from custom-field metadata
+- record-level authorization beyond tenant boundaries
 - Redis-backed caching and workers
 - AI execution runtime
 
@@ -149,8 +151,8 @@ Not implemented yet:
 - data model: [docs/technical/DATA_MODEL.md](docs/technical/DATA_MODEL.md)
 - migrations and seeds: [docs/technical/DATABASE_MIGRATIONS.md](docs/technical/DATABASE_MIGRATIONS.md)
 - API surface: [docs/technical/API_DOCUMENTATION.md](docs/technical/API_DOCUMENTATION.md)
+- module catalog: [docs/business/MODULE_CATALOG.md](docs/business/MODULE_CATALOG.md)
+- functional specification: [docs/business/FUNCTIONAL_SPECIFICATION.md](docs/business/FUNCTIONAL_SPECIFICATION.md)
+- sales guide: [docs/user-guides/SALES_USER_GUIDE.md](docs/user-guides/SALES_USER_GUIDE.md)
 - multi-tenancy: [docs/architecture/MULTI_TENANCY_DESIGN.md](docs/architecture/MULTI_TENANCY_DESIGN.md)
 - security design: [docs/security/SECURITY_DESIGN.md](docs/security/SECURITY_DESIGN.md)
-- access control: [docs/security/ACCESS_CONTROL_GUIDE.md](docs/security/ACCESS_CONTROL_GUIDE.md)
-- audit logging: [docs/security/AUDIT_LOGGING_GUIDE.md](docs/security/AUDIT_LOGGING_GUIDE.md)
-- admin workflow: [docs/user-guides/ADMIN_GUIDE.md](docs/user-guides/ADMIN_GUIDE.md)

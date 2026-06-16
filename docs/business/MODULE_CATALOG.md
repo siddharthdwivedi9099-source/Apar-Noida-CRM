@@ -2,221 +2,133 @@
 
 ## Purpose
 
-This catalog defines the major modules expected in the platform, why each exists, how each should fit into the overall product, and what shared dependencies each module will rely on.
+This catalog records the major platform and business modules in the product and highlights which ones are now implemented versus still planned.
 
-## Scope
-
-This document includes:
-- platform modules
-- business modules
-- AI platform modules
-- module purpose and ownership direction
-- dependencies and implementation notes
-
-It does not include:
-- detailed APIs
-- schema definitions
-- detailed screen inventories
-- team staffing assignments
-
-## Catalog Conventions
-
-Each module entry should answer:
-- what problem the module solves
-- which primary users rely on it
-- which shared platform capabilities it depends on
-- which other modules it should integrate with
-
-## Core Platform Modules
+## Implemented Platform Modules
 
 ### Tenant Administration
 
-- Purpose: tenant setup, configuration, lifecycle management, and governance
-- Primary users: platform admins, tenant admins
-- Key dependencies: identity, configuration, audit
-- Implementation note: this module should own tenant-aware settings and lifecycle workflows
+- Status: implemented
+- Purpose: tenant setup, theme, terminology, module switches, and metadata configuration
+- Primary users: tenant admins
+- Key dependencies: authentication, RBAC, audit logging
 
 ### Identity and Access
 
-- Purpose: users, teams, roles, permissions, and policy enforcement
-- Primary users: platform admins, tenant admins, security reviewers
-- Key dependencies: audit, configuration
-- Implementation note: identity and access is a platform capability, not a feature owned by a single business module
-
-### Configuration Management
-
-- Purpose: feature flags, settings, policy toggles, and tenant overrides
+- Status: implemented
+- Purpose: users, roles, permissions, sessions, protected routes, and permission enforcement
 - Primary users: tenant admins, platform admins
-- Key dependencies: tenant administration, audit
-- Implementation note: configuration should be governed and version-aware
+- Key dependencies: database, audit logging
 
 ### Audit and Compliance
 
-- Purpose: capture, store, and review sensitive and material platform activity
-- Primary users: security reviewers, admins, auditors
-- Key dependencies: all modules
-- Implementation note: audit should be shared infrastructure with consistent event semantics
+- Status: implemented
+- Purpose: capture security-sensitive and administrative actions
+- Primary users: admins, auditors, security reviewers
+- Key dependencies: every write-capable module
 
-### Workflow Automation
+### Configuration Management
 
-- Purpose: execute cross-functional process rules, tasks, escalations, and orchestrations
-- Primary users: operations teams, administrators
-- Key dependencies: configuration, audit, notifications, domain events
-- Implementation note: workflow logic should be modular and tenant-aware
+- Status: implemented
+- Purpose: tenant settings, option sets, custom-field metadata, and form-layout metadata
+- Primary users: tenant admins
+- Key dependencies: tenant administration, audit logging
 
-### Dashboards and Reporting
+## Implemented Core CRM Modules
 
-- Purpose: provide operational, managerial, and executive insights
-- Primary users: executives, managers, operations roles
-- Key dependencies: analytics events, shared domain objects
-- Implementation note: reporting should reflect trusted definitions rather than ad hoc metrics
+### Leads
 
-## Revenue and Growth Modules
+- Status: implemented in Phase 6
+- Purpose: intake, qualification, source tracking, owner assignment, notes, and activities
+- Primary users: SDRs, inside sales, marketing-to-sales handoff roles
+- Implemented capabilities:
+  - list, detail, create, edit, soft delete
+  - owner assignment
+  - status and source tracking
+  - lead score placeholder
+  - notes and activities
+  - conversion placeholder
+- Shared dependencies: RBAC, tenant option sets, audit logging, tenant terminology
 
-### Marketing
+### Accounts
 
-- Purpose: demand generation planning, audience operations, and outcome visibility
-- Primary users: marketing managers, revenue operations
-- Integrates with: campaigns, leads, dashboards
-- Implementation note: marketing should align to downstream conversion context
+- Status: implemented in Phase 6
+- Purpose: shared customer or company record for downstream modules
+- Primary users: sales, support, customer success, managers
+- Implemented capabilities:
+  - list, detail, create, edit, soft delete
+  - owner assignment
+  - account type and industry fields
+  - website
+  - account health placeholder
+  - related contacts
+  - related opportunities placeholder
+  - notes and activities
+- Shared dependencies: RBAC, tenant option sets, audit logging, account-contact relationship model
 
-### Social Media Marketing
+### Contacts
 
-- Purpose: support social publishing, engagement, and attribution workflows
-- Primary users: social media managers, marketing managers
-- Integrates with: marketing, campaigns, dashboards
-- Implementation note: keep social workflows modular so they do not pollute CRM core models
+- Status: implemented in Phase 6
+- Purpose: stakeholder identity, relationship mapping, and account linkage
+- Primary users: sales, support, customer success, partner-facing roles
+- Implemented capabilities:
+  - list, detail, create, edit, soft delete
+  - owner assignment
+  - account relationship
+  - contact role
+  - email, phone, LinkedIn
+  - notes and activities
+- Shared dependencies: RBAC, tenant option sets, audit logging, account relationship model
 
-### Campaign Management
+## Planned Revenue and Service Modules
 
-- Purpose: define, run, and measure structured campaigns
-- Primary users: marketing, SDR leadership, revenue operations
-- Integrates with: marketing, leads, opportunities, reporting
-- Implementation note: campaign lineage to pipeline should be traceable
+### Opportunities
 
-### Inside Sales
+- Status: planned
+- Purpose: revenue pipeline progression and forecasting
+- Expected dependencies: accounts, contacts, leads, workflows, dashboards
 
-- Purpose: support rapid response and early opportunity shaping
-- Primary users: inside sales representatives
-- Integrates with: leads, activities, opportunities
-- Implementation note: inside sales should reuse shared lead and account context
+### Campaigns
 
-### SDR
+- Status: planned
+- Purpose: campaign execution and downstream attribution
+- Expected dependencies: leads, dashboards, marketing
 
-- Purpose: qualification, outreach, meeting generation, and handoff
-- Primary users: SDR teams and managers
-- Integrates with: campaigns, leads, sales, activity tracking
-- Implementation note: qualification logic should be configurable and auditable
+### Support
 
-### Sales
-
-- Purpose: manage opportunity progression and revenue outcomes
-- Primary users: account executives, sales managers
-- Integrates with: accounts, contacts, activities, presales, partner contribution, dashboards
-- Implementation note: opportunity lifecycle should be strongly versioned and observable
-
-### Business Development
-
-- Purpose: support strategic account growth and opportunity creation
-- Primary users: business development managers
-- Integrates with: accounts, leads, opportunities, partners
-- Implementation note: business development often overlaps sales but should keep its own workflow semantics
-
-### Presales
-
-- Purpose: support discovery, solution alignment, and technical validation
-- Primary users: presales engineers, solution consultants
-- Integrates with: opportunities, accounts, training, knowledge assets
-- Implementation note: presales should maintain structured technical context rather than scattered notes
-
-## Ecosystem and Customer Modules
-
-### Partner Management
-
-- Purpose: manage partner relationships, engagement, and performance
-- Primary users: partner managers
-- Integrates with: opportunities, onboarding, training, dashboards
-- Implementation note: partner management should work across both pre-sales and post-sales lifecycles
-
-### Reseller Management
-
-- Purpose: handle reseller-specific operations and contribution tracking
-- Primary users: reseller managers, channel operations
-- Integrates with: partner management, opportunities, support, training
-- Implementation note: reseller processes may require distinct onboarding and reporting paths
-
-### Support Ticketing
-
-- Purpose: issue intake, triage, escalation, and resolution
-- Primary users: support agents, support managers
-- Integrates with: accounts, contacts, success, onboarding, AI query handling
-- Implementation note: support should preserve history and contribute signals to health and knowledge systems
+- Status: planned
+- Purpose: issue intake, triage, and resolution
+- Expected dependencies: accounts, contacts, option sets, audit logging
 
 ### Customer Success
 
-- Purpose: adoption, risk, renewal, and growth coordination
-- Primary users: customer success managers, leadership
-- Integrates with: onboarding, training, support, sales, dashboards
-- Implementation note: customer success should synthesize lifecycle signals rather than become another isolated notes system
+- Status: planned
+- Purpose: onboarding, health, retention, and renewal coordination
+- Expected dependencies: accounts, contacts, support, configuration engine
 
-### Customer Onboarding
+### Partner and Reseller Modules
 
-- Purpose: manage activation and implementation milestones
-- Primary users: onboarding specialists, customer success managers
-- Integrates with: training, support, success, accounts
-- Implementation note: onboarding requires milestone structure and cross-functional visibility
+- Status: planned
+- Purpose: ecosystem relationship management
+- Expected dependencies: accounts, contacts, opportunities, onboarding, dashboards
 
-### Customer Training
+## AI and Workflow Modules
 
-- Purpose: manage customer education programs, sessions, and readiness
-- Primary users: training specialists, onboarding teams, success teams
-- Integrates with: onboarding, success, knowledge management
-- Implementation note: training outcomes should feed customer readiness and health signals
+### AI Assistant
 
-## AI Platform Modules
+- Status: shell and permission gating implemented
+- Purpose: governed AI entry point for later prompts, agents, and retrieval workflows
+- Current state: navigation, route protection, and permission vocabulary exist
 
-### AI Query Handling
+### Workflows
 
-- Purpose: manage inbound AI use cases in a governed flow
-- Primary users: operational users, support teams, future customer-facing surfaces
-- Integrates with: AI Gateway, RAG, prompt registry, agent registry
-- Implementation note: query handling is a user-facing capability built on shared AI platform controls
+- Status: planned
+- Purpose: automate cross-module transitions and approvals
+- Expected dependencies: CRM entities, RBAC, audit logs, configuration metadata
 
-### RAG Knowledge Assistant
+## Dependency Guidance
 
-- Purpose: enable retrieval-backed assistance over approved knowledge
-- Primary users: support, success, onboarding, training, internal operators
-- Integrates with: knowledge sources, AI Gateway, customer query flows
-- Implementation note: authorization-aware retrieval is mandatory
-
-### AI Gateway
-
-- Purpose: centralized policy, routing, observability, and provider mediation
-- Primary users: all AI-enabled modules
-- Integrates with: prompts, agents, telemetry, model providers
-- Implementation note: no feature should call models directly in production
-
-### Prompt Registry
-
-- Purpose: manage prompt assets as versioned governed artifacts
-- Primary users: AI admins, platform teams
-- Integrates with: AI Gateway, agents, evaluation workflows
-- Implementation note: prompt version lineage must be preserved
-
-### AI Agent Registry
-
-- Purpose: register and govern AI agents and their tool permissions
-- Primary users: AI admins, platform teams
-- Integrates with: AI Gateway, workflows, evaluation systems
-- Implementation note: agent rollout should support review and staged adoption
-
-## Dependency and Sequencing Guidance
-
-- Core platform modules must precede or accompany domain module implementation
-- CRM kernel objects should be shared by revenue and service modules
-- AI modules depend on strong identity, audit, and tenant controls
-- Reporting depends on consistent object lineage and event definitions
-
-## Phase Status
-
-All modules in this catalog are currently **planned**. Phase 0 creates structure and documentation only.
+- Leads, accounts, and contacts are now the shared CRM kernel.
+- Future opportunities, support, onboarding, and customer-success modules should extend these entities rather than duplicate them.
+- Tenant option sets and terminology must remain the source of truth for configurable dropdowns and labels.
+- Every new module should inherit the existing RBAC, audit, and soft-delete patterns.

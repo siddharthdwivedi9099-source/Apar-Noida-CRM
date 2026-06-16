@@ -2,43 +2,44 @@
 
 ## Purpose
 
-This document describes the current implemented schema after Phase 2, Phase 3, Phase 4, and Phase 5 foundation work.
+This document describes the implemented database model after Phase 6.
 
 ## Implemented Scope
 
-The database baseline now covers:
+The database now covers:
 - tenant identity and isolation
 - tenant-scoped users, teams, departments, and roles
-- global permission catalog
-- global role templates
-- tenant role-permission assignment
-- tenant user-role assignment
+- global permission catalog and role templates
+- tenant role and user-role assignment
 - authentication sessions
 - audit logging
 - system settings
 - tenant option sets and option values
 - custom field definitions
 - custom form layouts
+- leads
+- accounts
+- contacts
+- shared CRM notes
+- shared CRM activities
 - migration and seed tracking
-
-It does not yet cover CRM business entities such as accounts, contacts, leads, or opportunities.
 
 ## Modeling Standards
 
 ### Tenant Scope
 
 - tenant-owned tables carry `tenant_id`
-- tenant consistency is enforced on key joins through composite foreign keys where practical
-- `permissions` and `role_templates` remain global so the vocabulary and starting bundles are reusable across tenants
+- composite foreign keys are used where practical to keep relationships tenant-safe
+- global vocabulary tables such as `permissions` and `role_templates` remain tenant-independent
 
 ### Timestamps
 
-The standard mutable-table fields are:
+Mutable tables use:
 - `created_at`
 - `updated_at`
 - `deleted_at`
 
-`updated_at` is maintained by shared triggers.
+`updated_at` is maintained by the shared `set_row_updated_at()` trigger function.
 
 ### Actor Tracking
 
@@ -47,80 +48,178 @@ Where applicable, mutable tables also include:
 - `updated_by`
 - `owner_id`
 
-These remain soft references so bootstrap flows and audit retention are not blocked by circular dependencies.
+Notes and activities also track `author_user_id`.
 
 ### Metadata
 
-Extensible tables include `metadata JSONB NOT NULL DEFAULT '{}'::jsonb` for future tenant- or product-specific expansion without repeated schema churn.
+Extensible tables include:
+
+```text
+metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+```
+
+This keeps tenant-specific and future module-specific extensions out of the fixed relational columns.
 
 ### Soft Delete Pattern
 
-The current pattern is:
-- mark records with `deleted_at`
+The standard pattern is:
+- set `deleted_at`
 - keep operational queries filtered to `deleted_at IS NULL`
-- preserve history instead of hard deleting by default
+- preserve historical rows for auditability and future recovery logic
 
 `audit_logs` remains append-only and intentionally does not use soft delete.
 
 ## Implemented Tables
 
-| Table | Scope | Purpose | Notes |
-| --- | --- | --- | --- |
-| `tenants` | global | Primary logical isolation boundary | Includes `slug`, status, owner, metadata, timestamps |
-| `users` | tenant | Login identity and future operator profile | Includes password hash, lockout fields, team and department refs |
-| `teams` | tenant | Operational grouping for ownership and reporting | Optional department relationship |
-| `departments` | tenant | Organizational hierarchy | Supports parent department |
-| `roles` | tenant | Reusable authorization bundles | Seeded from role templates; includes system-role flag |
-| `permissions` | global | Canonical permission catalog | Seeded with module and action permission matrix |
-| `role_permissions` | tenant | Role-to-permission assignment | Carries tenant context explicitly |
-| `user_roles` | tenant | User-to-role assignment | Supports future expiry via `expires_at` |
-| `role_templates` | global | Seeded role blueprint catalog | Provides default tenant role starting points |
-| `role_template_permissions` | global | Template-to-permission assignment | Drives seeded role template bundles |
-| `auth_sessions` | tenant | Refresh token storage and session tracking | Stores hashed refresh token, expiry, revoke state |
-| `audit_logs` | tenant or global | Immutable security and admin trail | Used for auth and RBAC lifecycle events |
-| `system_settings` | tenant or global | JSONB-backed configuration storage | Supports tenant overrides and bootstrap metadata |
-| `tenant_option_sets` | tenant | Configurable dropdown, stage, and status catalogs | Supports pipelines, ticket statuses, and success stages |
-| `tenant_option_values` | tenant | Values inside a tenant option set | Soft-delete-ready and ordered by `sort_order` |
-| `custom_field_definitions` | tenant | Tenant-managed custom field metadata | Supports data type, required flag, option-set linkage, and soft delete |
-| `custom_form_layouts` | tenant | Tenant-managed form layout metadata | Stores section-oriented layout schema JSONB |
-| `schema_migrations` | global | Migration execution ledger | Managed by the migration runner |
-| `seed_runs` | global | Seed execution ledger | Managed by the seed runner |
+| Table | Scope | Purpose |
+| --- | --- | --- |
+| `tenants` | global | Primary logical isolation boundary |
+| `users` | tenant | Login identity and future operator profile |
+| `teams` | tenant | Operational grouping for ownership and reporting |
+| `departments` | tenant | Organizational hierarchy |
+| `roles` | tenant | Reusable authorization bundles |
+| `permissions` | global | Canonical permission catalog |
+| `role_permissions` | tenant | Role-to-permission assignment |
+| `user_roles` | tenant | User-to-role assignment |
+| `role_templates` | global | Seeded role blueprints |
+| `role_template_permissions` | global | Permission bundles for templates |
+| `auth_sessions` | tenant | Refresh token storage and session tracking |
+| `audit_logs` | tenant or global | Immutable security and admin audit trail |
+| `system_settings` | tenant or global | JSONB-backed settings storage |
+| `tenant_option_sets` | tenant | Configurable dropdown, stage, and status catalogs |
+| `tenant_option_values` | tenant | Values inside a tenant option set |
+| `custom_field_definitions` | tenant | Tenant-managed custom field metadata |
+| `custom_form_layouts` | tenant | Tenant-managed form layout metadata |
+| `leads` | tenant | Lead identity, source, status, owner, and score placeholder |
+| `accounts` | tenant | Shared customer or company records |
+| `contacts` | tenant | Stakeholder records linked to accounts |
+| `crm_notes` | tenant | Shared notes attached to leads, accounts, or contacts |
+| `crm_activities` | tenant | Shared activities attached to leads, accounts, or contacts |
+| `schema_migrations` | global | Migration execution ledger |
+| `seed_runs` | global | Seed execution ledger |
 
-## Auth and Access Relationships
+## CRM Entity Detail
 
-- each `user` belongs to one tenant in the current foundation
-- each `role` belongs to one tenant
-- `permissions` are global catalog entries
-- `role_templates` are global seeded blueprints
-- `role_template_permissions` grant permissions to templates
-- `role_permissions` grant global permissions to tenant roles
-- `user_roles` grants tenant-scoped roles to users
-- `auth_sessions` belongs to a tenant user and tracks refresh token rotation
-- `audit_logs` may reference a tenant, actor user, and session when known
-- `tenant_option_sets` and `tenant_option_values` hold tenant-specific configurable catalogs
-- `custom_field_definitions` may optionally reference a tenant option set
-- `custom_form_layouts` holds future per-entity form section metadata
+### `leads`
+
+Key columns:
+- `first_name`
+- `last_name`
+- `company_name`
+- `email`
+- `phone`
+- `status_option_id`
+- `source_option_id`
+- `score`
+- `owner_id`
+- `metadata`
+
+Relationships:
+- `owner_id` references a tenant user
+- `status_option_id` references a tenant option value from `lead-status`
+- `source_option_id` references a tenant option value from `lead-source`
+
+### `accounts`
+
+Key columns:
+- `name`
+- `website`
+- `industry`
+- `account_type_option_id`
+- `health_status_option_id`
+- `owner_id`
+- `metadata`
+
+Relationships:
+- `owner_id` references a tenant user
+- `account_type_option_id` references a tenant option value from `account-type`
+- `health_status_option_id` references a tenant option value from `account-health`
+
+### `contacts`
+
+Key columns:
+- `first_name`
+- `last_name`
+- `email`
+- `phone`
+- `linkedin_url`
+- `role_option_id`
+- `owner_id`
+- `account_id`
+- `metadata`
+
+Relationships:
+- `owner_id` references a tenant user
+- `account_id` references a tenant account
+- `role_option_id` references a tenant option value from `contact-role`
+
+### `crm_notes`
+
+Key columns:
+- `entity_type`
+- `entity_id`
+- `author_user_id`
+- `body`
+- `metadata`
+
+`entity_type` is constrained to:
+- `lead`
+- `account`
+- `contact`
+
+### `crm_activities`
+
+Key columns:
+- `entity_type`
+- `entity_id`
+- `activity_type`
+- `subject`
+- `description`
+- `occurred_at`
+- `author_user_id`
+- `metadata`
+
+`activity_type` is constrained to:
+- `call`
+- `email`
+- `meeting`
+- `task`
+- `status_change`
+- `note`
+
+## Relationship Summary
+
+- a `lead` belongs to one tenant and may be owned by one tenant user
+- an `account` belongs to one tenant and may be owned by one tenant user
+- a `contact` belongs to one tenant, may be owned by one tenant user, and may belong to one tenant account
+- `crm_notes` and `crm_activities` are tenant-scoped shared timeline tables keyed by `entity_type` plus `entity_id`
+- tenant option sets provide configurable dropdown values for lead, account, and contact fields
 
 ## Seeded Bootstrap Records
 
-The core seed currently creates or updates:
+The seed now creates or updates:
 - the default tenant from `DEFAULT_TENANT_SLUG` and `DEFAULT_TENANT_NAME`
-- the full Phase 4 permission catalog
-- the full seeded role template catalog
+- the full permission catalog
+- the full role-template catalog
 - seeded tenant roles derived from those templates
 - the default admin user from `DEFAULT_ADMIN_*`
 - a `super-admin` assignment for that user
-- tenant workspace settings, theme, modules, and terminology in `system_settings`
-- seeded option sets for lead, opportunity, support, and customer-success flows
+- tenant workspace settings, theme, modules, and terminology
+- seeded option sets for:
+  - lead status
+  - lead source
+  - account type
+  - account health
+  - contact role
+  - opportunity pipeline
+  - support ticket status
+  - customer-success stage
 - seeded lead, account, and contact form-layout metadata
-- tenant bootstrap metadata in `system_settings`
-
-If a legacy `tenant-admin` role exists from an earlier foundation seed, the seed migrates it into `super-admin` when possible.
 
 ## Current Limits
 
-- cross-tenant user membership is not implemented yet
-- platform-level impersonation flows are not implemented yet
-- record-level and field-level authorization are not implemented yet
-- custom fields are stored as metadata but not yet rendered in live CRM entity forms
-- CRM business entities will arrive in later migrations
+- cross-tenant user membership is not implemented
+- record-level authorization beyond tenant boundaries is not implemented
+- opportunities are still a future schema phase
+- dynamic rendering of custom fields from metadata is still a future UI phase
+- lead conversion remains a placeholder workflow

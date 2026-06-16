@@ -2,125 +2,35 @@
 
 ## Current Release Version
 
-Latest documented release version: **v0.1.0**
+Latest documented formal release: **v0.1.0**
 
 ## Current Repository State
 
-The repository currently contains **completed Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 foundation work** on `main`, including:
-- a runnable frontend in `apps/web`
-- a runnable backend API in `apps/api`
-- PostgreSQL integration with migrations and seeds
-- tenant-aware core schema
-- implemented authentication and session handling
-- implemented RBAC, role templates, permission middleware, and admin role management
-- implemented tenant settings, theming, module switches, terminology, and custom-field metadata foundations
-- updated technical, architecture, security, and admin documentation
+The repository now contains completed implementation work through:
+
+- Phase 1: runtime foundation
+- Phase 2: database foundation
+- Phase 3: authentication
+- Phase 4: RBAC
+- Phase 5: tenant configuration
+- Phase 6: leads, accounts, and contacts CRM foundation
 
 This means:
 - `v0.1.0` is still the latest formally documented release baseline
-- Phase 1 through Phase 5 implementation work are present in the repository and recorded in `CHANGELOG.md` under `Unreleased`
-- the next formal release should be cut separately rather than silently assumed
+- the repository has progressed significantly beyond that baseline
+- the next formal release should be cut separately rather than assumed automatically
 
-## Why This Matters
+## What Phase 6 Added
 
-The version file needs to distinguish between:
-- the latest formal release state
-- the current implemented repository state
+Phase 6 introduced:
+- CRM schema for leads, accounts, contacts, notes, and activities
+- CRM APIs with tenant isolation, RBAC checks, pagination, filters, and soft delete
+- frontend CRM list, detail, create, and edit flows
+- CRM audit logging
+- updated technical and user documentation for the live CRM surface
 
-At the moment, those are not the same thing:
-- the latest formal release baseline is `v0.1.0`
-- the repository has progressed beyond that baseline with completed initialization, database foundation, authentication, and RBAC work
+## Versioning Guidance
 
-## Meaning of `v0.1.0`
-
-- `0` means the platform is still pre-general-availability
-- `1` means the first formal foundation baseline was established
-- `0` means no patch release was issued on top of that baseline
-
-In practical terms, `v0.1.0` refers to the original foundation-and-documentation release baseline, not the full current repository implementation state.
-
-## Next Expected Release
-
-When the current implemented work is cut as a formal release, it should be versioned as the next minor release rather than treated as a patch to `v0.1.0`.
-
-That is because Phase 1 added:
-- runnable application code
-- a versioned API surface
-- local runtime workflows
-- shared package initialization
-
-And Phases 2, 3, 4, and 5 added:
-- database contracts and migration tooling
-- base multi-tenant persistence
-- authentication and session controls
-- role templates, permission middleware, and admin role management
-- tenant configuration APIs and tenant-driven frontend theming/navigation
-- new security-sensitive runtime behavior
-
-## Scope of the Latest Formal Release
-
-The latest formal release baseline (`v0.1.0`) covers:
-- repository foundation
-- documentation baseline
-- release and roadmap conventions
-- local environment scaffolding
-
-It does not fully represent the current repository state anymore.
-
-## Semantic Versioning Policy
-
-The platform will follow semantic versioning:
-
-### Major
-
-Increment the major version when introducing breaking changes to:
-- public APIs
-- shared contracts
-- tenant configuration models
-- AI registry contracts
-- deployment expectations with compatibility impact
-
-### Minor
-
-Increment the minor version when adding backward-compatible capabilities such as:
-- new modules
-- new workflows
-- new AI capabilities
-- new operational tooling
-- runnable application foundations and platform surfaces
-
-### Patch
-
-Increment the patch version when applying:
-- bug fixes
-- documentation corrections
-- non-breaking quality improvements
-- minor operational clarifications
-
-## Additional Versioned Artifacts
-
-The platform version is only one dimension. The following assets must also be versioned independently:
-- API contracts
-- event schemas
-- database migration chains
-- prompt definitions
-- agent definitions
-- tenant configuration bundles
-- knowledge index revisions
-- documentation baselines where needed for regulated releases
-
-## Release Management Guidance
-
-- Every formal release should have matching entries in `CHANGELOG.md` and `RELEASE_NOTES.md`
-- Repository progress may appear in `Unreleased`, but should not be mistaken for a cut release
-- Breaking changes should be called out explicitly, even before `v1.0.0`
-- The next implementation phase should focus on tenant-aware business modules that plug into the existing RBAC layer
-
-## Future Implementation Guidance
-
-When the next formal release is prepared, also define:
-- build artifact version stamping
-- package version synchronization rules
-- migration versioning format
-- API deprecation policy
-- AI asset promotion workflow across environments
+- Major: breaking API or schema compatibility changes
+- Minor: new backward-compatible module capabilities such as Phase 6
+- Patch: bug fixes, non-breaking refinements, and documentation corrections

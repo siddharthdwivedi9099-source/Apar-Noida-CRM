@@ -7,19 +7,19 @@ import { useTenantConfig } from "@/providers/tenant-config-provider";
 
 const foundationHighlights = [
   {
-    label: "Frontend shell",
-    value: "Permission-aware",
-    detail: "Sidebar, topbar, login page, protected routes, and permission-aware navigation are in place."
+    label: "CRM modules",
+    value: "Leads live",
+    detail: "Leads, accounts, and contacts now ship with list, detail, form, and permission-aware actions."
   },
   {
     label: "Backend API",
     value: "/api/v1",
-    detail: "Express now serves auth, health, RBAC management, permission checks, and centralized error handling."
+    detail: "Express now serves auth, RBAC, tenant config, and tenant-safe CRM CRUD with notes and activities."
   },
   {
     label: "Shared packages",
     value: "6 packages",
-    detail: "Config, types, UI, auth, AI, and database packages now share a single RBAC vocabulary."
+    detail: "Config, types, UI, auth, AI, and database packages now share CRM contracts and RBAC vocabulary."
   }
 ] as const;
 
@@ -34,12 +34,12 @@ export function DashboardPage() {
             <Badge>{platformMetadata.currentPhase}</Badge>
             <div className="space-y-4">
               <h2 className="max-w-3xl font-display text-4xl font-semibold leading-tight">
-                The workspace foundation now includes tenant-aware RBAC and a live tenant configuration engine.
+                The workspace now includes a live core CRM foundation on top of tenant-aware auth, RBAC, and configuration.
               </h2>
               <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-                This dashboard is intentionally centered on platform readiness rather than business metrics. It now
-                reflects the authenticated shell, PostgreSQL-backed identity flow, shared packages, RBAC controls,
-                tenant theme settings, and the local runtime needed before CRM domain features begin.
+                This dashboard is still platform-forward, but the CRM kernel is now live. It reflects the authenticated
+                shell, PostgreSQL-backed identity flow, tenant configuration, and the first production-ready CRM
+                modules for leads, accounts, and contacts.
               </p>
             </div>
           </div>
@@ -48,24 +48,24 @@ export function DashboardPage() {
             <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Current guardrails</p>
             <div className="mt-4 space-y-4">
               <div>
-                <p className="font-semibold">Authentication, RBAC, and tenant settings are now live</p>
+                <p className="font-semibold">Authentication, RBAC, tenant settings, and core CRM modules are now live</p>
                 <p className="mt-1 text-sm text-slate-300">
-                  Login, logout, refresh rotation, session tracking, protected routes, admin role management, and
-                  tenant-configured shell settings are implemented for the seeded tenant flow.
+                  Login, logout, refresh rotation, session tracking, protected routes, admin role management, theme
+                  settings, and the first tenant-safe CRM records now run on the seeded workspace.
                 </p>
               </div>
               <div>
-                <p className="font-semibold">Module access now follows permission bundles and tenant switches</p>
+                <p className="font-semibold">CRM records now follow permission bundles, tenant switches, and audit logs</p>
                 <p className="mt-1 text-sm text-slate-300">
-                  Leads, accounts, campaigns, support, success, admin, and AI routes only appear when the current
-                  user has matching module permissions and the tenant has the module enabled.
+                  Leads, accounts, and contacts now support CRUD, owner assignment, notes, activities, and soft delete
+                  while respecting module toggles and route-level permissions.
                 </p>
               </div>
               <div>
-                <p className="font-semibold">Tenant configuration is now part of the platform foundation</p>
+                <p className="font-semibold">Tenant configuration now feeds live CRM forms</p>
                 <p className="mt-1 text-sm text-slate-300">
                   {settings.workspaceName} now carries its own theme, terminology, module map, option sets, and
-                  form-layout metadata before full CRM records arrive.
+                  form-layout metadata, and the CRM forms are already consuming those tenant-managed labels and dropdowns.
                 </p>
               </div>
             </div>
@@ -76,10 +76,9 @@ export function DashboardPage() {
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Phase 5 platform overview</CardTitle>
+            <CardTitle>Phase 6 platform overview</CardTitle>
             <CardDescription>
-              These cards summarize the current authenticated and authorized platform foundation before business
-              modules are fully built out.
+              These cards summarize the current authenticated platform foundation now that the first CRM modules are live.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
@@ -96,7 +95,7 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Configuration readiness</CardTitle>
-            <CardDescription>Tenant configuration assets are now available for later CRM modules to consume directly.</CardDescription>
+            <CardDescription>Tenant configuration assets are now available and already feeding the first CRM modules.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {[
@@ -147,15 +146,15 @@ export function DashboardPage() {
           <CardHeader>
             <CardTitle>What comes next</CardTitle>
             <CardDescription>
-              The secure platform baseline is in place. The next phase can focus on domain workflows that plug into
-              the RBAC and tenant-configuration layers already shipping here.
+              The secure platform baseline and first CRM entities are in place. The next phase can deepen those
+              workflows instead of rebuilding foundation pieces.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {[
-              "Start the CRM kernel with accounts, contacts, leads, and activity structures.",
-              "Connect real business APIs to the module-level and action-level permissions already seeded.",
-              "Read custom fields, option sets, and terminology directly from the tenant configuration engine."
+              "Extend the CRM kernel into downstream opportunity, sales, and customer lifecycle workflows.",
+              "Keep applying module-level and action-level permissions to every new workflow surface.",
+              "Read more custom fields, option sets, and layouts directly from the tenant configuration engine."
             ].map((nextStep) => (
               <div key={nextStep} className="rounded-[1rem] bg-background/75 px-4 py-4 text-sm leading-6 text-muted-foreground">
                 {nextStep}
