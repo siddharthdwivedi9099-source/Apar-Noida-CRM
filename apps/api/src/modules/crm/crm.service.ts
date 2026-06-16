@@ -16,11 +16,13 @@ import type {
   CreateCrmNoteRequestBody,
   CreateCrmTaskRequestBody,
   CreateLeadRequestBody,
+  CrmActivitiesResponse,
   CrmActivityResponse,
   CrmActivitySummary,
   CrmEntityType,
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
+  CrmNotesResponse,
   CrmNoteResponse,
   CrmNoteSummary,
   CrmOptionValueSummary,
@@ -439,6 +441,11 @@ const crmEntityConfig = {
     label: "Contact",
     tableName: "contacts"
   },
+  campaign: {
+    actionPrefix: "campaign",
+    label: "Campaign",
+    tableName: "campaigns"
+  },
   opportunity: {
     actionPrefix: "opportunity",
     label: "Opportunity",
@@ -843,6 +850,8 @@ export class CrmService {
         return "accounts";
       case "contact":
         return "contacts";
+      case "campaign":
+        return "campaigns";
       case "opportunity":
         return "opportunities";
       case "ticket":
@@ -2294,6 +2303,38 @@ export class CrmService {
   ): Promise<CrmActivityResponse> {
     this.assertEnabled();
     return this.createActivity(actor, audit, entityType, entityId, input);
+  }
+
+  async getEntityNotes(
+    actor: ActorContext,
+    entityType: CrmEntityType,
+    entityId: string
+  ): Promise<CrmNotesResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withClient(async (client) => {
+      await this.assertEntityExists(client, actor.tenantId, entityType, entityId);
+
+      return {
+        notes: await this.loadEntityNotes(client, actor.tenantId, entityType, entityId)
+      };
+    });
+  }
+
+  async getEntityActivities(
+    actor: ActorContext,
+    entityType: CrmEntityType,
+    entityId: string
+  ): Promise<CrmActivitiesResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withClient(async (client) => {
+      await this.assertEntityExists(client, actor.tenantId, entityType, entityId);
+
+      return {
+        activities: await this.loadEntityActivities(client, actor.tenantId, entityType, entityId)
+      };
+    });
   }
 
   async getEntityTimeline(

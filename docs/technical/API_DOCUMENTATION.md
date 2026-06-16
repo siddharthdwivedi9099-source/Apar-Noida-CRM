@@ -56,7 +56,7 @@ Implemented route groups:
 
 These remain unchanged from Phases 4 and 5 and continue to require authenticated, permission-aware access.
 
-## CRM Foundations
+## CRM Foundations and Campaign Management
 
 All CRM routes require:
 
@@ -72,6 +72,7 @@ Shared productivity routes support:
 - `lead`
 - `account`
 - `contact`
+- `campaign`
 - `opportunity`
 - `ticket`
 - `customer_success_account`
@@ -80,9 +81,41 @@ Permission checks map to module families:
 - `lead` -> `leads.*`
 - `account` -> `accounts.*`
 - `contact` -> `contacts.*`
+- `campaign` -> `campaigns.*`
 - `opportunity` -> `opportunities.*`
 - `ticket` -> `support.*`
 - `customer_success_account` -> `customer_success.*`
+
+## Campaign CRUD and Member Management
+
+### Campaign routes
+
+- `GET /campaigns/options`
+- `GET /campaigns`
+- `POST /campaigns`
+- `GET /campaigns/:campaignId`
+- `PATCH /campaigns/:campaignId`
+- `DELETE /campaigns/:campaignId`
+
+### Campaign member routes
+
+- `GET /campaigns/:campaignId/members`
+- `POST /campaigns/:campaignId/members`
+- `PATCH /campaigns/:campaignId/members/:memberId`
+- `DELETE /campaigns/:campaignId/members/:memberId`
+
+### Campaign detail payload behavior
+
+`GET /campaigns/:campaignId` now returns:
+- base campaign strategy fields
+- owner and configurable option references
+- related assets
+- `members`
+- `performancePlaceholder`
+- `calendarPlaceholder`
+- `aiPlaceholders`
+
+Campaign notes, activities, tasks, and timeline items are read through the shared productivity routes using `entityType = campaign`.
 
 ## Lead, Account, and Contact CRUD
 
@@ -158,6 +191,10 @@ Response shape:
 }
 ```
 
+### `GET /records/:entityType/:entityId/notes`
+
+Returns notes attached to the record.
+
 ### `POST /records/:entityType/:entityId/notes`
 
 Creates a note for the record.
@@ -177,6 +214,10 @@ Request body:
 ### `PATCH /records/:entityType/:entityId/notes/:noteId`
 
 Updates a note body, customer-facing flag, and metadata merge.
+
+### `GET /records/:entityType/:entityId/activities`
+
+Returns activities attached to the record.
 
 ### `POST /records/:entityType/:entityId/activities`
 
@@ -233,6 +274,50 @@ Assign-only users may only update:
 - `assigneeId`
 - `status`
 
+## Campaign Request Examples
+
+### `POST /campaigns`
+
+```json
+{
+  "name": "Q3 Expansion Campaign",
+  "description": "Multi-channel outreach for expansion-ready accounts.",
+  "typeKey": "email",
+  "objectiveKey": "pipeline_acceleration",
+  "targetAudience": "Expansion-ready customer and prospect accounts in North America.",
+  "budgetAmount": 15000,
+  "ownerId": "00000000-0000-0000-0000-000000000000",
+  "statusKey": "planned",
+  "startDate": "2026-07-01",
+  "endDate": "2026-07-21",
+  "channelKey": "multi_channel",
+  "relatedAssets": [
+    {
+      "label": "Campaign brief",
+      "url": "https://assets.example.test/q3-expansion-brief",
+      "assetType": "brief"
+    }
+  ],
+  "metadata": {
+    "source": "phase8-test"
+  }
+}
+```
+
+### `POST /campaigns/:campaignId/members`
+
+```json
+{
+  "memberEntityType": "lead",
+  "memberEntityId": "00000000-0000-0000-0000-000000000000",
+  "statusKey": "planned",
+  "response": "Queued for first-touch email",
+  "metadata": {
+    "source": "phase8-test"
+  }
+}
+```
+
 ## Compatibility CRM Routes
 
 The original Phase 6 routes remain available for lead, account, and contact note and activity creation:
@@ -262,5 +347,14 @@ Shared productivity writes produce CRM audit events such as:
 - `lead.activity.create`
 - `lead.task.create`
 - `lead.task.update`
+- `campaign.note.create`
+- `campaign.activity.create`
+- `campaign.task.create`
+- `campaign.member.create`
+- `campaign.member.update`
+- `campaign.member.delete`
+- `campaign.create`
+- `campaign.update`
+- `campaign.delete`
 
 Equivalent action patterns apply to `account`, `contact`, `opportunity`, `ticket`, and `customer_success_account`.

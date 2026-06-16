@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document describes the implemented database model after Phase 7.
+This document describes the implemented database model after Phase 8.
 
 ## Implemented Scope
 
@@ -20,6 +20,8 @@ The database now covers:
 - leads
 - accounts
 - contacts
+- campaigns
+- campaign members
 - shared CRM notes
 - shared CRM activities
 - shared CRM tasks
@@ -97,6 +99,8 @@ The standard pattern is:
 | `leads` | tenant | Lead identity, source, status, owner, and score placeholder |
 | `accounts` | tenant | Shared customer or company records |
 | `contacts` | tenant | Stakeholder records linked to accounts |
+| `campaigns` | tenant | Campaign strategy, ownership, channel, budget, and related asset references |
+| `campaign_members` | tenant | Lead, contact, and account membership records attached to campaigns |
 | `crm_notes` | tenant | Shared notes attached to supported CRM record types |
 | `crm_activities` | tenant | Shared activities attached to supported CRM record types |
 | `crm_tasks` | tenant | Shared work items attached to supported CRM record types |
@@ -144,6 +148,33 @@ Key columns:
 - `account_id`
 - `metadata`
 
+### `campaigns`
+
+Key columns:
+- `name`
+- `description`
+- `type_option_id`
+- `objective_option_id`
+- `status_option_id`
+- `channel_option_id`
+- `target_audience`
+- `budget_amount`
+- `start_date`
+- `end_date`
+- `owner_id`
+- `related_assets`
+- `metadata`
+
+### `campaign_members`
+
+Key columns:
+- `campaign_id`
+- `member_entity_type`
+- `member_entity_id`
+- `status_option_id`
+- `response_text`
+- `metadata`
+
 ## Shared Productivity Tables
 
 ### `crm_notes`
@@ -164,6 +195,7 @@ Supported `entity_type` values:
 - `lead`
 - `account`
 - `contact`
+- `campaign`
 - `opportunity`
 - `ticket`
 - `customer_success_account`
@@ -259,9 +291,11 @@ Supported `touchpoint_type` values:
 - a `lead` belongs to one tenant and may be owned by one tenant user
 - an `account` belongs to one tenant and may be owned by one tenant user
 - a `contact` belongs to one tenant, may be owned by one tenant user, and may belong to one tenant account
+- a `campaign` belongs to one tenant, may be owned by one tenant user, and stores configurable type, objective, status, and channel option references
+- a `campaign_member` belongs to one tenant campaign and points to one tenant lead, contact, or account through a typed polymorphic reference
 - shared productivity tables are keyed by `entity_type` plus `entity_id`
 - notes, activities, tasks, and timeline events are all soft-delete-aware and tenant-scoped
-- tenant option sets provide configurable dropdown values for lead, account, and contact fields
+- tenant option sets provide configurable dropdown values for lead, account, contact, and campaign fields
 
 ## Seeded Bootstrap Records
 
@@ -279,13 +313,18 @@ The seed now creates or updates:
   - account type
   - account health
   - contact role
+  - campaign type
+  - campaign objective
+  - campaign status
+  - campaign channel
+  - campaign member status
   - opportunity pipeline
   - support ticket status
   - customer-success stage
-- seeded lead, account, and contact form-layout metadata
+- seeded lead, account, contact, and campaign form-layout metadata
 
 ## Current Limits
 
 - dedicated `opportunities`, `tickets`, and `customer_success_accounts` primary tables are still a later phase
 - shared productivity tables already accept those entity types to avoid schema rewrites later
-- timeline foundation for campaigns, training, onboarding, and ticket touchpoints exists, but those modules have not yet started writing live events
+- campaign performance metrics, attribution, and true calendar scheduling remain placeholders on top of the now-live campaign schema

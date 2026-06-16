@@ -584,6 +584,115 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "campaign-type",
+    moduleKey: "campaigns",
+    kind: "dropdown",
+    name: "Campaign Type",
+    description: "Default campaign program types for the marketing foundation.",
+    values: [
+      { key: "email", label: "Email Campaign", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "social", label: "Social Campaign", color: "#14b8a6", sortOrder: 1 },
+      { key: "whatsapp", label: "WhatsApp Campaign", color: "#22c55e", sortOrder: 2 },
+      { key: "sms", label: "SMS Campaign", color: "#f59e0b", sortOrder: 3 },
+      { key: "event", label: "Event Campaign", color: "#8b5cf6", sortOrder: 4 },
+      { key: "webinar", label: "Webinar Campaign", color: "#06b6d4", sortOrder: 5 },
+      { key: "lead_generation", label: "Lead Generation Campaign", color: "#ef4444", sortOrder: 6 },
+      { key: "product_launch", label: "Product Launch Campaign", color: "#f97316", sortOrder: 7 },
+      { key: "partner", label: "Partner Campaign", color: "#6366f1", sortOrder: 8 },
+      { key: "reseller", label: "Reseller Campaign", color: "#64748b", sortOrder: 9 },
+      { key: "customer_retention", label: "Customer Retention Campaign", color: "#84cc16", sortOrder: 10 },
+      { key: "adoption", label: "Adoption Campaign", color: "#0f766e", sortOrder: 11 },
+      { key: "renewal", label: "Renewal Campaign", color: "#b45309", sortOrder: 12 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "campaign-config"
+    }
+  },
+  {
+    setKey: "campaign-objective",
+    moduleKey: "campaigns",
+    kind: "dropdown",
+    name: "Campaign Objective",
+    description: "Default objectives used to frame campaign planning and reporting.",
+    values: [
+      { key: "awareness", label: "Brand Awareness", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "lead_generation", label: "Lead Generation", color: "#14b8a6", sortOrder: 1 },
+      { key: "pipeline_acceleration", label: "Pipeline Acceleration", color: "#8b5cf6", sortOrder: 2 },
+      { key: "product_launch", label: "Product Launch", color: "#f97316", sortOrder: 3 },
+      { key: "event_attendance", label: "Event Attendance", color: "#f59e0b", sortOrder: 4 },
+      { key: "customer_adoption", label: "Customer Adoption", color: "#0f766e", sortOrder: 5 },
+      { key: "retention", label: "Customer Retention", color: "#84cc16", sortOrder: 6 },
+      { key: "renewal", label: "Renewal Support", color: "#b45309", sortOrder: 7 },
+      { key: "partner_enablement", label: "Partner Enablement", color: "#6366f1", sortOrder: 8 },
+      { key: "reseller_enablement", label: "Reseller Enablement", color: "#64748b", sortOrder: 9 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "campaign-config"
+    }
+  },
+  {
+    setKey: "campaign-status",
+    moduleKey: "campaigns",
+    kind: "dropdown",
+    name: "Campaign Status",
+    description: "Default operating states for campaign planning and execution.",
+    values: [
+      { key: "draft", label: "Draft", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "planned", label: "Planned", color: "#0ea5e9", sortOrder: 1 },
+      { key: "active", label: "Active", color: "#22c55e", sortOrder: 2 },
+      { key: "paused", label: "Paused", color: "#f59e0b", sortOrder: 3 },
+      { key: "completed", label: "Completed", color: "#14b8a6", sortOrder: 4 },
+      { key: "archived", label: "Archived", color: "#475569", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "campaign-config"
+    }
+  },
+  {
+    setKey: "campaign-channel",
+    moduleKey: "campaigns",
+    kind: "dropdown",
+    name: "Campaign Channel",
+    description: "Default delivery channels for campaign execution and reporting.",
+    values: [
+      { key: "email", label: "Email", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "social", label: "Social", color: "#14b8a6", sortOrder: 1 },
+      { key: "whatsapp", label: "WhatsApp", color: "#22c55e", sortOrder: 2 },
+      { key: "sms", label: "SMS", color: "#f59e0b", sortOrder: 3 },
+      { key: "event", label: "Event", color: "#8b5cf6", sortOrder: 4 },
+      { key: "webinar", label: "Webinar", color: "#06b6d4", sortOrder: 5 },
+      { key: "partner", label: "Partner", color: "#6366f1", sortOrder: 6 },
+      { key: "reseller", label: "Reseller", color: "#64748b", sortOrder: 7 },
+      { key: "multi_channel", label: "Multi-channel", color: "#f97316", sortOrder: 8 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "campaign-config"
+    }
+  },
+  {
+    setKey: "campaign-member-status",
+    moduleKey: "campaigns",
+    kind: "dropdown",
+    name: "Campaign Member Status",
+    description: "Default outreach states for leads, contacts, and accounts added to campaigns.",
+    values: [
+      { key: "planned", label: "Planned", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "queued", label: "Queued", color: "#0ea5e9", sortOrder: 1 },
+      { key: "contacted", label: "Contacted", color: "#14b8a6", sortOrder: 2 },
+      { key: "engaged", label: "Engaged", color: "#22c55e", sortOrder: 3 },
+      { key: "responded", label: "Responded", color: "#8b5cf6", sortOrder: 4 },
+      { key: "opted_out", label: "Opted Out", color: "#ef4444", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "campaign-config"
+    }
+  },
+  {
     setKey: "opportunity-pipeline",
     moduleKey: "opportunities",
     kind: "pipeline",
@@ -719,6 +828,35 @@ export const defaultCustomFormLayoutDefinitions: CustomFormLayoutSeedDefinition[
           id: "contact-context",
           title: "Context",
           fields: ["account_id", "role", "owner_id", "notes"]
+        }
+      ]
+    },
+    metadata: {
+      seeded: true
+    }
+  },
+  {
+    moduleKey: "campaigns",
+    entityKey: "campaign",
+    layoutKey: "default-campaign-layout",
+    name: "Default Campaign Layout",
+    description: "Primary layout scaffold for future campaign create and detail forms.",
+    layoutSchema: {
+      sections: [
+        {
+          id: "campaign-strategy",
+          title: "Campaign Strategy",
+          fields: ["name", "type", "objective", "status", "owner_id"]
+        },
+        {
+          id: "campaign-execution",
+          title: "Execution",
+          fields: ["channel", "target_audience", "budget_amount", "start_date", "end_date"]
+        },
+        {
+          id: "campaign-assets",
+          title: "Assets and Members",
+          fields: ["related_assets", "member_status", "notes"]
         }
       ]
     },

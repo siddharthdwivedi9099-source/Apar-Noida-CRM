@@ -50,6 +50,33 @@ export function formatShortDate(value: string | null) {
   }).format(new Date(value));
 }
 
+export function formatDateOnly(value: string | null) {
+  if (!value) {
+    return "Not scheduled";
+  }
+
+  const normalizedValue = value.includes("T") ? value : `${value}T12:00:00`;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium"
+  }).format(new Date(normalizedValue));
+}
+
+export function formatCurrencyAmount(value: number | null, currency = "USD") {
+  if (value === null) {
+    return "Not set";
+  }
+
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2
+    }).format(value);
+  } catch {
+    return `${currency} ${value.toFixed(2)}`;
+  }
+}
+
 export function getCountLabel(count: number, singular: string, plural: string) {
   return `${count} ${count === 1 ? singular : plural}`;
 }

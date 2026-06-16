@@ -9,6 +9,8 @@ import { AccountsPage } from "./pages/accounts-page";
 import { AdminSettingsPage } from "./pages/admin-settings-page";
 import { AdminPage } from "./pages/admin-page";
 import { AiAssistantPage } from "./pages/ai-assistant-page";
+import { CampaignDetailPage } from "./pages/campaign-detail-page";
+import { CampaignFormPage } from "./pages/campaign-form-page";
 import { CampaignsPage } from "./pages/campaigns-page";
 import { ContactDetailPage } from "./pages/contact-detail-page";
 import { ContactFormPage } from "./pages/contact-form-page";
@@ -419,6 +421,45 @@ export const router = createBrowserRouter([
                 moduleKey="campaigns"
               >
                 <CampaignsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "campaigns/new",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["campaigns.create", "campaigns.configure"]}
+                title="Campaign creation requires create permissions."
+                description="Only roles with campaign creation permissions can open the campaign form."
+                moduleKey="campaigns"
+              >
+                <CampaignFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "campaigns/:campaignId",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.campaigns}
+                title="Campaign detail access is limited by role."
+                description="Open this record with a role that includes Campaigns access."
+                moduleKey="campaigns"
+              >
+                <CampaignDetailPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "campaigns/:campaignId/edit",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["campaigns.edit", "campaigns.assign", "campaigns.configure"]}
+                title="Campaign editing requires edit or assign permissions."
+                description="Only roles with campaign edit or assignment permissions can update the campaign form."
+                moduleKey="campaigns"
+              >
+                <CampaignFormPage />
               </PermissionRoute>
             )
           },

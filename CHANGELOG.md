@@ -2,44 +2,45 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 7 implementation work.
+Current repository state now includes Phase 1 through Phase 8 implementation work.
 
 ### Added
 
-- Phase 7 migration `20260616170000_phase7_productivity_timeline.sql`
-- tenant-scoped `crm_tasks` and `crm_timeline_events` tables
-- expanded shared `crm_notes` support for customer-facing notes and note editing
-- expanded shared `crm_activities` support for activity owner, outcome, richer activity types, and broader record links
+- Phase 8 migration `20260616190000_phase8_campaign_management.sql`
+- tenant-scoped `campaigns` and `campaign_members` tables
+- campaign CRUD APIs
+- campaign member APIs for leads, contacts, and accounts
+- campaign options API backed by seeded tenant option sets
 - shared record APIs for:
-  - timeline reads
-  - note creation
-  - note editing
-  - activity creation
-  - task list
-  - task creation
-  - task updates
-- lead, account, and contact detail views for:
-  - notes panel
-  - activity panel
-  - task list
-  - filterable customer timeline
-- new end-user guide for shared productivity workflows
+  - notes read
+  - activities read
+  - campaign support across notes, activities, tasks, and timeline
+- campaign frontend for:
+  - dashboard placeholder
+  - list
+  - detail
+  - create and edit form
+  - member management
+  - calendar placeholder
+  - permission-aware AI placeholders
+- new campaign functional specification and marketing user guide
 
 ### Changed
 
-- platform metadata now reflects Phase 7: Activities, Tasks, Notes, and Customer Timeline
-- lead, account, and contact detail pages now load owners plus shared productivity data together
-- CRM detail summaries now surface task counts alongside notes and activities
-- README, version notes, functional specification, data model, and API docs now reflect the Phase 7 capability set
+- platform metadata now reflects Phase 8: Campaign Management and Marketing Foundation
+- shared CRM productivity tables now accept `campaign` as a supported record type
+- campaign option sets and campaign form-layout metadata are now part of the default tenant seed
+- the old campaign placeholder route has been replaced with a real module wired to PostgreSQL and RBAC
+- data model, module catalog, API docs, and user-facing docs now reflect the live campaign module
 
 ### Security
 
-- shared record productivity routes now enforce module-aware RBAC checks
-- task updates now enforce assign-only mutation limits where appropriate
-- note edits, activity creation, and task lifecycle writes are tenant-scoped and audit logged
+- campaign routes now enforce module-aware RBAC checks
+- campaign owner updates and member lifecycle mutations enforce assign-aware authorization rules
+- campaign, campaign-member, note, activity, and task writes remain tenant-scoped and audit logged
 
 ### Notes
 
 - dedicated opportunity, ticket, and customer-success-account primary tables are still future work
-- shared productivity routes already support those record types as foundation-only references
-- timeline foundation is live for notes, activities, tasks, and placeholder external event types
+- campaign performance analytics, attribution, and true scheduling remain placeholders in this phase
+- the campaign foundation is now live and ready for later marketing automation, attribution, and AI Gateway integration

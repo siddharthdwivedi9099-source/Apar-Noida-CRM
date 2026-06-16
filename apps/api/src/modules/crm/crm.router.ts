@@ -60,6 +60,7 @@ function buildPermissionGroup(moduleKey: string) {
 const leadPermissionGroup = buildPermissionGroup("leads");
 const accountPermissionGroup = buildPermissionGroup("accounts");
 const contactPermissionGroup = buildPermissionGroup("contacts");
+const campaignPermissionGroup = buildPermissionGroup("campaigns");
 const opportunityPermissionGroup = buildPermissionGroup("opportunities");
 const supportPermissionGroup = buildPermissionGroup("support");
 const customerSuccessPermissionGroup = buildPermissionGroup("customer_success");
@@ -258,6 +259,8 @@ function getRecordPermissionGroup(entityType: CrmEntityType) {
       return accountPermissionGroup;
     case "contact":
       return contactPermissionGroup;
+    case "campaign":
+      return campaignPermissionGroup;
     case "opportunity":
       return opportunityPermissionGroup;
     case "ticket":
@@ -326,6 +329,23 @@ export function createCrmRouter({ databaseService }: CrmRouterDependencies) {
     })
   );
 
+  router.get(
+    "/records/:entityType/:entityId/notes",
+    validateRequest({
+      params: recordContextSchema
+    }),
+    requireRecordPermissions("read"),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.getEntityNotes(
+          request.auth!,
+          request.params.entityType as CrmEntityType,
+          request.params.entityId
+        )
+      );
+    })
+  );
+
   router.post(
     "/records/:entityType/:entityId/notes",
     validateRequest({
@@ -370,6 +390,23 @@ export function createCrmRouter({ databaseService }: CrmRouterDependencies) {
           request.params.entityId,
           request.params.noteId,
           request.body as UpdateCrmNoteRequestBody
+        )
+      );
+    })
+  );
+
+  router.get(
+    "/records/:entityType/:entityId/activities",
+    validateRequest({
+      params: recordContextSchema
+    }),
+    requireRecordPermissions("read"),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.getEntityActivities(
+          request.auth!,
+          request.params.entityType as CrmEntityType,
+          request.params.entityId
         )
       );
     })

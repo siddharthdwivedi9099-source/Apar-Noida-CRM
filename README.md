@@ -10,6 +10,7 @@ This repository now contains the implemented foundation for:
 - Phase 5: tenant settings, theme configuration, module switches, terminology, and custom-field metadata foundations
 - Phase 6: leads, accounts, and contacts CRM foundation
 - Phase 7: activities, tasks, notes, and customer timeline
+- Phase 8: campaign management and marketing foundation
 
 ## What Exists Now
 
@@ -26,6 +27,7 @@ This repository now contains the implemented foundation for:
 - module-aware route blocking for disabled modules
 - live leads, accounts, and contacts list/detail/form flows
 - notes, activities, tasks, and timeline experiences on CRM detail pages
+- live campaigns list/detail/form flows with member management and AI placeholders
 
 ### Backend
 
@@ -36,7 +38,7 @@ This repository now contains the implemented foundation for:
 - authentication and refresh-token session flow
 - RBAC catalog, role management, and user-role assignment APIs
 - tenant configuration APIs for settings, theme, modules, terminology, custom fields, option sets, and form layouts
-- CRM APIs for leads, accounts, contacts, and shared productivity records
+- CRM APIs for leads, accounts, contacts, campaigns, and shared productivity records
 - audit logging for auth, RBAC, tenant-config, and CRM writes
 
 ### Shared Packages
@@ -102,6 +104,8 @@ Change these through environment variables before using anything beyond local de
 - `/accounts/new`
 - `/contacts`
 - `/contacts/new`
+- `/campaigns`
+- `/campaigns/new`
 
 Detail and edit routes are protected and permission-aware.
 
@@ -114,7 +118,7 @@ npm run db:rollback
 npm run db:seed
 npm run typecheck
 npm run build
-node tests/phase7-productivity-exhaustive.mjs
+node tests/phase8-campaigns-exhaustive.mjs
 ```
 
 ## Environment Highlights
@@ -156,8 +160,10 @@ Not implemented yet:
 - migrations and seeds: [docs/technical/DATABASE_MIGRATIONS.md](docs/technical/DATABASE_MIGRATIONS.md)
 - API surface: [docs/technical/API_DOCUMENTATION.md](docs/technical/API_DOCUMENTATION.md)
 - module catalog: [docs/business/MODULE_CATALOG.md](docs/business/MODULE_CATALOG.md)
+- campaign functional spec: [docs/business/CAMPAIGN_MANAGEMENT_FUNCTIONAL_SPEC.md](docs/business/CAMPAIGN_MANAGEMENT_FUNCTIONAL_SPEC.md)
 - functional specification: [docs/business/FUNCTIONAL_SPECIFICATION.md](docs/business/FUNCTIONAL_SPECIFICATION.md)
 - user guide: [docs/user-guides/USER_GUIDE.md](docs/user-guides/USER_GUIDE.md)
+- marketing guide: [docs/user-guides/MARKETING_USER_GUIDE.md](docs/user-guides/MARKETING_USER_GUIDE.md)
 - sales guide: [docs/user-guides/SALES_USER_GUIDE.md](docs/user-guides/SALES_USER_GUIDE.md)
 - multi-tenancy: [docs/architecture/MULTI_TENANCY_DESIGN.md](docs/architecture/MULTI_TENANCY_DESIGN.md)
 - security design: [docs/security/SECURITY_DESIGN.md](docs/security/SECURITY_DESIGN.md)

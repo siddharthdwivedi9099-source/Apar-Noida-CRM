@@ -2,6 +2,7 @@ export const crmEntityTypes = [
   "lead",
   "account",
   "contact",
+  "campaign",
   "opportunity",
   "ticket",
   "customer_success_account"
@@ -199,6 +200,14 @@ export interface CrmNoteResponse {
 
 export interface CrmActivityResponse {
   activity: CrmActivitySummary;
+}
+
+export interface CrmNotesResponse {
+  notes: CrmNoteSummary[];
+}
+
+export interface CrmActivitiesResponse {
+  activities: CrmActivitySummary[];
 }
 
 export interface CrmTaskResponse {
@@ -483,4 +492,186 @@ export interface ContactOptionsResponse {
   owners: CrmLookupUserSummary[];
   roles: CrmOptionValueSummary[];
   accounts: AccountLookupSummary[];
+}
+
+export const campaignSortFields = [
+  "createdAt",
+  "updatedAt",
+  "name",
+  "status",
+  "startDate",
+  "endDate",
+  "budget",
+  "owner"
+] as const;
+export type CampaignSortField = (typeof campaignSortFields)[number];
+
+export const campaignMemberEntityTypes = ["lead", "contact", "account"] as const;
+export type CampaignMemberEntityType = (typeof campaignMemberEntityTypes)[number];
+
+export interface CampaignListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  type?: string;
+  channel?: string;
+  ownerId?: string;
+  sortBy?: CampaignSortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface CampaignAssetReference {
+  label: string;
+  url: string;
+  assetType: string | null;
+}
+
+export interface CampaignMemberRecordSummary {
+  entityType: CampaignMemberEntityType;
+  id: string;
+  label: string;
+  secondaryLabel: string | null;
+}
+
+export interface CampaignMemberSummary {
+  id: string;
+  record: CampaignMemberRecordSummary;
+  status: CrmOptionValueSummary | null;
+  response: string | null;
+  conversionPlaceholder: {
+    available: false;
+    message: string;
+  };
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CampaignPerformancePlaceholder {
+  impressions: null;
+  responses: null;
+  conversions: null;
+  roi: null;
+  message: string;
+}
+
+export interface CampaignAiPlaceholderAction {
+  key: "campaign_plan_generator" | "content_generator" | "audience_suggestion";
+  label: string;
+  description: string;
+}
+
+export interface CampaignAiPlaceholderSummary {
+  actions: CampaignAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface CampaignSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  type: CrmOptionValueSummary | null;
+  objective: CrmOptionValueSummary | null;
+  status: CrmOptionValueSummary | null;
+  channel: CrmOptionValueSummary | null;
+  targetAudience: string | null;
+  budgetAmount: number | null;
+  owner: CrmLookupUserSummary | null;
+  memberCount: number;
+  taskCount: number;
+  noteCount: number;
+  activityCount: number;
+  lastActivityAt: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CampaignDetail extends CampaignSummary {
+  relatedAssets: CampaignAssetReference[];
+  members: CampaignMemberSummary[];
+  performancePlaceholder: CampaignPerformancePlaceholder;
+  calendarPlaceholder: {
+    available: false;
+    message: string;
+  };
+  aiPlaceholders: CampaignAiPlaceholderSummary;
+}
+
+export interface CreateCampaignRequestBody {
+  name: string;
+  description?: string | null;
+  typeKey: string;
+  objectiveKey: string;
+  targetAudience?: string | null;
+  budgetAmount?: number | null;
+  ownerId?: string | null;
+  statusKey: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  channelKey: string;
+  relatedAssets?: CampaignAssetReference[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateCampaignRequestBody {
+  name?: string;
+  description?: string | null;
+  typeKey?: string;
+  objectiveKey?: string;
+  targetAudience?: string | null;
+  budgetAmount?: number | null;
+  ownerId?: string | null;
+  statusKey?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  channelKey?: string;
+  relatedAssets?: CampaignAssetReference[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateCampaignMemberRequestBody {
+  memberEntityType: CampaignMemberEntityType;
+  memberEntityId: string;
+  statusKey?: string | null;
+  response?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateCampaignMemberRequestBody {
+  statusKey?: string | null;
+  response?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CampaignResponse {
+  campaign: CampaignDetail;
+}
+
+export interface CampaignsResponse {
+  campaigns: CampaignSummary[];
+  pagination: CrmPagination;
+}
+
+export interface CampaignMemberResponse {
+  member: CampaignMemberSummary;
+}
+
+export interface CampaignMembersResponse {
+  members: CampaignMemberSummary[];
+}
+
+export interface CampaignOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  types: CrmOptionValueSummary[];
+  objectives: CrmOptionValueSummary[];
+  statuses: CrmOptionValueSummary[];
+  channels: CrmOptionValueSummary[];
+  memberStatuses: CrmOptionValueSummary[];
+  leadCandidates: CampaignMemberRecordSummary[];
+  contactCandidates: CampaignMemberRecordSummary[];
+  accountCandidates: CampaignMemberRecordSummary[];
 }

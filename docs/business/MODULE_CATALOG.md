@@ -80,6 +80,24 @@ This catalog records the major platform and business modules in the product and 
   - notes and activities
 - Shared dependencies: RBAC, tenant option sets, audit logging, account relationship model
 
+### Campaigns
+
+- Status: implemented in Phase 8
+- Purpose: configurable campaign planning, execution tracking, audience membership, and marketing foundation workflows
+- Primary users: marketing executives, marketing managers, social media marketing roles, campaign owners
+- Implemented capabilities:
+  - list, detail, create, edit, soft delete
+  - owner assignment
+  - campaign type, objective, status, and channel tracking
+  - target audience and budget fields
+  - related asset references
+  - campaign member management for leads, contacts, and accounts
+  - campaign tasks through the shared productivity model
+  - performance dashboard placeholder
+  - campaign calendar placeholder
+  - permission-aware AI placeholder actions
+- Shared dependencies: RBAC, tenant option sets, audit logging, leads, accounts, contacts, and shared productivity routes
+
 ## Planned Revenue and Service Modules
 
 ### Opportunities
@@ -87,12 +105,6 @@ This catalog records the major platform and business modules in the product and 
 - Status: planned
 - Purpose: revenue pipeline progression and forecasting
 - Expected dependencies: accounts, contacts, leads, workflows, dashboards
-
-### Campaigns
-
-- Status: planned
-- Purpose: campaign execution and downstream attribution
-- Expected dependencies: leads, dashboards, marketing
 
 ### Support
 

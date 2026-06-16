@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { apiConfig } from "@crm/config";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
+import { createCampaignRouter } from "../modules/campaigns/campaigns.router.js";
 import { createCrmRouter } from "../modules/crm/crm.router.js";
 import { createHealthRouter } from "../modules/health/health.router.js";
 import { createRbacRouter } from "../modules/rbac/rbac.router.js";
@@ -23,7 +24,7 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-7-operational"
+      status: "phase-8-operational"
     });
   });
 
@@ -31,6 +32,7 @@ export function createV1Router({
   router.use("/auth", createAuthRouter({ databaseService }));
   router.use("/rbac", createRbacRouter({ databaseService }));
   router.use("/tenant-config", createTenantConfigRouter({ databaseService }));
+  router.use("/campaigns", createCampaignRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;
