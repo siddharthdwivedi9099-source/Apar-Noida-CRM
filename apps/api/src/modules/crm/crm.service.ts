@@ -14,15 +14,24 @@ import type {
   CreateContactRequestBody,
   CreateCrmActivityRequestBody,
   CreateCrmNoteRequestBody,
+  CreateCrmTaskRequestBody,
   CreateLeadRequestBody,
   CrmActivityResponse,
   CrmActivitySummary,
+  CrmEntityType,
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
   CrmNoteResponse,
   CrmNoteSummary,
   CrmOptionValueSummary,
   CrmPagination,
+  CrmTaskResponse,
+  CrmTaskStatus,
+  CrmTaskSummary,
+  CrmTimelineFilterKind,
+  CrmTimelineItem,
+  CrmTimelineResponse,
+  CrmTasksResponse,
   LeadDetail,
   LeadListQuery,
   LeadOptionsResponse,
@@ -31,6 +40,8 @@ import type {
   RoleSummary,
   UpdateAccountRequestBody,
   UpdateContactRequestBody,
+  UpdateCrmNoteRequestBody,
+  UpdateCrmTaskRequestBody,
   UpdateLeadRequestBody
 } from "@crm/types";
 import type { PoolClient } from "pg";
@@ -53,8 +64,6 @@ interface ActorContext {
   roles: RoleSummary[];
 }
 
-type CrmEntityType = "lead" | "account" | "contact";
-
 interface UserLookupRow {
   id: string;
   display_name: string;
@@ -76,6 +85,9 @@ interface OptionValueRow {
 interface NoteRow {
   id: string;
   body: string;
+  entity_type: CrmEntityType;
+  entity_id: string;
+  is_customer_facing: boolean;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
@@ -88,17 +100,91 @@ interface NoteRow {
 
 interface ActivityRow {
   id: string;
+  entity_type: CrmEntityType;
+  entity_id: string;
   activity_type: string;
   subject: string;
   description: string | null;
+  outcome: string | null;
   occurred_at: Date;
   metadata: Record<string, unknown> | null;
   created_at: Date;
+  updated_at: Date;
   author_id: string | null;
   author_display_name: string | null;
   author_email: string | null;
   author_team_name: string | null;
   author_department_name: string | null;
+  owner_id: string | null;
+  owner_display_name: string | null;
+  owner_email: string | null;
+  owner_team_name: string | null;
+  owner_department_name: string | null;
+}
+
+interface TaskRow {
+  id: string;
+  entity_type: CrmEntityType;
+  entity_id: string;
+  title: string;
+  description: string | null;
+  due_at: Date | null;
+  reminder_at: Date | null;
+  priority: string;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
+  owner_id: string | null;
+  owner_display_name: string | null;
+  owner_email: string | null;
+  owner_team_name: string | null;
+  owner_department_name: string | null;
+  assignee_id: string | null;
+  assignee_display_name: string | null;
+  assignee_email: string | null;
+  assignee_team_name: string | null;
+  assignee_department_name: string | null;
+}
+
+interface NoteStateRow {
+  id: string;
+  entity_type: CrmEntityType;
+  entity_id: string;
+  body: string;
+  is_customer_facing: boolean;
+  metadata: Record<string, unknown> | null;
+}
+
+interface TaskStateRow {
+  id: string;
+  entity_type: CrmEntityType;
+  entity_id: string;
+  title: string;
+  description: string | null;
+  due_at: Date | null;
+  reminder_at: Date | null;
+  priority: string;
+  status: string;
+  owner_user_id: string | null;
+  assignee_user_id: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+interface TimelineEventRow {
+  id: string;
+  entity_type: CrmEntityType;
+  entity_id: string;
+  touchpoint_type: string;
+  title: string;
+  description: string | null;
+  occurred_at: Date;
+  metadata: Record<string, unknown> | null;
+  owner_id: string | null;
+  owner_display_name: string | null;
+  owner_email: string | null;
+  owner_team_name: string | null;
+  owner_department_name: string | null;
 }
 
 interface LeadStateRow {
@@ -334,6 +420,57 @@ function mapOptionValue(input: {
     color: input.color,
     isDefault: Boolean(input.isDefault),
     isActive: Boolean(input.isActive)
+  };
+}
+
+const crmEntityConfig = {
+  lead: {
+    actionPrefix: "lead",
+    label: "Lead",
+    tableName: "leads"
+  },
+  account: {
+    actionPrefix: "account",
+    label: "Account",
+    tableName: "accounts"
+  },
+  contact: {
+    actionPrefix: "contact",
+    label: "Contact",
+    tableName: "contacts"
+  },
+  opportunity: {
+    actionPrefix: "opportunity",
+    label: "Opportunity",
+    tableName: null
+  },
+  ticket: {
+    actionPrefix: "ticket",
+    label: "Ticket",
+    tableName: null
+  },
+  customer_success_account: {
+    actionPrefix: "customer_success_account",
+    label: "Customer success account",
+    tableName: null
+  }
+} as const satisfies Record<
+  CrmEntityType,
+  {
+    actionPrefix: string;
+    label: string;
+    tableName: string | null;
+  }
+>;
+
+function getEntityConfig(entityType: CrmEntityType) {
+  return crmEntityConfig[entityType];
+}
+
+function toRecordLink(entityType: CrmEntityType, entityId: string) {
+  return {
+    entityType,
+    entityId
   };
 }
 
@@ -698,26 +835,69 @@ export class CrmService {
     }
   }
 
+  private getPermissionPrefixForEntity(entityType: CrmEntityType) {
+    switch (entityType) {
+      case "lead":
+        return "leads";
+      case "account":
+        return "accounts";
+      case "contact":
+        return "contacts";
+      case "opportunity":
+        return "opportunities";
+      case "ticket":
+        return "support";
+      case "customer_success_account":
+        return "customer_success";
+    }
+  }
+
+  private assertTaskAssignOnlyMutation(actor: ActorContext, entityType: CrmEntityType, keys: string[]) {
+    if (keys.length === 0) {
+      throw new AppError(400, "At least one field must be updated.", undefined, "VALIDATION_ERROR");
+    }
+
+    const permissionPrefix = this.getPermissionPrefixForEntity(entityType);
+    const canEdit = actor.permissionCodes.includes(`${permissionPrefix}.edit`);
+    const canConfigure = actor.permissionCodes.includes(`${permissionPrefix}.configure`);
+    const canAssign = actor.permissionCodes.includes(`${permissionPrefix}.assign`);
+    const assignOnlyKeys = new Set(["ownerId", "assigneeId", "status"]);
+    const isAssignOnlyMutation = keys.every((key) => assignOnlyKeys.has(key));
+
+    if (!canEdit && !canConfigure && !(canAssign && isAssignOnlyMutation)) {
+      throw new AppError(
+        403,
+        "You do not have permission to update these task fields.",
+        undefined,
+        "AUTHORIZATION_ERROR"
+      );
+    }
+  }
+
   private async assertEntityExists(
     client: PoolClient,
     tenantId: string,
     entityType: CrmEntityType,
     entityId: string
   ) {
-    const tableNameByEntityType: Record<CrmEntityType, string> = {
-      lead: "leads",
-      account: "accounts",
-      contact: "contacts"
-    };
+    const entityConfig = getEntityConfig(entityType);
 
-    const tableName = tableNameByEntityType[entityType];
+    if (!entityConfig.tableName) {
+      return;
+    }
+
     const result = await client.query<{ id: string }>(
-      `SELECT id FROM ${tableName} WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      `SELECT id FROM ${entityConfig.tableName} WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
       [entityId, tenantId]
     );
 
     if (!result.rows[0]?.id) {
-      throw new AppError(404, `${entityType.charAt(0).toUpperCase()}${entityType.slice(1)} not found.`, undefined, `${entityType.toUpperCase()}_NOT_FOUND`);
+      throw new AppError(
+        404,
+        `${entityConfig.label} not found.`,
+        undefined,
+        `${entityType.toUpperCase()}_NOT_FOUND`
+      );
     }
   }
 
@@ -731,7 +911,10 @@ export class CrmService {
       `
         SELECT
           crm_notes.id,
+          crm_notes.entity_type,
+          crm_notes.entity_id,
           crm_notes.body,
+          crm_notes.is_customer_facing,
           crm_notes.metadata,
           crm_notes.created_at,
           crm_notes.updated_at,
@@ -762,20 +945,7 @@ export class CrmService {
       [tenantId, entityType, entityId]
     );
 
-    return result.rows.map((row) => ({
-      id: row.id,
-      body: row.body,
-      author: mapUser({
-        id: row.author_id,
-        displayName: row.author_display_name,
-        email: row.author_email,
-        teamName: row.author_team_name,
-        departmentName: row.author_department_name
-      }),
-      createdAt: row.created_at.toISOString(),
-      updatedAt: row.updated_at.toISOString(),
-      metadata: getMetadata(row.metadata)
-    }));
+    return result.rows.map((row) => this.mapNote(row));
   }
 
   private async loadEntityActivities(
@@ -788,17 +958,26 @@ export class CrmService {
       `
         SELECT
           crm_activities.id,
+          crm_activities.entity_type,
+          crm_activities.entity_id,
           crm_activities.activity_type,
           crm_activities.subject,
           crm_activities.description,
+          crm_activities.outcome,
           crm_activities.occurred_at,
           crm_activities.metadata,
           crm_activities.created_at,
+          crm_activities.updated_at,
           users.id AS author_id,
           users.display_name AS author_display_name,
           users.email AS author_email,
           teams.name AS author_team_name,
-          departments.name AS author_department_name
+          departments.name AS author_department_name,
+          owner_users.id AS owner_id,
+          owner_users.display_name AS owner_display_name,
+          owner_users.email AS owner_email,
+          owner_teams.name AS owner_team_name,
+          owner_departments.name AS owner_department_name
         FROM crm_activities
         LEFT JOIN users
           ON users.id = crm_activities.author_user_id
@@ -812,6 +991,18 @@ export class CrmService {
           ON departments.id = users.department_id
          AND departments.tenant_id = users.tenant_id
          AND departments.deleted_at IS NULL
+        LEFT JOIN users AS owner_users
+          ON owner_users.id = crm_activities.owner_user_id
+         AND owner_users.tenant_id = crm_activities.tenant_id
+         AND owner_users.deleted_at IS NULL
+        LEFT JOIN teams AS owner_teams
+          ON owner_teams.id = owner_users.team_id
+         AND owner_teams.tenant_id = owner_users.tenant_id
+         AND owner_teams.deleted_at IS NULL
+        LEFT JOIN departments AS owner_departments
+          ON owner_departments.id = owner_users.department_id
+         AND owner_departments.tenant_id = owner_users.tenant_id
+         AND owner_departments.deleted_at IS NULL
         WHERE crm_activities.tenant_id = $1
           AND crm_activities.entity_type = $2
           AND crm_activities.entity_id = $3
@@ -821,22 +1012,225 @@ export class CrmService {
       [tenantId, entityType, entityId]
     );
 
+    return result.rows.map((row) => this.mapActivity(row));
+  }
+
+  private async loadEntityTasks(
+    client: PoolClient,
+    tenantId: string,
+    entityType: CrmEntityType,
+    entityId: string
+  ): Promise<CrmTaskSummary[]> {
+    const result = await client.query<TaskRow>(
+      `
+        SELECT
+          crm_tasks.id,
+          crm_tasks.entity_type,
+          crm_tasks.entity_id,
+          crm_tasks.title,
+          crm_tasks.description,
+          crm_tasks.due_at,
+          crm_tasks.reminder_at,
+          crm_tasks.priority,
+          crm_tasks.status,
+          crm_tasks.metadata,
+          crm_tasks.created_at,
+          crm_tasks.updated_at,
+          owner_users.id AS owner_id,
+          owner_users.display_name AS owner_display_name,
+          owner_users.email AS owner_email,
+          owner_teams.name AS owner_team_name,
+          owner_departments.name AS owner_department_name,
+          assignee_users.id AS assignee_id,
+          assignee_users.display_name AS assignee_display_name,
+          assignee_users.email AS assignee_email,
+          assignee_teams.name AS assignee_team_name,
+          assignee_departments.name AS assignee_department_name
+        FROM crm_tasks
+        LEFT JOIN users AS owner_users
+          ON owner_users.id = crm_tasks.owner_user_id
+         AND owner_users.tenant_id = crm_tasks.tenant_id
+         AND owner_users.deleted_at IS NULL
+        LEFT JOIN teams AS owner_teams
+          ON owner_teams.id = owner_users.team_id
+         AND owner_teams.tenant_id = owner_users.tenant_id
+         AND owner_teams.deleted_at IS NULL
+        LEFT JOIN departments AS owner_departments
+          ON owner_departments.id = owner_users.department_id
+         AND owner_departments.tenant_id = owner_users.tenant_id
+         AND owner_departments.deleted_at IS NULL
+        LEFT JOIN users AS assignee_users
+          ON assignee_users.id = crm_tasks.assignee_user_id
+         AND assignee_users.tenant_id = crm_tasks.tenant_id
+         AND assignee_users.deleted_at IS NULL
+        LEFT JOIN teams AS assignee_teams
+          ON assignee_teams.id = assignee_users.team_id
+         AND assignee_teams.tenant_id = assignee_users.tenant_id
+         AND assignee_teams.deleted_at IS NULL
+        LEFT JOIN departments AS assignee_departments
+          ON assignee_departments.id = assignee_users.department_id
+         AND assignee_departments.tenant_id = assignee_users.tenant_id
+         AND assignee_departments.deleted_at IS NULL
+        WHERE crm_tasks.tenant_id = $1
+          AND crm_tasks.entity_type = $2
+          AND crm_tasks.entity_id = $3
+          AND crm_tasks.deleted_at IS NULL
+        ORDER BY
+          CASE crm_tasks.status
+            WHEN 'open' THEN 0
+            WHEN 'in_progress' THEN 1
+            WHEN 'blocked' THEN 2
+            WHEN 'completed' THEN 3
+            ELSE 4
+          END,
+          crm_tasks.due_at ASC NULLS LAST,
+          crm_tasks.created_at DESC
+      `,
+      [tenantId, entityType, entityId]
+    );
+
+    return result.rows.map((row) => this.mapTask(row));
+  }
+
+  private async loadTimelineEventItems(
+    client: PoolClient,
+    tenantId: string,
+    entityType: CrmEntityType,
+    entityId: string
+  ): Promise<CrmTimelineItem[]> {
+    const result = await client.query<TimelineEventRow>(
+      `
+        SELECT
+          crm_timeline_events.id,
+          crm_timeline_events.entity_type,
+          crm_timeline_events.entity_id,
+          crm_timeline_events.touchpoint_type,
+          crm_timeline_events.title,
+          crm_timeline_events.description,
+          crm_timeline_events.occurred_at,
+          crm_timeline_events.metadata,
+          owner_users.id AS owner_id,
+          owner_users.display_name AS owner_display_name,
+          owner_users.email AS owner_email,
+          owner_teams.name AS owner_team_name,
+          owner_departments.name AS owner_department_name
+        FROM crm_timeline_events
+        LEFT JOIN users AS owner_users
+          ON owner_users.id = crm_timeline_events.owner_user_id
+         AND owner_users.tenant_id = crm_timeline_events.tenant_id
+         AND owner_users.deleted_at IS NULL
+        LEFT JOIN teams AS owner_teams
+          ON owner_teams.id = owner_users.team_id
+         AND owner_teams.tenant_id = owner_users.tenant_id
+         AND owner_teams.deleted_at IS NULL
+        LEFT JOIN departments AS owner_departments
+          ON owner_departments.id = owner_users.department_id
+         AND owner_departments.tenant_id = owner_users.tenant_id
+         AND owner_departments.deleted_at IS NULL
+        WHERE crm_timeline_events.tenant_id = $1
+          AND crm_timeline_events.entity_type = $2
+          AND crm_timeline_events.entity_id = $3
+          AND crm_timeline_events.deleted_at IS NULL
+        ORDER BY crm_timeline_events.occurred_at DESC, crm_timeline_events.created_at DESC
+      `,
+      [tenantId, entityType, entityId]
+    );
+
     return result.rows.map((row) => ({
       id: row.id,
-      activityType: row.activity_type as CrmActivitySummary["activityType"],
-      subject: row.subject,
+      kind: row.touchpoint_type as CrmTimelineItem["kind"],
+      touchpointType: row.touchpoint_type as CrmTimelineItem["touchpointType"],
+      title: row.title,
       description: row.description,
       occurredAt: row.occurred_at.toISOString(),
-      author: mapUser({
-        id: row.author_id,
-        displayName: row.author_display_name,
-        email: row.author_email,
-        teamName: row.author_team_name,
-        departmentName: row.author_department_name
+      actor: null,
+      owner: mapUser({
+        id: row.owner_id,
+        displayName: row.owner_display_name,
+        email: row.owner_email,
+        teamName: row.owner_team_name,
+        departmentName: row.owner_department_name
       }),
-      createdAt: row.created_at.toISOString(),
+      relatedRecord: toRecordLink(row.entity_type, row.entity_id),
+      isCustomerFacing: false,
+      activityType: null,
+      taskStatus: null,
+      taskPriority: null,
+      dueAt: null,
       metadata: getMetadata(row.metadata)
     }));
+  }
+
+  private async loadEntityTimeline(
+    client: PoolClient,
+    tenantId: string,
+    entityType: CrmEntityType,
+    entityId: string,
+    activeKind: CrmTimelineFilterKind = "all"
+  ): Promise<CrmTimelineItem[]> {
+    const notes = await this.loadEntityNotes(client, tenantId, entityType, entityId);
+    const activities = await this.loadEntityActivities(client, tenantId, entityType, entityId);
+    const tasks = await this.loadEntityTasks(client, tenantId, entityType, entityId);
+    const externalItems = await this.loadTimelineEventItems(client, tenantId, entityType, entityId);
+
+    const items: CrmTimelineItem[] = [
+      ...notes.map((note) => ({
+        id: note.id,
+        kind: "note" as const,
+        touchpointType: "note" as const,
+        title: note.isCustomerFacing ? "Customer-facing note" : "Internal note",
+        description: note.body,
+        occurredAt: note.updatedAt,
+        actor: note.author,
+        owner: note.author,
+        relatedRecord: toRecordLink(entityType, entityId),
+        isCustomerFacing: note.isCustomerFacing,
+        activityType: null,
+        taskStatus: null,
+        taskPriority: null,
+        dueAt: null,
+        metadata: note.metadata
+      })),
+      ...activities.map((activity) => ({
+        id: activity.id,
+        kind: "activity" as const,
+        touchpointType: "activity" as const,
+        title: activity.subject,
+        description: activity.notes,
+        occurredAt: activity.occurredAt,
+        actor: activity.author,
+        owner: activity.owner,
+        relatedRecord: activity.relatedRecord,
+        isCustomerFacing: false,
+        activityType: activity.activityType,
+        taskStatus: null,
+        taskPriority: null,
+        dueAt: null,
+        metadata: activity.metadata
+      })),
+      ...tasks.map((task) => ({
+        id: task.id,
+        kind: "task" as const,
+        touchpointType: "task" as const,
+        title: task.title,
+        description: task.description,
+        occurredAt: task.updatedAt,
+        actor: task.owner,
+        owner: task.assignee ?? task.owner,
+        relatedRecord: task.relatedRecord,
+        isCustomerFacing: false,
+        activityType: null,
+        taskStatus: task.status,
+        taskPriority: task.priority,
+        dueAt: task.dueAt,
+        metadata: task.metadata
+      })),
+      ...externalItems
+    ];
+
+    return items
+      .filter((item) => activeKind === "all" || item.kind === activeKind)
+      .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
   }
 
   private async loadNoteById(client: PoolClient, tenantId: string, noteId: string) {
@@ -844,7 +1238,10 @@ export class CrmService {
       `
         SELECT
           crm_notes.id,
+          crm_notes.entity_type,
+          crm_notes.entity_id,
           crm_notes.body,
+          crm_notes.is_customer_facing,
           crm_notes.metadata,
           crm_notes.created_at,
           crm_notes.updated_at,
@@ -880,20 +1277,7 @@ export class CrmService {
       throw new AppError(404, "Note not found.", undefined, "NOTE_NOT_FOUND");
     }
 
-    return {
-      id: note.id,
-      body: note.body,
-      author: mapUser({
-        id: note.author_id,
-        displayName: note.author_display_name,
-        email: note.author_email,
-        teamName: note.author_team_name,
-        departmentName: note.author_department_name
-      }),
-      createdAt: note.created_at.toISOString(),
-      updatedAt: note.updated_at.toISOString(),
-      metadata: getMetadata(note.metadata)
-    };
+    return this.mapNote(note);
   }
 
   private async loadActivityById(client: PoolClient, tenantId: string, activityId: string) {
@@ -901,17 +1285,26 @@ export class CrmService {
       `
         SELECT
           crm_activities.id,
+          crm_activities.entity_type,
+          crm_activities.entity_id,
           crm_activities.activity_type,
           crm_activities.subject,
           crm_activities.description,
+          crm_activities.outcome,
           crm_activities.occurred_at,
           crm_activities.metadata,
           crm_activities.created_at,
+          crm_activities.updated_at,
           users.id AS author_id,
           users.display_name AS author_display_name,
           users.email AS author_email,
           teams.name AS author_team_name,
-          departments.name AS author_department_name
+          departments.name AS author_department_name,
+          owner_users.id AS owner_id,
+          owner_users.display_name AS owner_display_name,
+          owner_users.email AS owner_email,
+          owner_teams.name AS owner_team_name,
+          owner_departments.name AS owner_department_name
         FROM crm_activities
         LEFT JOIN users
           ON users.id = crm_activities.author_user_id
@@ -925,6 +1318,18 @@ export class CrmService {
           ON departments.id = users.department_id
          AND departments.tenant_id = users.tenant_id
          AND departments.deleted_at IS NULL
+        LEFT JOIN users AS owner_users
+          ON owner_users.id = crm_activities.owner_user_id
+         AND owner_users.tenant_id = crm_activities.tenant_id
+         AND owner_users.deleted_at IS NULL
+        LEFT JOIN teams AS owner_teams
+          ON owner_teams.id = owner_users.team_id
+         AND owner_teams.tenant_id = owner_users.tenant_id
+         AND owner_teams.deleted_at IS NULL
+        LEFT JOIN departments AS owner_departments
+          ON owner_departments.id = owner_users.department_id
+         AND owner_departments.tenant_id = owner_users.tenant_id
+         AND owner_departments.deleted_at IS NULL
         WHERE crm_activities.tenant_id = $1
           AND crm_activities.id = $2
           AND crm_activities.deleted_at IS NULL
@@ -939,21 +1344,152 @@ export class CrmService {
       throw new AppError(404, "Activity not found.", undefined, "ACTIVITY_NOT_FOUND");
     }
 
+    return this.mapActivity(activity);
+  }
+
+  private async loadTaskById(client: PoolClient, tenantId: string, taskId: string) {
+    const result = await client.query<TaskRow>(
+      `
+        SELECT
+          crm_tasks.id,
+          crm_tasks.entity_type,
+          crm_tasks.entity_id,
+          crm_tasks.title,
+          crm_tasks.description,
+          crm_tasks.due_at,
+          crm_tasks.reminder_at,
+          crm_tasks.priority,
+          crm_tasks.status,
+          crm_tasks.metadata,
+          crm_tasks.created_at,
+          crm_tasks.updated_at,
+          owner_users.id AS owner_id,
+          owner_users.display_name AS owner_display_name,
+          owner_users.email AS owner_email,
+          owner_teams.name AS owner_team_name,
+          owner_departments.name AS owner_department_name,
+          assignee_users.id AS assignee_id,
+          assignee_users.display_name AS assignee_display_name,
+          assignee_users.email AS assignee_email,
+          assignee_teams.name AS assignee_team_name,
+          assignee_departments.name AS assignee_department_name
+        FROM crm_tasks
+        LEFT JOIN users AS owner_users
+          ON owner_users.id = crm_tasks.owner_user_id
+         AND owner_users.tenant_id = crm_tasks.tenant_id
+         AND owner_users.deleted_at IS NULL
+        LEFT JOIN teams AS owner_teams
+          ON owner_teams.id = owner_users.team_id
+         AND owner_teams.tenant_id = owner_users.tenant_id
+         AND owner_teams.deleted_at IS NULL
+        LEFT JOIN departments AS owner_departments
+          ON owner_departments.id = owner_users.department_id
+         AND owner_departments.tenant_id = owner_users.tenant_id
+         AND owner_departments.deleted_at IS NULL
+        LEFT JOIN users AS assignee_users
+          ON assignee_users.id = crm_tasks.assignee_user_id
+         AND assignee_users.tenant_id = crm_tasks.tenant_id
+         AND assignee_users.deleted_at IS NULL
+        LEFT JOIN teams AS assignee_teams
+          ON assignee_teams.id = assignee_users.team_id
+         AND assignee_teams.tenant_id = assignee_users.tenant_id
+         AND assignee_teams.deleted_at IS NULL
+        LEFT JOIN departments AS assignee_departments
+          ON assignee_departments.id = assignee_users.department_id
+         AND assignee_departments.tenant_id = assignee_users.tenant_id
+         AND assignee_departments.deleted_at IS NULL
+        WHERE crm_tasks.tenant_id = $1
+          AND crm_tasks.id = $2
+          AND crm_tasks.deleted_at IS NULL
+        LIMIT 1
+      `,
+      [tenantId, taskId]
+    );
+
+    const task = result.rows[0] ?? null;
+
+    if (!task) {
+      throw new AppError(404, "Task not found.", undefined, "TASK_NOT_FOUND");
+    }
+
+    return this.mapTask(task);
+  }
+
+  private mapNote(row: NoteRow): CrmNoteSummary {
     return {
-      id: activity.id,
-      activityType: activity.activity_type as CrmActivitySummary["activityType"],
-      subject: activity.subject,
-      description: activity.description,
-      occurredAt: activity.occurred_at.toISOString(),
+      id: row.id,
+      body: row.body,
+      isCustomerFacing: row.is_customer_facing,
+      isInternal: !row.is_customer_facing,
       author: mapUser({
-        id: activity.author_id,
-        displayName: activity.author_display_name,
-        email: activity.author_email,
-        teamName: activity.author_team_name,
-        departmentName: activity.author_department_name
+        id: row.author_id,
+        displayName: row.author_display_name,
+        email: row.author_email,
+        teamName: row.author_team_name,
+        departmentName: row.author_department_name
       }),
-      createdAt: activity.created_at.toISOString(),
-      metadata: getMetadata(activity.metadata)
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+      metadata: getMetadata(row.metadata)
+    };
+  }
+
+  private mapActivity(row: ActivityRow): CrmActivitySummary {
+    return {
+      id: row.id,
+      relatedRecord: toRecordLink(row.entity_type, row.entity_id),
+      activityType: row.activity_type as CrmActivitySummary["activityType"],
+      subject: row.subject,
+      outcome: row.outcome,
+      notes: row.description,
+      occurredAt: row.occurred_at.toISOString(),
+      owner: mapUser({
+        id: row.owner_id,
+        displayName: row.owner_display_name,
+        email: row.owner_email,
+        teamName: row.owner_team_name,
+        departmentName: row.owner_department_name
+      }),
+      author: mapUser({
+        id: row.author_id,
+        displayName: row.author_display_name,
+        email: row.author_email,
+        teamName: row.author_team_name,
+        departmentName: row.author_department_name
+      }),
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+      metadata: getMetadata(row.metadata)
+    };
+  }
+
+  private mapTask(row: TaskRow): CrmTaskSummary {
+    return {
+      id: row.id,
+      relatedRecord: toRecordLink(row.entity_type, row.entity_id),
+      title: row.title,
+      description: row.description,
+      dueAt: toIsoString(row.due_at),
+      reminderAt: toIsoString(row.reminder_at),
+      priority: row.priority as CrmTaskSummary["priority"],
+      status: row.status as CrmTaskStatus,
+      owner: mapUser({
+        id: row.owner_id,
+        displayName: row.owner_display_name,
+        email: row.owner_email,
+        teamName: row.owner_team_name,
+        departmentName: row.owner_department_name
+      }),
+      assignee: mapUser({
+        id: row.assignee_id,
+        displayName: row.assignee_display_name,
+        email: row.assignee_email,
+        teamName: row.assignee_team_name,
+        departmentName: row.assignee_department_name
+      }),
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+      metadata: getMetadata(row.metadata)
     };
   }
 
@@ -1332,6 +1868,8 @@ export class CrmService {
       ...this.mapLead(row),
       notes: await this.loadEntityNotes(client, tenantId, "lead", leadId),
       activities: await this.loadEntityActivities(client, tenantId, "lead", leadId),
+      tasks: await this.loadEntityTasks(client, tenantId, "lead", leadId),
+      timeline: await this.loadEntityTimeline(client, tenantId, "lead", leadId),
       conversionPlaceholder: {
         available: false,
         message: "Lead conversion is reserved for a later opportunity-management phase."
@@ -1521,16 +2059,16 @@ export class CrmService {
     }));
   }
 
-  async addLeadNote(
+  private async createNote(
     actor: ActorContext,
     audit: AuditMetadata,
-    leadId: string,
+    entityType: CrmEntityType,
+    entityId: string,
     input: CreateCrmNoteRequestBody
   ): Promise<CrmNoteResponse> {
-    this.assertEnabled();
-
     return this.databaseService.withTransaction(async (client) => {
-      await this.assertEntityExists(client, actor.tenantId, "lead", leadId);
+      const entityConfig = getEntityConfig(entityType);
+      await this.assertEntityExists(client, actor.tenantId, entityType, entityId);
       const result = await client.query<{ id: string }>(
         `
           INSERT INTO crm_notes (
@@ -1539,29 +2077,39 @@ export class CrmService {
             entity_id,
             author_user_id,
             body,
+            is_customer_facing,
             metadata,
             created_by,
             updated_by
           )
-          VALUES ($1, 'lead', $2, $3, $4, '{}'::jsonb, $3, $3)
+          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $4, $4)
           RETURNING id
         `,
-        [actor.tenantId, leadId, actor.userId, input.body.trim()]
+        [
+          actor.tenantId,
+          entityType,
+          entityId,
+          actor.userId,
+          input.body.trim(),
+          input.isCustomerFacing ?? false,
+          JSON.stringify(input.metadata ?? {})
+        ]
       );
 
       const noteId = result.rows[0]?.id;
 
       if (!noteId) {
-        throw new AppError(500, "Lead note creation failed.", undefined, "NOTE_CREATE_FAILED");
+        throw new AppError(500, `${entityConfig.label} note creation failed.`, undefined, "NOTE_CREATE_FAILED");
       }
 
       await this.recordAuditLog(client, actor, audit, {
-        action: "lead.note.create",
-        resourceType: "lead",
-        resourceId: leadId,
+        action: `${entityConfig.actionPrefix}.note.create`,
+        resourceType: entityConfig.actionPrefix,
+        resourceId: entityId,
         status: "success",
         metadata: {
-          noteId
+          noteId,
+          isCustomerFacing: input.isCustomerFacing ?? false
         }
       });
 
@@ -1571,16 +2119,113 @@ export class CrmService {
     });
   }
 
-  async addLeadActivity(
+  async createEntityNote(
     actor: ActorContext,
     audit: AuditMetadata,
-    leadId: string,
-    input: CreateCrmActivityRequestBody
-  ): Promise<CrmActivityResponse> {
+    entityType: CrmEntityType,
+    entityId: string,
+    input: CreateCrmNoteRequestBody
+  ): Promise<CrmNoteResponse> {
+    this.assertEnabled();
+    return this.createNote(actor, audit, entityType, entityId, input);
+  }
+
+  async updateEntityNote(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    entityType: CrmEntityType,
+    entityId: string,
+    noteId: string,
+    input: UpdateCrmNoteRequestBody
+  ): Promise<CrmNoteResponse> {
     this.assertEnabled();
 
     return this.databaseService.withTransaction(async (client) => {
-      await this.assertEntityExists(client, actor.tenantId, "lead", leadId);
+      const entityConfig = getEntityConfig(entityType);
+      const keys = Object.keys(input).filter((key) => input[key as keyof UpdateCrmNoteRequestBody] !== undefined);
+
+      if (keys.length === 0) {
+        throw new AppError(400, "At least one note field must be updated.", undefined, "VALIDATION_ERROR");
+      }
+
+      const result = await client.query<NoteStateRow>(
+        `
+          SELECT id, entity_type, entity_id, body, is_customer_facing, metadata
+          FROM crm_notes
+          WHERE tenant_id = $1
+            AND entity_type = $2
+            AND entity_id = $3
+            AND id = $4
+            AND deleted_at IS NULL
+          LIMIT 1
+        `,
+        [actor.tenantId, entityType, entityId, noteId]
+      );
+
+      const currentNote = result.rows[0] ?? null;
+
+      if (!currentNote) {
+        throw new AppError(404, "Note not found.", undefined, "NOTE_NOT_FOUND");
+      }
+
+      const metadata = input.metadata
+        ? { ...getMetadata(currentNote.metadata), ...input.metadata }
+        : getMetadata(currentNote.metadata);
+
+      await client.query(
+        `
+          UPDATE crm_notes
+          SET
+            body = $5,
+            is_customer_facing = $6,
+            metadata = $7::jsonb,
+            updated_by = $8
+          WHERE tenant_id = $1
+            AND entity_type = $2
+            AND entity_id = $3
+            AND id = $4
+            AND deleted_at IS NULL
+        `,
+        [
+          actor.tenantId,
+          entityType,
+          entityId,
+          noteId,
+          input.body?.trim() ?? currentNote.body,
+          input.isCustomerFacing ?? currentNote.is_customer_facing,
+          JSON.stringify(metadata),
+          actor.userId
+        ]
+      );
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: `${entityConfig.actionPrefix}.note.edit`,
+        resourceType: entityConfig.actionPrefix,
+        resourceId: entityId,
+        status: "success",
+        metadata: {
+          noteId,
+          updatedFields: keys
+        }
+      });
+
+      return {
+        note: await this.loadNoteById(client, actor.tenantId, noteId)
+      };
+    });
+  }
+
+  private async createActivity(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    entityType: CrmEntityType,
+    entityId: string,
+    input: CreateCrmActivityRequestBody
+  ): Promise<CrmActivityResponse> {
+    return this.databaseService.withTransaction(async (client) => {
+      const entityConfig = getEntityConfig(entityType);
+      await this.assertEntityExists(client, actor.tenantId, entityType, entityId);
+      const ownerId = await this.ensureOwnerId(client, actor.tenantId, input.ownerId ?? actor.userId);
       const result = await client.query<{ id: string }>(
         `
           INSERT INTO crm_activities (
@@ -1591,39 +2236,46 @@ export class CrmService {
             subject,
             description,
             occurred_at,
+            owner_user_id,
+            outcome,
             author_user_id,
             metadata,
             created_by,
             updated_by
           )
-          VALUES ($1, 'lead', $2, $3, $4, $5, $6, $7, '{}'::jsonb, $7, $7)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $10, $10)
           RETURNING id
         `,
         [
           actor.tenantId,
-          leadId,
+          entityType,
+          entityId,
           input.activityType,
           input.subject.trim(),
-          getTrimmedNullableString(input.description),
+          getTrimmedNullableString(input.notes),
           input.occurredAt ? new Date(input.occurredAt) : new Date(),
-          actor.userId
+          ownerId,
+          getTrimmedNullableString(input.outcome),
+          actor.userId,
+          JSON.stringify(input.metadata ?? {})
         ]
       );
 
       const activityId = result.rows[0]?.id;
 
       if (!activityId) {
-        throw new AppError(500, "Lead activity creation failed.", undefined, "ACTIVITY_CREATE_FAILED");
+        throw new AppError(500, `${entityConfig.label} activity creation failed.`, undefined, "ACTIVITY_CREATE_FAILED");
       }
 
       await this.recordAuditLog(client, actor, audit, {
-        action: "lead.activity.create",
-        resourceType: "lead",
-        resourceId: leadId,
+        action: `${entityConfig.actionPrefix}.activity.create`,
+        resourceType: entityConfig.actionPrefix,
+        resourceId: entityId,
         status: "success",
         metadata: {
           activityId,
-          activityType: input.activityType
+          activityType: input.activityType,
+          ownerId
         }
       });
 
@@ -1631,6 +2283,269 @@ export class CrmService {
         activity: await this.loadActivityById(client, actor.tenantId, activityId)
       };
     });
+  }
+
+  async createEntityActivity(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    entityType: CrmEntityType,
+    entityId: string,
+    input: CreateCrmActivityRequestBody
+  ): Promise<CrmActivityResponse> {
+    this.assertEnabled();
+    return this.createActivity(actor, audit, entityType, entityId, input);
+  }
+
+  async getEntityTimeline(
+    actor: ActorContext,
+    entityType: CrmEntityType,
+    entityId: string,
+    activeKind: CrmTimelineFilterKind = "all"
+  ): Promise<CrmTimelineResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withClient(async (client) => {
+      await this.assertEntityExists(client, actor.tenantId, entityType, entityId);
+
+      return {
+        items: await this.loadEntityTimeline(client, actor.tenantId, entityType, entityId, activeKind),
+        availableTouchpointTypes: [
+          "note",
+          "activity",
+          "task",
+          "ticket",
+          "campaign",
+          "training",
+          "onboarding_milestone"
+        ],
+        activeTouchpointType: activeKind
+      };
+    });
+  }
+
+  async listEntityTasks(
+    actor: ActorContext,
+    entityType: CrmEntityType,
+    entityId: string
+  ): Promise<CrmTasksResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withClient(async (client) => {
+      await this.assertEntityExists(client, actor.tenantId, entityType, entityId);
+
+      return {
+        tasks: await this.loadEntityTasks(client, actor.tenantId, entityType, entityId)
+      };
+    });
+  }
+
+  async createEntityTask(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    entityType: CrmEntityType,
+    entityId: string,
+    input: CreateCrmTaskRequestBody
+  ): Promise<CrmTaskResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withTransaction(async (client) => {
+      const entityConfig = getEntityConfig(entityType);
+      await this.assertEntityExists(client, actor.tenantId, entityType, entityId);
+      const ownerId = await this.ensureOwnerId(client, actor.tenantId, input.ownerId ?? actor.userId);
+      const assigneeId = await this.ensureOwnerId(client, actor.tenantId, input.assigneeId ?? ownerId);
+      const result = await client.query<{ id: string }>(
+        `
+          INSERT INTO crm_tasks (
+            tenant_id,
+            entity_type,
+            entity_id,
+            owner_user_id,
+            assignee_user_id,
+            title,
+            description,
+            due_at,
+            priority,
+            status,
+            reminder_at,
+            metadata,
+            created_by,
+            updated_by
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $13)
+          RETURNING id
+        `,
+        [
+          actor.tenantId,
+          entityType,
+          entityId,
+          ownerId,
+          assigneeId,
+          input.title.trim(),
+          getTrimmedNullableString(input.description),
+          input.dueAt ? new Date(input.dueAt) : null,
+          input.priority ?? "medium",
+          input.status ?? "open",
+          input.reminderAt ? new Date(input.reminderAt) : null,
+          JSON.stringify(input.metadata ?? {}),
+          actor.userId
+        ]
+      );
+
+      const taskId = result.rows[0]?.id;
+
+      if (!taskId) {
+        throw new AppError(500, `${entityConfig.label} task creation failed.`, undefined, "TASK_CREATE_FAILED");
+      }
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: `${entityConfig.actionPrefix}.task.create`,
+        resourceType: entityConfig.actionPrefix,
+        resourceId: entityId,
+        status: "success",
+        metadata: {
+          taskId,
+          assigneeId,
+          status: input.status ?? "open",
+          priority: input.priority ?? "medium"
+        }
+      });
+
+      return {
+        task: await this.loadTaskById(client, actor.tenantId, taskId)
+      };
+    });
+  }
+
+  async updateEntityTask(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    entityType: CrmEntityType,
+    entityId: string,
+    taskId: string,
+    input: UpdateCrmTaskRequestBody
+  ): Promise<CrmTaskResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withTransaction(async (client) => {
+      const entityConfig = getEntityConfig(entityType);
+      const keys = Object.keys(input).filter((key) => input[key as keyof UpdateCrmTaskRequestBody] !== undefined);
+      this.assertTaskAssignOnlyMutation(actor, entityType, keys);
+
+      const result = await client.query<TaskStateRow>(
+        `
+          SELECT
+            id,
+            entity_type,
+            entity_id,
+            title,
+            description,
+            due_at,
+            reminder_at,
+            priority,
+            status,
+            owner_user_id,
+            assignee_user_id,
+            metadata
+          FROM crm_tasks
+          WHERE tenant_id = $1
+            AND entity_type = $2
+            AND entity_id = $3
+            AND id = $4
+            AND deleted_at IS NULL
+          LIMIT 1
+        `,
+        [actor.tenantId, entityType, entityId, taskId]
+      );
+
+      const currentTask = result.rows[0] ?? null;
+
+      if (!currentTask) {
+        throw new AppError(404, "Task not found.", undefined, "TASK_NOT_FOUND");
+      }
+
+      const ownerId = keys.includes("ownerId")
+        ? await this.ensureOwnerId(client, actor.tenantId, input.ownerId ?? null)
+        : currentTask.owner_user_id;
+      const assigneeId = keys.includes("assigneeId")
+        ? await this.ensureOwnerId(client, actor.tenantId, input.assigneeId ?? null)
+        : currentTask.assignee_user_id;
+      const metadata = input.metadata
+        ? { ...getMetadata(currentTask.metadata), ...input.metadata }
+        : getMetadata(currentTask.metadata);
+
+      await client.query(
+        `
+          UPDATE crm_tasks
+          SET
+            owner_user_id = $5,
+            assignee_user_id = $6,
+            title = $7,
+            description = $8,
+            due_at = $9,
+            priority = $10,
+            status = $11,
+            reminder_at = $12,
+            metadata = $13::jsonb,
+            updated_by = $14
+          WHERE tenant_id = $1
+            AND entity_type = $2
+            AND entity_id = $3
+            AND id = $4
+            AND deleted_at IS NULL
+        `,
+        [
+          actor.tenantId,
+          entityType,
+          entityId,
+          taskId,
+          ownerId,
+          assigneeId,
+          input.title?.trim() ?? currentTask.title,
+          input.description !== undefined ? getTrimmedNullableString(input.description) : currentTask.description,
+          input.dueAt !== undefined ? (input.dueAt ? new Date(input.dueAt) : null) : currentTask.due_at,
+          input.priority ?? currentTask.priority,
+          input.status ?? currentTask.status,
+          input.reminderAt !== undefined ? (input.reminderAt ? new Date(input.reminderAt) : null) : currentTask.reminder_at,
+          JSON.stringify(metadata),
+          actor.userId
+        ]
+      );
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: `${entityConfig.actionPrefix}.task.update`,
+        resourceType: entityConfig.actionPrefix,
+        resourceId: entityId,
+        status: "success",
+        metadata: {
+          taskId,
+          updatedFields: keys
+        }
+      });
+
+      return {
+        task: await this.loadTaskById(client, actor.tenantId, taskId)
+      };
+    });
+  }
+
+  async addLeadNote(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    leadId: string,
+    input: CreateCrmNoteRequestBody
+  ): Promise<CrmNoteResponse> {
+    this.assertEnabled();
+    return this.createNote(actor, audit, "lead", leadId, input);
+  }
+
+  async addLeadActivity(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    leadId: string,
+    input: CreateCrmActivityRequestBody
+  ): Promise<CrmActivityResponse> {
+    this.assertEnabled();
+    return this.createActivity(actor, audit, "lead", leadId, input);
   }
 
   async listAccounts(actor: ActorContext, query: AccountListQuery) {
@@ -1917,6 +2832,8 @@ export class CrmService {
       ...this.mapAccount(row),
       notes: await this.loadEntityNotes(client, tenantId, "account", accountId),
       activities: await this.loadEntityActivities(client, tenantId, "account", accountId),
+      tasks: await this.loadEntityTasks(client, tenantId, "account", accountId),
+      timeline: await this.loadEntityTimeline(client, tenantId, "account", accountId),
       relatedContacts: relatedContactsResult.rows.map((contact) => ({
         id: contact.id,
         fullName: `${contact.first_name} ${contact.last_name}`.trim(),
@@ -2131,47 +3048,7 @@ export class CrmService {
     input: CreateCrmNoteRequestBody
   ): Promise<CrmNoteResponse> {
     this.assertEnabled();
-
-    return this.databaseService.withTransaction(async (client) => {
-      await this.assertEntityExists(client, actor.tenantId, "account", accountId);
-      const result = await client.query<{ id: string }>(
-        `
-          INSERT INTO crm_notes (
-            tenant_id,
-            entity_type,
-            entity_id,
-            author_user_id,
-            body,
-            metadata,
-            created_by,
-            updated_by
-          )
-          VALUES ($1, 'account', $2, $3, $4, '{}'::jsonb, $3, $3)
-          RETURNING id
-        `,
-        [actor.tenantId, accountId, actor.userId, input.body.trim()]
-      );
-
-      const noteId = result.rows[0]?.id;
-
-      if (!noteId) {
-        throw new AppError(500, "Account note creation failed.", undefined, "NOTE_CREATE_FAILED");
-      }
-
-      await this.recordAuditLog(client, actor, audit, {
-        action: "account.note.create",
-        resourceType: "account",
-        resourceId: accountId,
-        status: "success",
-        metadata: {
-          noteId
-        }
-      });
-
-      return {
-        note: await this.loadNoteById(client, actor.tenantId, noteId)
-      };
-    });
+    return this.createNote(actor, audit, "account", accountId, input);
   }
 
   async addAccountActivity(
@@ -2181,59 +3058,7 @@ export class CrmService {
     input: CreateCrmActivityRequestBody
   ): Promise<CrmActivityResponse> {
     this.assertEnabled();
-
-    return this.databaseService.withTransaction(async (client) => {
-      await this.assertEntityExists(client, actor.tenantId, "account", accountId);
-      const result = await client.query<{ id: string }>(
-        `
-          INSERT INTO crm_activities (
-            tenant_id,
-            entity_type,
-            entity_id,
-            activity_type,
-            subject,
-            description,
-            occurred_at,
-            author_user_id,
-            metadata,
-            created_by,
-            updated_by
-          )
-          VALUES ($1, 'account', $2, $3, $4, $5, $6, $7, '{}'::jsonb, $7, $7)
-          RETURNING id
-        `,
-        [
-          actor.tenantId,
-          accountId,
-          input.activityType,
-          input.subject.trim(),
-          getTrimmedNullableString(input.description),
-          input.occurredAt ? new Date(input.occurredAt) : new Date(),
-          actor.userId
-        ]
-      );
-
-      const activityId = result.rows[0]?.id;
-
-      if (!activityId) {
-        throw new AppError(500, "Account activity creation failed.", undefined, "ACTIVITY_CREATE_FAILED");
-      }
-
-      await this.recordAuditLog(client, actor, audit, {
-        action: "account.activity.create",
-        resourceType: "account",
-        resourceId: accountId,
-        status: "success",
-        metadata: {
-          activityId,
-          activityType: input.activityType
-        }
-      });
-
-      return {
-        activity: await this.loadActivityById(client, actor.tenantId, activityId)
-      };
-    });
+    return this.createActivity(actor, audit, "account", accountId, input);
   }
 
   async listContacts(actor: ActorContext, query: ContactListQuery) {
@@ -2477,7 +3302,9 @@ export class CrmService {
     return {
       ...this.mapContact(row),
       notes: await this.loadEntityNotes(client, tenantId, "contact", contactId),
-      activities: await this.loadEntityActivities(client, tenantId, "contact", contactId)
+      activities: await this.loadEntityActivities(client, tenantId, "contact", contactId),
+      tasks: await this.loadEntityTasks(client, tenantId, "contact", contactId),
+      timeline: await this.loadEntityTimeline(client, tenantId, "contact", contactId)
     };
   }
 
@@ -2678,47 +3505,7 @@ export class CrmService {
     input: CreateCrmNoteRequestBody
   ): Promise<CrmNoteResponse> {
     this.assertEnabled();
-
-    return this.databaseService.withTransaction(async (client) => {
-      await this.assertEntityExists(client, actor.tenantId, "contact", contactId);
-      const result = await client.query<{ id: string }>(
-        `
-          INSERT INTO crm_notes (
-            tenant_id,
-            entity_type,
-            entity_id,
-            author_user_id,
-            body,
-            metadata,
-            created_by,
-            updated_by
-          )
-          VALUES ($1, 'contact', $2, $3, $4, '{}'::jsonb, $3, $3)
-          RETURNING id
-        `,
-        [actor.tenantId, contactId, actor.userId, input.body.trim()]
-      );
-
-      const noteId = result.rows[0]?.id;
-
-      if (!noteId) {
-        throw new AppError(500, "Contact note creation failed.", undefined, "NOTE_CREATE_FAILED");
-      }
-
-      await this.recordAuditLog(client, actor, audit, {
-        action: "contact.note.create",
-        resourceType: "contact",
-        resourceId: contactId,
-        status: "success",
-        metadata: {
-          noteId
-        }
-      });
-
-      return {
-        note: await this.loadNoteById(client, actor.tenantId, noteId)
-      };
-    });
+    return this.createNote(actor, audit, "contact", contactId, input);
   }
 
   async addContactActivity(
@@ -2728,58 +3515,6 @@ export class CrmService {
     input: CreateCrmActivityRequestBody
   ): Promise<CrmActivityResponse> {
     this.assertEnabled();
-
-    return this.databaseService.withTransaction(async (client) => {
-      await this.assertEntityExists(client, actor.tenantId, "contact", contactId);
-      const result = await client.query<{ id: string }>(
-        `
-          INSERT INTO crm_activities (
-            tenant_id,
-            entity_type,
-            entity_id,
-            activity_type,
-            subject,
-            description,
-            occurred_at,
-            author_user_id,
-            metadata,
-            created_by,
-            updated_by
-          )
-          VALUES ($1, 'contact', $2, $3, $4, $5, $6, $7, '{}'::jsonb, $7, $7)
-          RETURNING id
-        `,
-        [
-          actor.tenantId,
-          contactId,
-          input.activityType,
-          input.subject.trim(),
-          getTrimmedNullableString(input.description),
-          input.occurredAt ? new Date(input.occurredAt) : new Date(),
-          actor.userId
-        ]
-      );
-
-      const activityId = result.rows[0]?.id;
-
-      if (!activityId) {
-        throw new AppError(500, "Contact activity creation failed.", undefined, "ACTIVITY_CREATE_FAILED");
-      }
-
-      await this.recordAuditLog(client, actor, audit, {
-        action: "contact.activity.create",
-        resourceType: "contact",
-        resourceId: contactId,
-        status: "success",
-        metadata: {
-          activityId,
-          activityType: input.activityType
-        }
-      });
-
-      return {
-        activity: await this.loadActivityById(client, actor.tenantId, activityId)
-      };
-    });
+    return this.createActivity(actor, audit, "contact", contactId, input);
   }
 }

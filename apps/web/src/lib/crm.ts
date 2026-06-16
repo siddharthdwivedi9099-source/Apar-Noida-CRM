@@ -1,3 +1,11 @@
+import type {
+  CrmActivityType,
+  CrmTaskPriority,
+  CrmTaskStatus,
+  CrmTimelineFilterKind,
+  CrmTimelineItemKind
+} from "@crm/types";
+
 export const selectClassName =
   "flex h-11 w-full rounded-[1.25rem] border border-input bg-background px-4 py-2 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
@@ -44,4 +52,43 @@ export function formatShortDate(value: string | null) {
 
 export function getCountLabel(count: number, singular: string, plural: string) {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function toTitleCaseLabel(value: string) {
+  return value
+    .split("_")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+export function formatDateTimeInputValue(value: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const offsetInMinutes = date.getTimezoneOffset();
+  const normalizedDate = new Date(date.getTime() - offsetInMinutes * 60_000);
+  return normalizedDate.toISOString().slice(0, 16);
+}
+
+export function getCrmActivityTypeLabel(value: CrmActivityType) {
+  return toTitleCaseLabel(value);
+}
+
+export function getCrmTaskPriorityLabel(value: CrmTaskPriority) {
+  return toTitleCaseLabel(value);
+}
+
+export function getCrmTaskStatusLabel(value: CrmTaskStatus) {
+  return toTitleCaseLabel(value);
+}
+
+export function getCrmTimelineKindLabel(value: CrmTimelineFilterKind | CrmTimelineItemKind) {
+  return value === "all" ? "All touchpoints" : toTitleCaseLabel(value);
 }

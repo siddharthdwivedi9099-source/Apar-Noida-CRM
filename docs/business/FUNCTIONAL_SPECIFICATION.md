@@ -2,14 +2,15 @@
 
 ## Purpose
 
-This document summarizes the platform behavior now implemented through Phase 6.
+This document summarizes the platform behavior now implemented through Phase 7.
 
 ## Functional Principles
 
-- Every function runs inside tenant context.
-- Every business module inherits RBAC and audit logging.
-- Tenant configuration should feed CRM behavior instead of hardcoded UI vocabulary.
-- Core CRM records should be soft-delete-safe and extensible from the beginning.
+- every function runs inside tenant context
+- every business module inherits RBAC and audit logging
+- tenant configuration should feed CRM behavior instead of hardcoded UI vocabulary
+- core CRM records should be soft-delete-safe and extensible from the beginning
+- shared touchpoint tracking should be reusable across future modules instead of rebuilt per module
 
 ## Implemented Platform Functions
 
@@ -47,19 +48,13 @@ Implemented:
 - custom field metadata foundation
 - custom form layout foundation
 
-Current runtime behavior:
-- tenant theme changes affect the live shell
-- module switches affect navigation and route access
-- terminology changes affect navigation labels and CRM page copy
-- CRM forms now consume tenant-backed dropdown catalogs for lead, account, and contact fields
-
 ### Audit and Traceability
 
 Implemented:
 - auth audit events
 - RBAC audit events
 - tenant configuration audit events
-- CRM create, update, delete, note, and activity audit events
+- CRM create, update, delete, note, activity, and task audit events
 
 ## Implemented CRM Functions
 
@@ -77,14 +72,9 @@ Implemented:
 - lead score placeholder
 - lead notes
 - lead activities
+- lead tasks
+- lead timeline
 - conversion placeholder
-
-Cross-cutting behavior:
-- pagination, search, filters, and sorting
-- tenant isolation
-- API validation
-- RBAC-backed route and action gating
-- audit logging on write operations
 
 ### Account Module
 
@@ -103,13 +93,8 @@ Implemented:
 - related opportunities placeholder
 - notes
 - activities
-
-Cross-cutting behavior:
-- pagination, search, filters, and sorting
-- tenant isolation
-- API validation
-- RBAC-backed route and action gating
-- audit logging on write operations
+- tasks
+- timeline
 
 ### Contact Module
 
@@ -127,13 +112,59 @@ Implemented:
 - LinkedIn
 - notes
 - activities
+- tasks
+- timeline
 
-Cross-cutting behavior:
-- pagination, search, filters, and sorting
+## Shared Productivity and Touchpoint Tracking
+
+Implemented:
+- activity creation
+- activity types:
+  - call
+  - email
+  - meeting
+  - chat
+  - social
+  - demo
+  - training
+  - support
+  - renewal
+- activity owner
+- activity date and time
+- activity outcome
+- activity notes
+- task creation
+- task assignment
+- due date
+- priority
+- status
+- related record linkage
+- reminder placeholder
+- internal notes
+- customer-facing notes flag
+- unified customer timeline
+- timeline filters by touchpoint type
+- chronological timeline ordering
+
+Foundation-only shared record support is also prepared for:
+- opportunities
+- tickets
+- customer-success accounts
+
+## Cross-Cutting CRM Behavior
+
+Implemented:
+- pagination
+- search
+- filters
+- sorting
+- validation
 - tenant isolation
-- API validation
 - RBAC-backed route and action gating
+- soft delete
 - audit logging on write operations
+- loading states
+- empty states
 
 ## Frontend Functional Behavior
 
@@ -141,7 +172,10 @@ Implemented:
 - list pages for leads, accounts, and contacts
 - detail pages for leads, accounts, and contacts
 - create and edit forms for leads, accounts, and contacts
-- empty states and loading states
+- notes panel on detail pages
+- activity panel on detail pages
+- task list on detail pages
+- filterable timeline component on detail pages
 - role-aware action buttons
 - protected routes for list, detail, create, and edit flows
 
@@ -149,14 +183,15 @@ Current UX behavior:
 - unauthorized users do not see modules in navigation
 - disabled tenant modules are blocked at the route layer
 - form dropdowns use tenant-configured option sets
-- notes and activities are managed directly from detail pages
+- notes, activities, tasks, and the timeline are managed directly from detail pages
 
 ## Functions Still Pending
 
 Still out of scope:
 - public registration
 - admin-created user lifecycle UI
-- opportunity management
+- dedicated opportunity management
 - lead conversion workflow
+- dedicated ticket and customer-success operational modules
 - dynamic custom-field rendering in live CRM forms
 - record-level authorization beyond tenant boundaries

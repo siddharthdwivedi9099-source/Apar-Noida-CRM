@@ -23,7 +23,7 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-6-operational"
+      status: "phase-7-operational"
     });
   });
 

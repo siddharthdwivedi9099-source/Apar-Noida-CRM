@@ -1,8 +1,51 @@
+export const crmEntityTypes = [
+  "lead",
+  "account",
+  "contact",
+  "opportunity",
+  "ticket",
+  "customer_success_account"
+] as const;
+export type CrmEntityType = (typeof crmEntityTypes)[number];
+
 export const crmSortOrders = ["asc", "desc"] as const;
 export type CrmSortOrder = (typeof crmSortOrders)[number];
 
-export const crmActivityTypes = ["call", "email", "meeting", "task", "status_change", "note"] as const;
+export const crmActivityTypes = [
+  "call",
+  "email",
+  "meeting",
+  "chat",
+  "social",
+  "demo",
+  "training",
+  "support",
+  "renewal",
+  "task",
+  "status_change",
+  "note"
+] as const;
 export type CrmActivityType = (typeof crmActivityTypes)[number];
+
+export const crmTaskPriorities = ["low", "medium", "high", "urgent"] as const;
+export type CrmTaskPriority = (typeof crmTaskPriorities)[number];
+
+export const crmTaskStatuses = ["open", "in_progress", "blocked", "completed", "cancelled"] as const;
+export type CrmTaskStatus = (typeof crmTaskStatuses)[number];
+
+export const crmTimelineItemKinds = [
+  "note",
+  "activity",
+  "task",
+  "ticket",
+  "campaign",
+  "training",
+  "onboarding_milestone"
+] as const;
+export type CrmTimelineItemKind = (typeof crmTimelineItemKinds)[number];
+
+export const crmTimelineFilterKinds = ["all", ...crmTimelineItemKinds] as const;
+export type CrmTimelineFilterKind = (typeof crmTimelineFilterKinds)[number];
 
 export interface CrmPagination {
   page: number;
@@ -31,9 +74,16 @@ export interface CrmOptionValueSummary {
   isActive: boolean;
 }
 
+export interface CrmRecordLinkSummary {
+  entityType: CrmEntityType;
+  entityId: string;
+}
+
 export interface CrmNoteSummary {
   id: string;
   body: string;
+  isCustomerFacing: boolean;
+  isInternal: boolean;
   author: CrmLookupUserSummary | null;
   createdAt: string;
   updatedAt: string;
@@ -42,24 +92,101 @@ export interface CrmNoteSummary {
 
 export interface CrmActivitySummary {
   id: string;
+  relatedRecord: CrmRecordLinkSummary;
   activityType: CrmActivityType;
   subject: string;
-  description: string | null;
+  outcome: string | null;
+  notes: string | null;
   occurredAt: string;
+  owner: CrmLookupUserSummary | null;
   author: CrmLookupUserSummary | null;
   createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface CrmTaskSummary {
+  id: string;
+  relatedRecord: CrmRecordLinkSummary;
+  title: string;
+  description: string | null;
+  dueAt: string | null;
+  reminderAt: string | null;
+  priority: CrmTaskPriority;
+  status: CrmTaskStatus;
+  owner: CrmLookupUserSummary | null;
+  assignee: CrmLookupUserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface CrmTimelineItem {
+  id: string;
+  kind: CrmTimelineItemKind;
+  touchpointType: CrmTimelineItemKind;
+  title: string;
+  description: string | null;
+  occurredAt: string;
+  actor: CrmLookupUserSummary | null;
+  owner: CrmLookupUserSummary | null;
+  relatedRecord: CrmRecordLinkSummary;
+  isCustomerFacing: boolean;
+  activityType: CrmActivityType | null;
+  taskStatus: CrmTaskStatus | null;
+  taskPriority: CrmTaskPriority | null;
+  dueAt: string | null;
   metadata: Record<string, unknown>;
 }
 
 export interface CreateCrmNoteRequestBody {
   body: string;
+  isCustomerFacing?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateCrmNoteRequestBody {
+  body?: string;
+  isCustomerFacing?: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateCrmActivityRequestBody {
   activityType: CrmActivityType;
   subject: string;
-  description?: string | null;
+  outcome?: string | null;
+  notes?: string | null;
+  ownerId?: string | null;
   occurredAt?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateCrmTaskRequestBody {
+  title: string;
+  description?: string | null;
+  dueAt?: string | null;
+  reminderAt?: string | null;
+  priority?: CrmTaskPriority;
+  status?: CrmTaskStatus;
+  ownerId?: string | null;
+  assigneeId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateCrmTaskRequestBody {
+  title?: string;
+  description?: string | null;
+  dueAt?: string | null;
+  reminderAt?: string | null;
+  priority?: CrmTaskPriority;
+  status?: CrmTaskStatus;
+  ownerId?: string | null;
+  assigneeId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CrmTimelineQuery {
+  kind?: CrmTimelineFilterKind;
 }
 
 export interface CrmMutationSuccessResponse {
@@ -74,7 +201,29 @@ export interface CrmActivityResponse {
   activity: CrmActivitySummary;
 }
 
-export const leadSortFields = ["createdAt", "updatedAt", "companyName", "status", "source", "score", "owner"] as const;
+export interface CrmTaskResponse {
+  task: CrmTaskSummary;
+}
+
+export interface CrmTasksResponse {
+  tasks: CrmTaskSummary[];
+}
+
+export interface CrmTimelineResponse {
+  items: CrmTimelineItem[];
+  availableTouchpointTypes: CrmTimelineItemKind[];
+  activeTouchpointType: CrmTimelineFilterKind;
+}
+
+export const leadSortFields = [
+  "createdAt",
+  "updatedAt",
+  "companyName",
+  "status",
+  "source",
+  "score",
+  "owner"
+] as const;
 export type LeadSortField = (typeof leadSortFields)[number];
 
 export interface LeadListQuery {
@@ -111,6 +260,8 @@ export interface LeadSummary {
 export interface LeadDetail extends LeadSummary {
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
+  tasks: CrmTaskSummary[];
+  timeline: CrmTimelineItem[];
   conversionPlaceholder: {
     available: false;
     message: string;
@@ -204,6 +355,8 @@ export interface AccountSummary {
 export interface AccountDetail extends AccountSummary {
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
+  tasks: CrmTaskSummary[];
+  timeline: CrmTimelineItem[];
   relatedContacts: ContactRelationshipSummary[];
   relatedOpportunitiesPlaceholder: {
     available: false;
@@ -246,7 +399,15 @@ export interface AccountOptionsResponse {
   healthStatuses: CrmOptionValueSummary[];
 }
 
-export const contactSortFields = ["createdAt", "updatedAt", "name", "email", "account", "role", "owner"] as const;
+export const contactSortFields = [
+  "createdAt",
+  "updatedAt",
+  "name",
+  "email",
+  "account",
+  "role",
+  "owner"
+] as const;
 export type ContactSortField = (typeof contactSortFields)[number];
 
 export interface ContactListQuery {
@@ -281,6 +442,8 @@ export interface ContactSummary {
 export interface ContactDetail extends ContactSummary {
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
+  tasks: CrmTaskSummary[];
+  timeline: CrmTimelineItem[];
 }
 
 export interface CreateContactRequestBody {

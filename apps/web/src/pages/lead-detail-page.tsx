@@ -1,12 +1,21 @@
 import { useEffect, useState } from "react";
 import type {
   CreateCrmActivityRequestBody,
-  LeadResponse
+  CreateCrmNoteRequestBody,
+  CreateCrmTaskRequestBody,
+  CrmLookupUserSummary,
+  LeadOptionsResponse,
+  LeadResponse,
+  UpdateCrmNoteRequestBody,
+  UpdateCrmTaskRequestBody
 } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CrmActivityPanel } from "@/components/crm/crm-activity-panel";
+import { CrmNotesPanel } from "@/components/crm/crm-notes-panel";
 import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
@@ -21,12 +30,13 @@ export function LeadDetailPage() {
   const { getModuleLabel } = useTenantConfig();
   const leadLabel = getModuleLabel("leads", "singular");
   const [data, setData] = useState<LeadResponse | null>(null);
+  const [owners, setOwners] = useState<CrmLookupUserSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const canEdit = hasAnyPermission(["leads.edit", "leads.configure"]);
   const canDelete = hasAnyPermission(["leads.delete", "leads.configure"]);
-  const canWriteTimeline = hasAnyPermission(["leads.create", "leads.edit", "leads.assign", "leads.configure"]);
+  const canManageProductivity = hasAnyPermission(["leads.create", "leads.edit", "leads.assign", "leads.configure"]);
 
   async function loadLead() {
     if (!accessToken || !leadId) {
@@ -37,11 +47,18 @@ export function LeadDetailPage() {
     setErrorMessage(null);
 
     try {
-      const response = await apiRequest<LeadResponse>(`/leads/${leadId}`, {
-        method: "GET",
-        accessToken
-      });
-      setData(response);
+      const [detailResponse, optionsResponse] = await Promise.all([
+        apiRequest<LeadResponse>(`/leads/${leadId}`, {
+          method: "GET",
+          accessToken
+        }),
+        apiRequest<LeadOptionsResponse>("/leads/options", {
+          method: "GET",
+          accessToken
+        })
+      ]);
+      setData(detailResponse);
+      setOwners(optionsResponse.owners);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -53,17 +70,28 @@ export function LeadDetailPage() {
     void loadLead();
   }, [accessToken, leadId]);
 
-  async function handleAddNote(body: string) {
+  async function handleAddNote(payload: CreateCrmNoteRequestBody) {
     if (!accessToken || !leadId) {
       return;
     }
 
-    await apiRequest(`/leads/${leadId}/notes`, {
+    await apiRequest(`/records/lead/${leadId}/notes`, {
       method: "POST",
       accessToken,
-      body: {
-        body
-      }
+      body: payload
+    });
+    await loadLead();
+  }
+
+  async function handleUpdateNote(noteId: string, payload: UpdateCrmNoteRequestBody) {
+    if (!accessToken || !leadId) {
+      return;
+    }
+
+    await apiRequest(`/records/lead/${leadId}/notes/${noteId}`, {
+      method: "PATCH",
+      accessToken,
+      body: payload
     });
     await loadLead();
   }
@@ -73,8 +101,34 @@ export function LeadDetailPage() {
       return;
     }
 
-    await apiRequest(`/leads/${leadId}/activities`, {
+    await apiRequest(`/records/lead/${leadId}/activities`, {
       method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadLead();
+  }
+
+  async function handleAddTask(payload: CreateCrmTaskRequestBody) {
+    if (!accessToken || !leadId) {
+      return;
+    }
+
+    await apiRequest(`/records/lead/${leadId}/tasks`, {
+      method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadLead();
+  }
+
+  async function handleUpdateTask(taskId: string, payload: UpdateCrmTaskRequestBody) {
+    if (!accessToken || !leadId) {
+      return;
+    }
+
+    await apiRequest(`/records/lead/${leadId}/tasks/${taskId}`, {
+      method: "PATCH",
       accessToken,
       body: payload
     });
@@ -85,7 +139,7 @@ export function LeadDetailPage() {
     return (
       <CrmLoadingState
         title={`Loading ${leadLabel.toLowerCase()} detail`}
-        description="The page is fetching the full tenant-safe record, notes, and activity timeline."
+        description="The page is fetching the tenant-safe record, activities, notes, tasks, and customer timeline."
       />
     );
   }
@@ -111,7 +165,7 @@ export function LeadDetailPage() {
       <CrmHero
         eyebrow="Lead detail"
         title={`${lead.companyName} is now tracked as a live ${leadLabel.toLowerCase()} record.`}
-        summary={`${lead.fullName} sits inside the authenticated CRM foundation with source tracking, ownership, notes, activities, and a conversion placeholder for a later opportunity phase.`}
+        summary={`${lead.fullName} sits inside the authenticated CRM foundation with source tracking, ownership, notes, activities, task tracking, and a customer timeline ready for later opportunity conversion.`}
         actions={
           <>
             <Button variant="outline" asChild>
@@ -194,7 +248,8 @@ export function LeadDetailPage() {
             <div className="rounded-[1.25rem] bg-background/75 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Timeline coverage</p>
               <p className="mt-2 text-sm leading-6">
-                {lead.noteCount} notes and {lead.activityCount} activities are attached to this {leadLabel.toLowerCase()}.
+                {lead.noteCount} notes, {lead.activityCount} activities, and {lead.tasks.length} tasks are attached to this{" "}
+                {leadLabel.toLowerCase()}.
               </p>
             </div>
             <div className="rounded-[1.25rem] bg-background/75 p-4">
@@ -207,14 +262,34 @@ export function LeadDetailPage() {
 
       {errorMessage ? <p className="text-sm text-rose-600">{errorMessage}</p> : null}
 
-      <CrmTimeline
-        entityLabel={leadLabel}
-        notes={lead.notes}
-        activities={lead.activities}
-        canWrite={canWriteTimeline}
-        onAddNote={handleAddNote}
-        onAddActivity={handleAddActivity}
-      />
+      <section className="grid gap-6 xl:grid-cols-2">
+        <CrmNotesPanel
+          entityLabel={leadLabel}
+          notes={lead.notes}
+          canWrite={canManageProductivity}
+          onAddNote={handleAddNote}
+          onUpdateNote={handleUpdateNote}
+        />
+        <CrmActivityPanel
+          entityLabel={leadLabel}
+          activities={lead.activities}
+          owners={owners}
+          canWrite={canManageProductivity}
+          onAddActivity={handleAddActivity}
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <CrmTaskList
+          entityLabel={leadLabel}
+          tasks={lead.tasks}
+          owners={owners}
+          canWrite={canManageProductivity}
+          onAddTask={handleAddTask}
+          onUpdateTask={handleUpdateTask}
+        />
+        <CrmTimeline entityLabel={leadLabel} items={lead.timeline} />
+      </section>
     </div>
   );
 }

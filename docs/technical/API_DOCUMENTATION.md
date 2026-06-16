@@ -24,7 +24,7 @@ Returns service health and dependency status.
 
 ### `POST /auth/login`
 
-Authenticates a tenant user.
+Authenticates a tenant user, issues a JWT access token, rotates the refresh token session, sets the HTTP-only cookie, applies failed-login controls, and writes audit logs.
 
 Request body:
 
@@ -36,16 +36,9 @@ Request body:
 }
 ```
 
-Behavior:
-- issues a JWT access token
-- rotates and stores a hashed refresh token session
-- sets an HTTP-only refresh token cookie
-- writes audit logs
-- applies rate limiting and failed-login handling
-
 ### `POST /auth/refresh`
 
-Rotates the refresh token and returns a new access token.
+Rotates the refresh token and returns a fresh access token.
 
 ### `POST /auth/logout`
 
@@ -55,143 +48,15 @@ Revokes the active session and clears the refresh token cookie.
 
 Returns the current authenticated user and session summary.
 
-Requires:
+## RBAC and Tenant Configuration
 
-```text
-Authorization: Bearer <access-token>
-```
+Implemented route groups:
+- `/rbac/*`
+- `/tenant-config/*`
 
-## RBAC
+These remain unchanged from Phases 4 and 5 and continue to require authenticated, permission-aware access.
 
-All RBAC routes require a valid access token.
-
-### `GET /rbac/catalog`
-
-Returns:
-- permission modules
-- permission actions
-- permission catalog
-- seeded role templates
-
-Requires one of:
-- `admin.view`
-- `admin.configure`
-
-### `GET /rbac/roles`
-
-Returns tenant roles with resolved permissions and active user counts.
-
-### `POST /rbac/roles`
-
-Creates a role or restores a matching soft-deleted role slug.
-
-### `PATCH /rbac/roles/:roleId`
-
-Updates role metadata.
-
-### `DELETE /rbac/roles/:roleId`
-
-Soft-deletes a non-system role and its active assignments.
-
-### `PUT /rbac/roles/:roleId/permissions`
-
-Replaces the active permission bundle for a role.
-
-### `GET /rbac/users`
-
-Returns tenant users with roles and resolved permission codes.
-
-### `PUT /rbac/users/:userId/roles`
-
-Replaces the active role set for a user.
-
-## Tenant Configuration
-
-All tenant configuration routes require:
-
-```text
-Authorization: Bearer <access-token>
-```
-
-Read routes require one of:
-- `admin.view`
-- `admin.configure`
-
-Write routes require one of:
-- `admin.create`
-- `admin.edit`
-- `admin.delete`
-- `admin.configure`
-
-### `GET /tenant-config`
-
-Returns the tenant bootstrap configuration used by the frontend shell.
-
-### `GET /tenant-config/settings`
-
-Returns tenant workspace settings.
-
-### `PUT /tenant-config/settings`
-
-Updates tenant workspace settings.
-
-### `GET /tenant-config/theme`
-
-Returns the tenant theme settings.
-
-### `PUT /tenant-config/theme`
-
-Updates tenant theme settings.
-
-### `GET /tenant-config/modules`
-
-Returns tenant module states.
-
-### `PUT /tenant-config/modules`
-
-Updates tenant module enablement.
-
-### `GET /tenant-config/terminology`
-
-Returns tenant terminology entries.
-
-### `PUT /tenant-config/terminology`
-
-Updates tenant terminology labels.
-
-### `GET /tenant-config/custom-fields`
-
-Returns active tenant custom-field metadata.
-
-Optional query params:
-- `moduleKey`
-- `entityKey`
-
-### `POST /tenant-config/custom-fields`
-
-Creates a tenant custom field definition.
-
-### `PATCH /tenant-config/custom-fields/:fieldId`
-
-Updates custom-field metadata.
-
-### `DELETE /tenant-config/custom-fields/:fieldId`
-
-Soft-deletes a custom field definition.
-
-### `GET /tenant-config/option-sets`
-
-Returns active tenant option sets and values.
-
-### `PUT /tenant-config/option-sets/:setKey`
-
-Replaces an option set and its active values.
-
-### `GET /tenant-config/form-layouts`
-
-Returns tenant form-layout metadata.
-
-## CRM Endpoints
+## CRM Foundations
 
 All CRM routes require:
 
@@ -199,221 +64,203 @@ All CRM routes require:
 Authorization: Bearer <access-token>
 ```
 
-Every CRM route is tenant-scoped and uses soft-delete-aware reads.
+Every CRM route is tenant-scoped, validation-backed, and soft-delete-aware.
 
-## Leads
+### Supported Shared Record Types
 
-### `GET /leads/options`
+Shared productivity routes support:
+- `lead`
+- `account`
+- `contact`
+- `opportunity`
+- `ticket`
+- `customer_success_account`
 
-Returns:
-- assignable owners
-- lead statuses
-- lead sources
+Permission checks map to module families:
+- `lead` -> `leads.*`
+- `account` -> `accounts.*`
+- `contact` -> `contacts.*`
+- `opportunity` -> `opportunities.*`
+- `ticket` -> `support.*`
+- `customer_success_account` -> `customer_success.*`
 
-Requires any active `leads.*` permission.
+## Lead, Account, and Contact CRUD
 
-### `GET /leads`
+### Lead routes
 
-Returns paginated leads.
+- `GET /leads/options`
+- `GET /leads`
+- `POST /leads`
+- `GET /leads/:leadId`
+- `PATCH /leads/:leadId`
+- `DELETE /leads/:leadId`
 
-Supported query params:
-- `page`
-- `pageSize`
-- `search`
-- `status`
-- `source`
-- `ownerId`
-- `sortBy`: `createdAt | updatedAt | companyName | status | source | score | owner`
-- `sortOrder`: `asc | desc`
+### Account routes
 
-### `POST /leads`
+- `GET /accounts/options`
+- `GET /accounts`
+- `POST /accounts`
+- `GET /accounts/:accountId`
+- `PATCH /accounts/:accountId`
+- `DELETE /accounts/:accountId`
 
-Creates a lead.
+### Contact routes
 
-Requires one of:
-- `leads.create`
-- `leads.configure`
+- `GET /contacts/options`
+- `GET /contacts`
+- `POST /contacts`
+- `GET /contacts/:contactId`
+- `PATCH /contacts/:contactId`
+- `DELETE /contacts/:contactId`
 
-Request body example:
+### Detail payload behavior
+
+`GET /leads/:leadId`, `GET /accounts/:accountId`, and `GET /contacts/:contactId` now return:
+- base record fields
+- `notes`
+- `activities`
+- `tasks`
+- `timeline`
+
+Accounts also return:
+- `relatedContacts`
+- `relatedOpportunitiesPlaceholder`
+
+Leads also return:
+- `conversionPlaceholder`
+
+## Shared Productivity Routes
+
+### `GET /records/:entityType/:entityId/timeline`
+
+Returns unified timeline items for the record.
+
+Optional query params:
+- `kind`
+
+Supported `kind` values:
+- `all`
+- `note`
+- `activity`
+- `task`
+- `ticket`
+- `campaign`
+- `training`
+- `onboarding_milestone`
+
+Response shape:
 
 ```json
 {
-  "firstName": "Riley",
-  "lastName": "Shah",
-  "companyName": "Northwind Labs",
-  "email": "riley@northwind.test",
-  "phone": "+1-415-555-0101",
-  "statusKey": "new",
-  "sourceKey": "website",
-  "score": 42,
-  "ownerId": null
+  "items": [],
+  "availableTouchpointTypes": ["note", "activity", "task"],
+  "activeTouchpointType": "all"
 }
 ```
 
-### `GET /leads/:leadId`
+### `POST /records/:entityType/:entityId/notes`
 
-Returns the lead plus:
-- notes
-- activities
-- conversion placeholder metadata
+Creates a note for the record.
 
-### `PATCH /leads/:leadId`
+Request body:
 
-Updates a lead.
+```json
+{
+  "body": "Customer asked for a revised quote before Friday.",
+  "isCustomerFacing": false,
+  "metadata": {
+    "source": "phase7-test"
+  }
+}
+```
 
-Requires one of:
-- `leads.edit`
-- `leads.assign`
-- `leads.configure`
+### `PATCH /records/:entityType/:entityId/notes/:noteId`
 
-Assignment-only actors can only update `ownerId`.
+Updates a note body, customer-facing flag, and metadata merge.
 
-### `DELETE /leads/:leadId`
+### `POST /records/:entityType/:entityId/activities`
 
-Soft-deletes a lead.
+Creates an activity linked to the record.
 
-### `POST /leads/:leadId/notes`
+Request body:
 
-Creates a note for the lead.
+```json
+{
+  "activityType": "meeting",
+  "subject": "Qualification review",
+  "outcome": "Moved to technical validation",
+  "notes": "Security review requested by procurement.",
+  "ownerId": "00000000-0000-0000-0000-000000000000",
+  "occurredAt": "2026-06-16T11:30:00.000Z",
+  "metadata": {
+    "channel": "zoom"
+  }
+}
+```
 
-### `POST /leads/:leadId/activities`
+### `GET /records/:entityType/:entityId/tasks`
 
-Creates an activity for the lead.
+Returns tasks attached to the record.
 
-## Accounts
+### `POST /records/:entityType/:entityId/tasks`
 
-### `GET /accounts/options`
+Creates a task linked to the record.
 
-Returns:
-- assignable owners
-- account types
-- account health placeholders
+Request body:
 
-Requires any active `accounts.*` permission.
+```json
+{
+  "title": "Send revised proposal",
+  "description": "Include updated onboarding timeline and support plan.",
+  "dueAt": "2026-06-18T09:00:00.000Z",
+  "reminderAt": "2026-06-17T09:00:00.000Z",
+  "priority": "high",
+  "status": "open",
+  "ownerId": "00000000-0000-0000-0000-000000000000",
+  "assigneeId": "00000000-0000-0000-0000-000000000000",
+  "metadata": {
+    "source": "phase7-test"
+  }
+}
+```
 
-### `GET /accounts`
+### `PATCH /records/:entityType/:entityId/tasks/:taskId`
 
-Returns paginated accounts.
+Updates task ownership, assignee, status, priority, due date, reminder, description, title, and metadata merge.
 
-Supported query params:
-- `page`
-- `pageSize`
-- `search`
-- `accountType`
-- `industry`
+Assign-only users may only update:
 - `ownerId`
-- `sortBy`: `createdAt | updatedAt | name | accountType | industry | owner`
-- `sortOrder`: `asc | desc`
+- `assigneeId`
+- `status`
 
-### `POST /accounts`
+## Compatibility CRM Routes
 
-Creates an account.
+The original Phase 6 routes remain available for lead, account, and contact note and activity creation:
+- `POST /leads/:leadId/notes`
+- `POST /leads/:leadId/activities`
+- `POST /accounts/:accountId/notes`
+- `POST /accounts/:accountId/activities`
+- `POST /contacts/:contactId/notes`
+- `POST /contacts/:contactId/activities`
 
-Requires one of:
-- `accounts.create`
-- `accounts.configure`
+These now use the shared productivity service behavior internally.
 
-### `GET /accounts/:accountId`
+## Validation and Error Handling
 
-Returns the account plus:
-- notes
-- activities
-- related contacts
-- related opportunities placeholder metadata
+Common behaviors:
+- invalid UUIDs return `400 VALIDATION_ERROR`
+- cross-tenant owners, accounts, or option values return scoped validation errors
+- missing records return `404`
+- unauthorized access returns `403 FORBIDDEN`
+- assign-only users attempting unsupported edits return `403 AUTHORIZATION_ERROR`
 
-### `PATCH /accounts/:accountId`
+## Audit Logging
 
-Updates an account.
+Shared productivity writes produce CRM audit events such as:
+- `lead.note.create`
+- `lead.note.edit`
+- `lead.activity.create`
+- `lead.task.create`
+- `lead.task.update`
 
-Requires one of:
-- `accounts.edit`
-- `accounts.assign`
-- `accounts.configure`
-
-Assignment-only actors can only update `ownerId`.
-
-### `DELETE /accounts/:accountId`
-
-Soft-deletes an account.
-
-### `POST /accounts/:accountId/notes`
-
-Creates a note for the account.
-
-### `POST /accounts/:accountId/activities`
-
-Creates an activity for the account.
-
-## Contacts
-
-### `GET /contacts/options`
-
-Returns:
-- assignable owners
-- contact roles
-- active accounts for relationship assignment
-
-Requires any active `contacts.*` permission.
-
-### `GET /contacts`
-
-Returns paginated contacts.
-
-Supported query params:
-- `page`
-- `pageSize`
-- `search`
-- `accountId`
-- `role`
-- `ownerId`
-- `sortBy`: `createdAt | updatedAt | name | email | account | role | owner`
-- `sortOrder`: `asc | desc`
-
-### `POST /contacts`
-
-Creates a contact.
-
-Requires one of:
-- `contacts.create`
-- `contacts.configure`
-
-### `GET /contacts/:contactId`
-
-Returns the contact plus:
-- notes
-- activities
-- related account summary
-
-### `PATCH /contacts/:contactId`
-
-Updates a contact.
-
-Requires one of:
-- `contacts.edit`
-- `contacts.assign`
-- `contacts.configure`
-
-Assignment-only actors can only update `ownerId`.
-
-### `DELETE /contacts/:contactId`
-
-Soft-deletes a contact.
-
-### `POST /contacts/:contactId/notes`
-
-Creates a note for the contact.
-
-### `POST /contacts/:contactId/activities`
-
-Creates an activity for the contact.
-
-## Error Behavior
-
-Current conventions:
-- `400` for validation errors and invalid tenant option references
-- `401` for authentication failures
-- `403` for permission failures
-- `404` for missing tenant-scoped records
-- `409` for conflicting role or custom-field operations
-- `429` for login rate limiting
-- `500` for unexpected server errors
+Equivalent action patterns apply to `account`, `contact`, `opportunity`, `ticket`, and `customer_success_account`.

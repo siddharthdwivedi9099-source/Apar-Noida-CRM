@@ -9,6 +9,7 @@ This repository now contains the implemented foundation for:
 - Phase 4: RBAC, role templates, permission middleware, and admin role management
 - Phase 5: tenant settings, theme configuration, module switches, terminology, and custom-field metadata foundations
 - Phase 6: leads, accounts, and contacts CRM foundation
+- Phase 7: activities, tasks, notes, and customer timeline
 
 ## What Exists Now
 
@@ -24,6 +25,7 @@ This repository now contains the implemented foundation for:
 - live theme reflection from tenant settings
 - module-aware route blocking for disabled modules
 - live leads, accounts, and contacts list/detail/form flows
+- notes, activities, tasks, and timeline experiences on CRM detail pages
 
 ### Backend
 
@@ -34,7 +36,7 @@ This repository now contains the implemented foundation for:
 - authentication and refresh-token session flow
 - RBAC catalog, role management, and user-role assignment APIs
 - tenant configuration APIs for settings, theme, modules, terminology, custom fields, option sets, and form layouts
-- CRM APIs for leads, accounts, contacts, notes, and activities
+- CRM APIs for leads, accounts, contacts, and shared productivity records
 - audit logging for auth, RBAC, tenant-config, and CRM writes
 
 ### Shared Packages
@@ -112,6 +114,7 @@ npm run db:rollback
 npm run db:seed
 npm run typecheck
 npm run build
+node tests/phase7-productivity-exhaustive.mjs
 ```
 
 ## Environment Highlights
@@ -138,8 +141,9 @@ For local browser auth, the default CORS configuration supports both:
 Not implemented yet:
 - public registration
 - admin-created user lifecycle UI
-- opportunities
+- dedicated opportunities
 - lead conversion
+- dedicated ticket and customer-success operational modules
 - dynamic form rendering from custom-field metadata
 - record-level authorization beyond tenant boundaries
 - Redis-backed caching and workers
@@ -153,6 +157,7 @@ Not implemented yet:
 - API surface: [docs/technical/API_DOCUMENTATION.md](docs/technical/API_DOCUMENTATION.md)
 - module catalog: [docs/business/MODULE_CATALOG.md](docs/business/MODULE_CATALOG.md)
 - functional specification: [docs/business/FUNCTIONAL_SPECIFICATION.md](docs/business/FUNCTIONAL_SPECIFICATION.md)
+- user guide: [docs/user-guides/USER_GUIDE.md](docs/user-guides/USER_GUIDE.md)
 - sales guide: [docs/user-guides/SALES_USER_GUIDE.md](docs/user-guides/SALES_USER_GUIDE.md)
 - multi-tenancy: [docs/architecture/MULTI_TENANCY_DESIGN.md](docs/architecture/MULTI_TENANCY_DESIGN.md)
 - security design: [docs/security/SECURITY_DESIGN.md](docs/security/SECURITY_DESIGN.md)

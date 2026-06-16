@@ -1,12 +1,21 @@
 import { useEffect, useState } from "react";
 import type {
   AccountResponse,
-  CreateCrmActivityRequestBody
+  AccountOptionsResponse,
+  CreateCrmActivityRequestBody,
+  CreateCrmNoteRequestBody,
+  CreateCrmTaskRequestBody,
+  CrmLookupUserSummary,
+  UpdateCrmNoteRequestBody,
+  UpdateCrmTaskRequestBody
 } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CrmActivityPanel } from "@/components/crm/crm-activity-panel";
+import { CrmNotesPanel } from "@/components/crm/crm-notes-panel";
 import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
@@ -22,12 +31,13 @@ export function AccountDetailPage() {
   const accountLabel = getModuleLabel("accounts", "singular");
   const contactLabel = getModuleLabel("contacts", "singular");
   const [data, setData] = useState<AccountResponse | null>(null);
+  const [owners, setOwners] = useState<CrmLookupUserSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const canEdit = hasAnyPermission(["accounts.edit", "accounts.configure"]);
   const canDelete = hasAnyPermission(["accounts.delete", "accounts.configure"]);
-  const canWriteTimeline = hasAnyPermission(["accounts.create", "accounts.edit", "accounts.assign", "accounts.configure"]);
+  const canManageProductivity = hasAnyPermission(["accounts.create", "accounts.edit", "accounts.assign", "accounts.configure"]);
 
   async function loadAccount() {
     if (!accessToken || !accountId) {
@@ -38,12 +48,18 @@ export function AccountDetailPage() {
     setErrorMessage(null);
 
     try {
-      setData(
-        await apiRequest<AccountResponse>(`/accounts/${accountId}`, {
+      const [detailResponse, optionsResponse] = await Promise.all([
+        apiRequest<AccountResponse>(`/accounts/${accountId}`, {
+          method: "GET",
+          accessToken
+        }),
+        apiRequest<AccountOptionsResponse>("/accounts/options", {
           method: "GET",
           accessToken
         })
-      );
+      ]);
+      setData(detailResponse);
+      setOwners(optionsResponse.owners);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -55,17 +71,28 @@ export function AccountDetailPage() {
     void loadAccount();
   }, [accessToken, accountId]);
 
-  async function handleAddNote(body: string) {
+  async function handleAddNote(payload: CreateCrmNoteRequestBody) {
     if (!accessToken || !accountId) {
       return;
     }
 
-    await apiRequest(`/accounts/${accountId}/notes`, {
+    await apiRequest(`/records/account/${accountId}/notes`, {
       method: "POST",
       accessToken,
-      body: {
-        body
-      }
+      body: payload
+    });
+    await loadAccount();
+  }
+
+  async function handleUpdateNote(noteId: string, payload: UpdateCrmNoteRequestBody) {
+    if (!accessToken || !accountId) {
+      return;
+    }
+
+    await apiRequest(`/records/account/${accountId}/notes/${noteId}`, {
+      method: "PATCH",
+      accessToken,
+      body: payload
     });
     await loadAccount();
   }
@@ -75,8 +102,34 @@ export function AccountDetailPage() {
       return;
     }
 
-    await apiRequest(`/accounts/${accountId}/activities`, {
+    await apiRequest(`/records/account/${accountId}/activities`, {
       method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadAccount();
+  }
+
+  async function handleAddTask(payload: CreateCrmTaskRequestBody) {
+    if (!accessToken || !accountId) {
+      return;
+    }
+
+    await apiRequest(`/records/account/${accountId}/tasks`, {
+      method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadAccount();
+  }
+
+  async function handleUpdateTask(taskId: string, payload: UpdateCrmTaskRequestBody) {
+    if (!accessToken || !accountId) {
+      return;
+    }
+
+    await apiRequest(`/records/account/${accountId}/tasks/${taskId}`, {
+      method: "PATCH",
       accessToken,
       body: payload
     });
@@ -87,7 +140,7 @@ export function AccountDetailPage() {
     return (
       <CrmLoadingState
         title={`Loading ${accountLabel.toLowerCase()} detail`}
-        description="The page is fetching the full account record, relationships, and timeline."
+        description="The page is fetching the full account record, relationships, activities, notes, tasks, and timeline."
       />
     );
   }
@@ -113,7 +166,7 @@ export function AccountDetailPage() {
       <CrmHero
         eyebrow="Account detail"
         title={`${account.name} now anchors shared customer context in the CRM foundation.`}
-        summary={`This record already supports owner assignment, related ${contactLabel.toLowerCase()} relationships, notes, activities, and a later placeholder for opportunity attachments.`}
+        summary={`This record already supports owner assignment, related ${contactLabel.toLowerCase()} relationships, notes, activities, task tracking, and a customer timeline.`}
         actions={
           <>
             <Button variant="outline" asChild>
@@ -188,7 +241,8 @@ export function AccountDetailPage() {
             <div className="rounded-[1.25rem] bg-background/75 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Timeline coverage</p>
               <p className="mt-2 text-sm leading-6">
-                {account.noteCount} notes and {account.activityCount} activities are already attached to this {accountLabel.toLowerCase()}.
+                {account.noteCount} notes, {account.activityCount} activities, and {account.tasks.length} tasks are already attached to this{" "}
+                {accountLabel.toLowerCase()}.
               </p>
             </div>
             <div className="rounded-[1.25rem] bg-background/75 p-4">
@@ -252,14 +306,34 @@ export function AccountDetailPage() {
 
       {errorMessage ? <p className="text-sm text-rose-600">{errorMessage}</p> : null}
 
-      <CrmTimeline
-        entityLabel={accountLabel}
-        notes={account.notes}
-        activities={account.activities}
-        canWrite={canWriteTimeline}
-        onAddNote={handleAddNote}
-        onAddActivity={handleAddActivity}
-      />
+      <section className="grid gap-6 xl:grid-cols-2">
+        <CrmNotesPanel
+          entityLabel={accountLabel}
+          notes={account.notes}
+          canWrite={canManageProductivity}
+          onAddNote={handleAddNote}
+          onUpdateNote={handleUpdateNote}
+        />
+        <CrmActivityPanel
+          entityLabel={accountLabel}
+          activities={account.activities}
+          owners={owners}
+          canWrite={canManageProductivity}
+          onAddActivity={handleAddActivity}
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <CrmTaskList
+          entityLabel={accountLabel}
+          tasks={account.tasks}
+          owners={owners}
+          canWrite={canManageProductivity}
+          onAddTask={handleAddTask}
+          onUpdateTask={handleUpdateTask}
+        />
+        <CrmTimeline entityLabel={accountLabel} items={account.timeline} />
+      </section>
     </div>
   );
 }

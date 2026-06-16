@@ -50,16 +50,16 @@ export function LoginPage() {
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl gap-6 lg:grid-cols-[1.3fr_0.9fr]">
         <section className="glass-panel flex flex-col justify-between rounded-[2rem] p-8 lg:p-12">
           <div className="space-y-6">
-            <Badge variant="success">Phase 6 ready</Badge>
+            <Badge variant="success">Phase 7 ready</Badge>
             <div className="space-y-4">
               <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">{platformMetadata.shortName}</p>
               <h1 className="max-w-3xl font-display text-5xl font-semibold leading-tight">
-                Tenant-aware access, configuration-aware navigation, and audit-friendly platform entry.
+                Tenant-aware access, shared CRM productivity, and audit-friendly platform entry.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
                 PostgreSQL-backed identity scaffolding now sits under tenant-aware RBAC, role templates, protected
-                routes, permission-aware navigation, and tenant configuration so the CRM shell can move from secure
-                access into governed use.
+                routes, permission-aware navigation, tenant configuration, and shared timeline-ready CRM workflows so
+                the shell can move from secure access into governed daily use.
               </p>
             </div>
           </div>

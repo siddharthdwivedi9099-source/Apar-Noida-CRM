@@ -1,9 +1,13 @@
-import { Router, type Request } from "express";
+import { Router, type Request, type RequestHandler } from "express";
 import { z } from "zod";
 import {
   accountSortFields,
   contactSortFields,
   crmActivityTypes,
+  crmEntityTypes,
+  crmTaskPriorities,
+  crmTaskStatuses,
+  crmTimelineFilterKinds,
   leadSortFields,
   permissionActionKeys,
   type AccountListQuery,
@@ -11,14 +15,20 @@ import {
   type CreateContactRequestBody,
   type CreateCrmActivityRequestBody,
   type CreateCrmNoteRequestBody,
+  type CreateCrmTaskRequestBody,
   type CreateLeadRequestBody,
+  type CrmEntityType,
+  type CrmTimelineQuery,
   type ContactListQuery,
   type LeadListQuery,
+  type UpdateCrmNoteRequestBody,
   type UpdateAccountRequestBody,
   type UpdateContactRequestBody,
+  type UpdateCrmTaskRequestBody,
   type UpdateLeadRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
+import { AppError } from "../../common/errors/app-error.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
 import { requirePermissions } from "../../common/middleware/authorize.js";
 import { validateRequest } from "../../common/validation/validate-request.js";
@@ -33,34 +43,34 @@ interface CrmRouterDependencies {
 
 const recordSchema = z.record(z.unknown());
 const uuidSchema = z.string().uuid();
+const entityTypeSchema = z.enum(crmEntityTypes);
 
-const leadReadPermissions = permissionActionKeys.map((actionKey) => `leads.${actionKey}`);
-const accountReadPermissions = permissionActionKeys.map((actionKey) => `accounts.${actionKey}`);
-const contactReadPermissions = permissionActionKeys.map((actionKey) => `contacts.${actionKey}`);
+function buildPermissionGroup(moduleKey: string) {
+  return {
+    read: permissionActionKeys.map((actionKey) => `${moduleKey}.${actionKey}`),
+    create: [`${moduleKey}.create`, `${moduleKey}.configure`],
+    update: [`${moduleKey}.edit`, `${moduleKey}.assign`, `${moduleKey}.configure`],
+    delete: [`${moduleKey}.delete`, `${moduleKey}.configure`],
+    note: [`${moduleKey}.create`, `${moduleKey}.edit`, `${moduleKey}.assign`, `${moduleKey}.configure`],
+    activity: [`${moduleKey}.create`, `${moduleKey}.edit`, `${moduleKey}.assign`, `${moduleKey}.configure`],
+    task: [`${moduleKey}.create`, `${moduleKey}.edit`, `${moduleKey}.assign`, `${moduleKey}.configure`]
+  };
+}
 
-const leadMutationPermissions = {
-  create: ["leads.create", "leads.configure"],
-  update: ["leads.edit", "leads.assign", "leads.configure"],
-  delete: ["leads.delete", "leads.configure"],
-  note: ["leads.create", "leads.edit", "leads.assign", "leads.configure"],
-  activity: ["leads.create", "leads.edit", "leads.assign", "leads.configure"]
-};
+const leadPermissionGroup = buildPermissionGroup("leads");
+const accountPermissionGroup = buildPermissionGroup("accounts");
+const contactPermissionGroup = buildPermissionGroup("contacts");
+const opportunityPermissionGroup = buildPermissionGroup("opportunities");
+const supportPermissionGroup = buildPermissionGroup("support");
+const customerSuccessPermissionGroup = buildPermissionGroup("customer_success");
 
-const accountMutationPermissions = {
-  create: ["accounts.create", "accounts.configure"],
-  update: ["accounts.edit", "accounts.assign", "accounts.configure"],
-  delete: ["accounts.delete", "accounts.configure"],
-  note: ["accounts.create", "accounts.edit", "accounts.assign", "accounts.configure"],
-  activity: ["accounts.create", "accounts.edit", "accounts.assign", "accounts.configure"]
-};
+const leadReadPermissions = leadPermissionGroup.read;
+const accountReadPermissions = accountPermissionGroup.read;
+const contactReadPermissions = contactPermissionGroup.read;
 
-const contactMutationPermissions = {
-  create: ["contacts.create", "contacts.configure"],
-  update: ["contacts.edit", "contacts.assign", "contacts.configure"],
-  delete: ["contacts.delete", "contacts.configure"],
-  note: ["contacts.create", "contacts.edit", "contacts.assign", "contacts.configure"],
-  activity: ["contacts.create", "contacts.edit", "contacts.assign", "contacts.configure"]
-};
+const leadMutationPermissions = leadPermissionGroup;
+const accountMutationPermissions = accountPermissionGroup;
+const contactMutationPermissions = contactPermissionGroup;
 
 const leadListQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
@@ -96,14 +106,53 @@ const contactListQuerySchema = z.object({
 });
 
 const noteCreateSchema = z.object({
-  body: z.string().min(2).max(5000)
+  body: z.string().min(2).max(5000),
+  isCustomerFacing: z.boolean().optional(),
+  metadata: recordSchema.optional()
+});
+
+const noteUpdateSchema = z.object({
+  body: z.string().min(2).max(5000).optional(),
+  isCustomerFacing: z.boolean().optional(),
+  metadata: recordSchema.optional()
 });
 
 const activityCreateSchema = z.object({
   activityType: z.enum(crmActivityTypes),
   subject: z.string().min(2).max(200),
+  outcome: z.string().max(4000).nullable().optional(),
+  notes: z.string().max(4000).nullable().optional(),
+  ownerId: uuidSchema.nullable().optional(),
+  occurredAt: z.string().datetime().optional(),
+  metadata: recordSchema.optional()
+});
+
+const taskCreateSchema = z.object({
+  title: z.string().min(2).max(200),
   description: z.string().max(4000).nullable().optional(),
-  occurredAt: z.string().datetime().optional()
+  dueAt: z.string().datetime().nullable().optional(),
+  reminderAt: z.string().datetime().nullable().optional(),
+  priority: z.enum(crmTaskPriorities).optional(),
+  status: z.enum(crmTaskStatuses).optional(),
+  ownerId: uuidSchema.nullable().optional(),
+  assigneeId: uuidSchema.nullable().optional(),
+  metadata: recordSchema.optional()
+});
+
+const taskUpdateSchema = z.object({
+  title: z.string().min(2).max(200).optional(),
+  description: z.string().max(4000).nullable().optional(),
+  dueAt: z.string().datetime().nullable().optional(),
+  reminderAt: z.string().datetime().nullable().optional(),
+  priority: z.enum(crmTaskPriorities).optional(),
+  status: z.enum(crmTaskStatuses).optional(),
+  ownerId: uuidSchema.nullable().optional(),
+  assigneeId: uuidSchema.nullable().optional(),
+  metadata: recordSchema.optional()
+});
+
+const timelineQuerySchema = z.object({
+  kind: z.enum(crmTimelineFilterKinds).optional()
 });
 
 const leadCreateSchema = z.object({
@@ -188,6 +237,47 @@ const contactIdSchema = z.object({
   contactId: uuidSchema
 });
 
+const recordContextSchema = z.object({
+  entityType: entityTypeSchema,
+  entityId: uuidSchema
+});
+
+const recordNoteSchema = recordContextSchema.extend({
+  noteId: uuidSchema
+});
+
+const recordTaskSchema = recordContextSchema.extend({
+  taskId: uuidSchema
+});
+
+function getRecordPermissionGroup(entityType: CrmEntityType) {
+  switch (entityType) {
+    case "lead":
+      return leadPermissionGroup;
+    case "account":
+      return accountPermissionGroup;
+    case "contact":
+      return contactPermissionGroup;
+    case "opportunity":
+      return opportunityPermissionGroup;
+    case "ticket":
+      return supportPermissionGroup;
+    case "customer_success_account":
+      return customerSuccessPermissionGroup;
+    default:
+      throw new AppError(400, "Unsupported CRM entity type.", undefined, "VALIDATION_ERROR");
+  }
+}
+
+function requireRecordPermissions(
+  permissionKey: keyof Pick<typeof leadPermissionGroup, "read" | "note" | "activity" | "task">
+): RequestHandler {
+  return (request, response, next) => {
+    const permissionGroup = getRecordPermissionGroup(request.params.entityType as CrmEntityType);
+    return requirePermissions({ oneOf: permissionGroup[permissionKey] })(request, response, next);
+  };
+}
+
 function getClientIp(request: Request) {
   const forwardedFor = request.header("x-forwarded-for");
 
@@ -216,6 +306,164 @@ export function createCrmRouter({ databaseService }: CrmRouterDependencies) {
   });
 
   router.use(authMiddleware);
+
+  router.get(
+    "/records/:entityType/:entityId/timeline",
+    validateRequest({
+      params: recordContextSchema,
+      query: timelineQuerySchema
+    }),
+    requireRecordPermissions("read"),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.getEntityTimeline(
+          request.auth!,
+          request.params.entityType as CrmEntityType,
+          request.params.entityId,
+          (request.query as CrmTimelineQuery).kind ?? "all"
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/records/:entityType/:entityId/notes",
+    validateRequest({
+      params: recordContextSchema,
+      body: noteCreateSchema
+    }),
+    requireRecordPermissions("note"),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await crmService.createEntityNote(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.entityType as CrmEntityType,
+          request.params.entityId,
+          request.body as CreateCrmNoteRequestBody
+        )
+      );
+    })
+  );
+
+  router.patch(
+    "/records/:entityType/:entityId/notes/:noteId",
+    validateRequest({
+      params: recordNoteSchema,
+      body: noteUpdateSchema
+    }),
+    requireRecordPermissions("note"),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.updateEntityNote(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.entityType as CrmEntityType,
+          request.params.entityId,
+          request.params.noteId,
+          request.body as UpdateCrmNoteRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/records/:entityType/:entityId/activities",
+    validateRequest({
+      params: recordContextSchema,
+      body: activityCreateSchema
+    }),
+    requireRecordPermissions("activity"),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await crmService.createEntityActivity(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.entityType as CrmEntityType,
+          request.params.entityId,
+          request.body as CreateCrmActivityRequestBody
+        )
+      );
+    })
+  );
+
+  router.get(
+    "/records/:entityType/:entityId/tasks",
+    validateRequest({
+      params: recordContextSchema
+    }),
+    requireRecordPermissions("read"),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.listEntityTasks(
+          request.auth!,
+          request.params.entityType as CrmEntityType,
+          request.params.entityId
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/records/:entityType/:entityId/tasks",
+    validateRequest({
+      params: recordContextSchema,
+      body: taskCreateSchema
+    }),
+    requireRecordPermissions("task"),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await crmService.createEntityTask(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.entityType as CrmEntityType,
+          request.params.entityId,
+          request.body as CreateCrmTaskRequestBody
+        )
+      );
+    })
+  );
+
+  router.patch(
+    "/records/:entityType/:entityId/tasks/:taskId",
+    validateRequest({
+      params: recordTaskSchema,
+      body: taskUpdateSchema
+    }),
+    requireRecordPermissions("task"),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.updateEntityTask(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.entityType as CrmEntityType,
+          request.params.entityId,
+          request.params.taskId,
+          request.body as UpdateCrmTaskRequestBody
+        )
+      );
+    })
+  );
 
   router.get(
     "/leads/options",

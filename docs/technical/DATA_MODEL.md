@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document describes the implemented database model after Phase 6.
+This document describes the implemented database model after Phase 7.
 
 ## Implemented Scope
 
@@ -22,6 +22,8 @@ The database now covers:
 - contacts
 - shared CRM notes
 - shared CRM activities
+- shared CRM tasks
+- shared CRM timeline events
 - migration and seed tracking
 
 ## Modeling Standards
@@ -29,7 +31,7 @@ The database now covers:
 ### Tenant Scope
 
 - tenant-owned tables carry `tenant_id`
-- composite foreign keys are used where practical to keep relationships tenant-safe
+- composite or tenant-aware foreign keys are used where practical to preserve isolation
 - global vocabulary tables such as `permissions` and `role_templates` remain tenant-independent
 
 ### Timestamps
@@ -48,7 +50,9 @@ Where applicable, mutable tables also include:
 - `updated_by`
 - `owner_id`
 
-Notes and activities also track `author_user_id`.
+Additional productivity tracking fields include:
+- `author_user_id` on notes and activities
+- `assignee_user_id` on tasks
 
 ### Metadata
 
@@ -74,7 +78,7 @@ The standard pattern is:
 | Table | Scope | Purpose |
 | --- | --- | --- |
 | `tenants` | global | Primary logical isolation boundary |
-| `users` | tenant | Login identity and future operator profile |
+| `users` | tenant | Login identity and operator profile foundation |
 | `teams` | tenant | Operational grouping for ownership and reporting |
 | `departments` | tenant | Organizational hierarchy |
 | `roles` | tenant | Reusable authorization bundles |
@@ -93,12 +97,14 @@ The standard pattern is:
 | `leads` | tenant | Lead identity, source, status, owner, and score placeholder |
 | `accounts` | tenant | Shared customer or company records |
 | `contacts` | tenant | Stakeholder records linked to accounts |
-| `crm_notes` | tenant | Shared notes attached to leads, accounts, or contacts |
-| `crm_activities` | tenant | Shared activities attached to leads, accounts, or contacts |
+| `crm_notes` | tenant | Shared notes attached to supported CRM record types |
+| `crm_activities` | tenant | Shared activities attached to supported CRM record types |
+| `crm_tasks` | tenant | Shared work items attached to supported CRM record types |
+| `crm_timeline_events` | tenant | Foundation table for non-task, non-note, non-activity timeline events |
 | `schema_migrations` | global | Migration execution ledger |
 | `seed_runs` | global | Seed execution ledger |
 
-## CRM Entity Detail
+## Core CRM Entities
 
 ### `leads`
 
@@ -114,11 +120,6 @@ Key columns:
 - `owner_id`
 - `metadata`
 
-Relationships:
-- `owner_id` references a tenant user
-- `status_option_id` references a tenant option value from `lead-status`
-- `source_option_id` references a tenant option value from `lead-source`
-
 ### `accounts`
 
 Key columns:
@@ -129,11 +130,6 @@ Key columns:
 - `health_status_option_id`
 - `owner_id`
 - `metadata`
-
-Relationships:
-- `owner_id` references a tenant user
-- `account_type_option_id` references a tenant option value from `account-type`
-- `health_status_option_id` references a tenant option value from `account-health`
 
 ### `contacts`
 
@@ -148,51 +144,123 @@ Key columns:
 - `account_id`
 - `metadata`
 
-Relationships:
-- `owner_id` references a tenant user
-- `account_id` references a tenant account
-- `role_option_id` references a tenant option value from `contact-role`
+## Shared Productivity Tables
 
 ### `crm_notes`
 
 Key columns:
+- `tenant_id`
 - `entity_type`
 - `entity_id`
 - `author_user_id`
 - `body`
+- `is_customer_facing`
 - `metadata`
+- `created_at`
+- `updated_at`
+- `deleted_at`
 
-`entity_type` is constrained to:
+Supported `entity_type` values:
 - `lead`
 - `account`
 - `contact`
+- `opportunity`
+- `ticket`
+- `customer_success_account`
 
 ### `crm_activities`
 
 Key columns:
+- `tenant_id`
 - `entity_type`
 - `entity_id`
 - `activity_type`
 - `subject`
 - `description`
+- `outcome`
 - `occurred_at`
+- `owner_user_id`
 - `author_user_id`
 - `metadata`
+- `created_at`
+- `updated_at`
+- `deleted_at`
 
-`activity_type` is constrained to:
+Supported `activity_type` values:
 - `call`
 - `email`
 - `meeting`
+- `chat`
+- `social`
+- `demo`
+- `training`
+- `support`
+- `renewal`
 - `task`
 - `status_change`
 - `note`
+
+### `crm_tasks`
+
+Key columns:
+- `tenant_id`
+- `entity_type`
+- `entity_id`
+- `owner_user_id`
+- `assignee_user_id`
+- `title`
+- `description`
+- `due_at`
+- `reminder_at`
+- `priority`
+- `status`
+- `metadata`
+- `created_at`
+- `updated_at`
+- `deleted_at`
+
+Supported `priority` values:
+- `low`
+- `medium`
+- `high`
+- `urgent`
+
+Supported `status` values:
+- `open`
+- `in_progress`
+- `blocked`
+- `completed`
+- `cancelled`
+
+### `crm_timeline_events`
+
+Key columns:
+- `tenant_id`
+- `entity_type`
+- `entity_id`
+- `touchpoint_type`
+- `title`
+- `description`
+- `occurred_at`
+- `owner_user_id`
+- `metadata`
+- `created_at`
+- `updated_at`
+- `deleted_at`
+
+Supported `touchpoint_type` values:
+- `ticket`
+- `campaign`
+- `training`
+- `onboarding_milestone`
 
 ## Relationship Summary
 
 - a `lead` belongs to one tenant and may be owned by one tenant user
 - an `account` belongs to one tenant and may be owned by one tenant user
 - a `contact` belongs to one tenant, may be owned by one tenant user, and may belong to one tenant account
-- `crm_notes` and `crm_activities` are tenant-scoped shared timeline tables keyed by `entity_type` plus `entity_id`
+- shared productivity tables are keyed by `entity_type` plus `entity_id`
+- notes, activities, tasks, and timeline events are all soft-delete-aware and tenant-scoped
 - tenant option sets provide configurable dropdown values for lead, account, and contact fields
 
 ## Seeded Bootstrap Records
@@ -218,8 +286,6 @@ The seed now creates or updates:
 
 ## Current Limits
 
-- cross-tenant user membership is not implemented
-- record-level authorization beyond tenant boundaries is not implemented
-- opportunities are still a future schema phase
-- dynamic rendering of custom fields from metadata is still a future UI phase
-- lead conversion remains a placeholder workflow
+- dedicated `opportunities`, `tickets`, and `customer_success_accounts` primary tables are still a later phase
+- shared productivity tables already accept those entity types to avoid schema rewrites later
+- timeline foundation for campaigns, training, onboarding, and ticket touchpoints exists, but those modules have not yet started writing live events
