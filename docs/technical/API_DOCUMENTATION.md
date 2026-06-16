@@ -8,19 +8,19 @@ Local default:
 http://127.0.0.1:4000/api/v1
 ```
 
-Browser clients use cookie-backed refresh flows, so the API must allow credentialed CORS for the configured web origin list in `API_CORS_ORIGIN`.
+Browser auth uses credentialed refresh-token cookies, so `API_CORS_ORIGIN` must allow the active frontend origin.
 
-## Current Endpoints
+## Root and Health
 
 ### `GET /`
 
-Returns API phase and version metadata.
+Returns API phase metadata.
 
 ### `GET /health`
 
-Returns service health plus dependency state.
+Returns service health and dependency status.
 
-## Authentication Endpoints
+## Authentication
 
 ### `POST /auth/login`
 
@@ -36,72 +36,24 @@ Request body:
 }
 ```
 
-Response shape:
-
-```json
-{
-  "user": {
-    "id": "uuid",
-    "email": "admin@sample-tenant.local",
-    "firstName": "Platform",
-    "lastName": "Admin",
-    "displayName": "Platform Admin",
-    "status": "active",
-    "tenant": {
-      "id": "uuid",
-      "slug": "sample-tenant",
-      "name": "Sample Tenant"
-    },
-    "roles": [
-      {
-        "id": "uuid",
-        "slug": "super-admin",
-        "name": "Super Admin"
-      }
-    ],
-    "permissionCodes": [
-      "admin.view",
-      "admin.assign",
-      "dashboards.view_dashboard",
-      "ai.manage_ai"
-    ],
-    "metadata": {}
-  },
-  "session": {
-    "id": "uuid",
-    "expiresAt": "2026-06-30T10:00:00.000Z",
-    "lastSeenAt": "2026-06-15T10:00:00.000Z"
-  },
-  "tokens": {
-    "tokenType": "Bearer",
-    "accessToken": "jwt",
-    "accessTokenExpiresAt": "2026-06-15T10:15:00.000Z",
-    "refreshTokenExpiresAt": "2026-06-30T10:00:00.000Z"
-  }
-}
-```
-
 Behavior:
-- also sets an HTTP-only refresh token cookie
-- writes success or failure audit logs
+- issues a JWT access token
+- rotates/stores a hashed refresh token session
+- sets an HTTP-only refresh token cookie
+- writes audit logs
 - applies rate limiting and failed-login handling
-- is intended to be called with `credentials: include` from the web app
 
 ### `POST /auth/refresh`
 
 Rotates the refresh token and returns a new access token.
 
-Request:
-- normally uses the HTTP-only cookie
-- also accepts `{ "refreshToken": "..." }` in the body as a fallback
-
 ### `POST /auth/logout`
 
-Revokes the active session when a valid access token or refresh token is available and clears the refresh token cookie.
+Revokes the active session and clears the refresh token cookie.
 
 ### `GET /auth/me`
 
-Returns the current authenticated user and active session summary.
+Returns the current authenticated user and session summary.
 
 Requires:
 
@@ -109,7 +61,7 @@ Requires:
 Authorization: Bearer <access-token>
 ```
 
-## RBAC Endpoints
+## RBAC
 
 All RBAC routes require a valid access token.
 
@@ -117,8 +69,8 @@ All RBAC routes require a valid access token.
 
 Returns:
 - permission modules
-- permission action categories
-- the current permission catalog
+- permission actions
+- permission catalog
 - seeded role templates
 
 Requires one of:
@@ -127,115 +79,216 @@ Requires one of:
 
 ### `GET /rbac/roles`
 
-Returns all active tenant roles with:
-- role metadata
-- resolved permission list
-- permission codes
-- active user count
-
-Requires one of:
-- `admin.view`
-- `admin.configure`
+Returns tenant roles with resolved permissions and active user counts.
 
 ### `POST /rbac/roles`
 
-Creates a tenant role or restores a soft-deleted role with the same slug.
-
-Request body:
-
-```json
-{
-  "name": "Growth Analyst",
-  "slug": "growth-analyst",
-  "description": "Custom reporting and campaign analysis role.",
-  "templateKey": "marketing-executive"
-}
-```
-
-Requires one of:
-- `admin.create`
-- `admin.configure`
+Creates a role or restores a matching soft-deleted role slug.
 
 ### `PATCH /rbac/roles/:roleId`
 
-Updates role name, slug, or description.
-
-Requires one of:
-- `admin.edit`
-- `admin.configure`
+Updates role metadata.
 
 ### `DELETE /rbac/roles/:roleId`
 
-Soft-deletes a non-system role and soft-deletes its assignments.
-
-Requires one of:
-- `admin.delete`
-- `admin.configure`
+Soft-deletes a non-system role and its active assignments.
 
 ### `PUT /rbac/roles/:roleId/permissions`
 
 Replaces the active permission bundle for a role.
 
-Request body:
-
-```json
-{
-  "permissionCodes": [
-    "marketing.view",
-    "marketing.edit",
-    "campaigns.view",
-    "campaigns.create",
-    "dashboards.view_dashboard"
-  ]
-}
-```
-
-Requires one of:
-- `admin.assign`
-- `admin.configure`
-
 ### `GET /rbac/users`
 
-Returns tenant users with:
-- current roles
-- resolved permission codes
-- team and department names when present
-- account status and last login timestamps
-
-Requires one of:
-- `admin.view`
-- `admin.configure`
+Returns tenant users with roles and resolved permission codes.
 
 ### `PUT /rbac/users/:userId/roles`
 
 Replaces the active role set for a user.
 
+## Tenant Configuration
+
+All tenant configuration routes require:
+
+```text
+Authorization: Bearer <access-token>
+```
+
+Read routes require one of:
+- `admin.view`
+- `admin.configure`
+
+Write routes require one of:
+- `admin.create`
+- `admin.edit`
+- `admin.delete`
+- `admin.configure`
+
+### `GET /tenant-config`
+
+Returns the tenant bootstrap configuration used by the frontend shell.
+
+Response includes:
+- tenant summary
+- workspace settings
+- theme settings
+- module states
+- terminology entries
+- configuration summary counts
+
+### `GET /tenant-config/settings`
+
+Returns tenant workspace settings.
+
+### `PUT /tenant-config/settings`
+
+Updates tenant workspace settings.
+
 Request body:
 
 ```json
 {
-  "roleIds": ["uuid-1", "uuid-2"]
+  "workspaceName": "Sample Tenant Workspace",
+  "timezone": "UTC",
+  "locale": "en-US",
+  "currency": "USD",
+  "dateFormat": "MMM d, yyyy",
+  "timeFormat": "12h"
 }
 ```
 
-Requires one of:
-- `admin.assign`
-- `admin.configure`
+### `GET /tenant-config/theme`
 
-Behavior:
-- soft-deletes removed assignments
-- restores matching soft-deleted assignments
-- prevents the current admin from removing their own active administrative access in the same session
+Returns the tenant theme settings.
+
+### `PUT /tenant-config/theme`
+
+Updates tenant theme settings.
+
+Request body:
+
+```json
+{
+  "logo": null,
+  "primaryColor": "#f97316",
+  "secondaryColor": "#bae6fd",
+  "accentColor": "#14b8a6",
+  "mode": "light",
+  "sidebarStyle": "glass",
+  "cardStyle": "glass",
+  "fontPreference": "modern",
+  "density": "comfortable"
+}
+```
+
+### `GET /tenant-config/modules`
+
+Returns tenant module states.
+
+### `PUT /tenant-config/modules`
+
+Updates tenant module enablement.
+
+Request body:
+
+```json
+{
+  "modules": [
+    {
+      "moduleKey": "leads",
+      "enabled": true
+    },
+    {
+      "moduleKey": "support",
+      "enabled": false
+    }
+  ]
+}
+```
+
+### `GET /tenant-config/terminology`
+
+Returns tenant terminology entries.
+
+### `PUT /tenant-config/terminology`
+
+Updates tenant terminology labels.
+
+Request body:
+
+```json
+{
+  "terminology": [
+    {
+      "moduleKey": "leads",
+      "singular": "Prospect",
+      "plural": "Prospects",
+      "description": "Early-stage demand records."
+    }
+  ]
+}
+```
+
+### `GET /tenant-config/custom-fields`
+
+Returns active tenant custom-field metadata.
+
+Optional query params:
+- `moduleKey`
+- `entityKey`
+
+### `POST /tenant-config/custom-fields`
+
+Creates a tenant custom field definition.
+
+Request body example:
+
+```json
+{
+  "moduleKey": "leads",
+  "entityKey": "lead",
+  "label": "Campaign Focus",
+  "dataType": "text",
+  "isRequired": false,
+  "isActive": true,
+  "sortOrder": 0
+}
+```
+
+### `PATCH /tenant-config/custom-fields/:fieldId`
+
+Updates custom-field metadata.
+
+### `DELETE /tenant-config/custom-fields/:fieldId`
+
+Soft-deletes a custom field definition.
+
+### `GET /tenant-config/option-sets`
+
+Returns active tenant option sets and values.
+
+### `PUT /tenant-config/option-sets/:setKey`
+
+Replaces an option set and its active values.
+
+This endpoint supports tenant-configurable:
+- dropdown values
+- pipeline stages
+- ticket statuses
+- customer-success stages
+
+### `GET /tenant-config/form-layouts`
+
+Returns tenant form-layout metadata.
 
 ## Error Behavior
 
-Current error conventions:
-- `400` for validation failures or invalid permission/role input
+Current conventions:
+- `400` for validation errors
 - `401` for authentication failures
 - `403` for permission failures
-- `404` when a requested role or user does not exist
-- `409` for protected or conflicting role operations
+- `404` for missing tenant-scoped records
+- `409` for conflicting role or custom-field operations
 - `429` for login rate limiting
 - `500` for unexpected server errors
 
-Authentication responses intentionally avoid leaking whether the tenant, email, or password was the exact failure point.
+Authentication and tenant-scoped admin responses intentionally avoid leaking sensitive identity details.

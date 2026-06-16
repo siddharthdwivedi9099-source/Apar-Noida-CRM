@@ -12,6 +12,7 @@ import { ShieldCheck, UserCog, WandSparkles } from "lucide-react";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { adminMutationPermissions, hasAnyPermission } from "@/lib/rbac";
 import { useAuth } from "@/providers/auth-provider";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -354,7 +355,7 @@ export function AdminPage() {
           <Badge>Admin workspace</Badge>
           <h2 className="mt-5 font-display text-4xl font-semibold">Loading RBAC controls for your tenant.</h2>
           <p className="mt-3 max-w-3xl text-base leading-7 text-muted-foreground">
-            Roles, permissions, and user assignments are being loaded from the Phase 4 backend.
+            Roles, permissions, and user assignments are being loaded from the tenant RBAC control plane.
           </p>
         </section>
       </div>
@@ -372,7 +373,7 @@ export function AdminPage() {
                 Manage tenant roles, permission bundles, and user assignments.
               </h2>
               <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-                Phase 4 turns the admin area into a working RBAC control plane with seeded role templates,
+                RBAC now lives alongside the broader tenant configuration engine, with seeded role templates,
                 permission assignment, API-backed role CRUD, and permission-aware frontend behavior.
               </p>
             </div>
@@ -415,6 +416,8 @@ export function AdminPage() {
           </div>
         </div>
       </section>
+
+      <AdminNav />
 
       {errorMessage ? (
         <div className="rounded-[1.5rem] border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">

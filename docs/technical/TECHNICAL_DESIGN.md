@@ -2,229 +2,235 @@
 
 ## Purpose
 
-This document defines the implemented technical baseline for Phase 1 and explains how the workspace is structured for future platform development.
+This document describes the implemented technical baseline through Phase 5 and explains how tenant-aware configuration is now wired across the database, API, and frontend shell.
 
-## Scope
+## Implemented Scope
 
-This document covers:
-- the current workspace and stack choices
-- implemented frontend and backend initialization
-- shared package responsibilities
-- cross-cutting technical conventions
-- implementation guidance for the next phase
+The current repository now includes:
+- Phase 1 runtime foundation
+- Phase 2 PostgreSQL integration, migrations, and seeds
+- Phase 3 authentication, sessions, and protected routing
+- Phase 4 RBAC, permission middleware, and role management
+- Phase 5 tenant configuration, theme management, module switches, terminology, and custom-field metadata foundations
 
-This document does not cover:
-- business module behavior
-- authentication implementation
-- database schema design
-- infrastructure-as-code details
-
-## Phase 1 Outcome
-
-Phase 1 establishes a runnable application foundation while intentionally deferring domain implementation.
-
-The repository now contains:
-- a running React frontend
-- a running Express API
-- shared packages for cross-workspace foundations
-- environment and local runtime conventions
-- documented build and verification commands
-
-## Implemented Stack
-
-### Workspace and Tooling
-
-- npm workspaces
-- root scripts for local development, build, and typecheck
-- shared TypeScript base configuration
+## Current Architecture
 
 ### Frontend
 
+The web app is built with:
 - React 18
 - TypeScript
 - Vite
 - React Router
 - Tailwind CSS
-- ShadCN-ready component structure
+
+Implemented frontend layers:
+- `AuthProvider` for login state, bootstrap refresh, and permission helpers
+- `TenantConfigProvider` for tenant settings bootstrap, terminology lookup, module gating, and live theme application
+- protected routes plus permission-aware route wrappers
+- admin settings routes for workspace settings, theme, modules, terminology, custom fields, and RBAC
 
 ### Backend
 
+The API is built with:
 - Node.js
 - Express
 - TypeScript
 - Zod
-- Pino
+- PostgreSQL via `pg`
 
-## Repository Structure
+Implemented backend modules:
+- `auth`
+- `rbac`
+- `tenant-config`
+- `health`
 
-### Applications
-
-#### `apps/web`
-
-Purpose:
-- frontend runtime
-- application shell
-- route definitions
-- placeholder product pages
-- shared UI composition
-
-Key implemented areas:
-- `src/router.tsx`
-- `src/components/layout`
-- `src/components/ui`
-- `src/pages`
-- `src/providers`
-
-#### `apps/api`
-
-Purpose:
-- API bootstrap
-- middleware composition
-- versioned routing
-- health endpoints
-- environment validation
-
-Key implemented areas:
-- `src/server.ts`
-- `src/app.ts`
-- `src/config`
-- `src/common`
-- `src/modules/health`
-- `src/platform`
+Cross-cutting middleware already in use:
+- request context and request IDs
+- structured request logging
+- centralized validation
+- JWT authentication
+- permission middleware
+- centralized error handling
 
 ### Shared Packages
 
-#### `packages/types`
+#### `@crm/types`
 
-Holds shared platform and API-facing TypeScript types.
+Holds:
+- auth contracts
+- RBAC contracts
+- tenant configuration contracts
+- option-set and custom-field metadata types
 
-#### `packages/config`
+#### `@crm/config`
 
-Holds shared metadata such as platform naming, API versioning, and workspace-level configuration constants.
+Holds:
+- platform metadata
+- API version metadata
+- shared environment guidance
 
-#### `packages/ui`
+#### `@crm/database`
 
-Holds shared UI constants and layout tokens that can later expand into a design system package.
+Holds:
+- PostgreSQL pool wrapper
+- migration runner
+- rollback/status helpers
+- idempotent seed runner
 
-#### `packages/auth`
+## Tenant Configuration Design
 
-Holds authentication-related placeholders and route metadata without implementing auth behavior yet.
+### Configuration Domains
 
-#### `packages/ai`
+Phase 5 introduces tenant-scoped configuration in these domains:
+- workspace settings
+- theme settings
+- module enablement
+- terminology overrides
+- configurable option sets
+- custom field metadata
+- custom form layout metadata
 
-Holds AI capability placeholder definitions used by the frontend foundation.
+### Persistence Strategy
 
-#### `packages/database`
+Two persistence patterns are used:
 
-Holds placeholder database and Redis contracts used by the API health surface.
+#### `system_settings`
 
-## Frontend Technical Design
+Used for document-style tenant settings:
+- `tenant.settings`
+- `tenant.theme`
+- `tenant.modules`
+- `tenant.terminology`
+- `tenant.bootstrap`
 
-### Routing
+This keeps simple tenant settings flexible and easy to version forward.
 
-The frontend uses React Router with:
-- a public login route
-- a shared application shell route
-- placeholder module routes under the shell
+#### Dedicated metadata tables
 
-### Layout System
+Used for structured tenant configuration:
+- `tenant_option_sets`
+- `tenant_option_values`
+- `custom_field_definitions`
+- `custom_form_layouts`
 
-The shell includes:
-- a responsive sidebar
-- a topbar
-- theme switching
-- a reusable card and badge foundation
+This supports CRUD, auditability, soft delete, and future joins from CRM business tables.
 
-### Styling Direction
+## Database Conventions
 
-The frontend uses:
-- Tailwind CSS utility composition
-- CSS custom properties for theme tokens
-- ShadCN-ready `components.json`
-- a `lib/utils.ts` utility for `cn()` composition
+New Phase 5 tables follow the same baseline conventions established earlier:
+- `tenant_id` on tenant-owned records
+- `created_at`, `updated_at`, `deleted_at`
+- `created_by`, `updated_by`, `owner_id` where applicable
+- `metadata JSONB` for extensibility
+- soft delete instead of destructive removal
+- `set_row_updated_at()` trigger-driven `updated_at` maintenance
 
-### Current Boundary
+## API Design
 
-The frontend is intentionally presentation-only at this stage. It does not:
-- fetch live API data
-- guard routes
-- submit forms
-- implement business objects
+### Route Group
 
-## Backend Technical Design
-
-### API Versioning
-
-The API is mounted under:
+Tenant configuration APIs are exposed under:
 
 ```text
-/api/v1
+/api/v1/tenant-config
 ```
 
-This is defined centrally and already in use by the health endpoint.
+### Endpoint Structure
 
-### Middleware Stack
+Implemented endpoint groups:
+- workspace bootstrap summary
+- tenant settings read/update
+- theme read/update
+- module settings read/update
+- terminology read/update
+- custom field list/create/update/delete
+- option-set list/replace
+- form-layout list
 
-The API currently includes:
-- request logging middleware
-- JSON and URL-encoded body parsing
-- CORS
-- Helmet
-- centralized 404 handling
-- centralized error handling
+### Authorization Model
 
-### Validation Structure
+Tenant configuration routes rely on existing admin RBAC permissions:
+- reads require `admin.view` or `admin.configure`
+- writes require `admin.edit`, `admin.create`, `admin.delete`, or `admin.configure` depending on the operation
 
-Validation is organized through shared middleware so future routes can adopt consistent request parsing and error behavior.
+### Audit Model
 
-### Placeholder Dependency Services
+Configuration writes emit `tenant_config` audit events with:
+- tenant ID
+- actor user ID
+- session ID
+- request ID
+- IP and user agent
+- action-specific metadata
 
-The API includes placeholder services for:
-- PostgreSQL
-- Redis
+## Frontend Configuration Application
 
-These do not create live connections yet. They exist to provide health output structure and future extension points.
+### Tenant Bootstrap Flow
 
-## Cross-Cutting Technical Conventions
+After auth completes:
+1. the web app requests `GET /api/v1/tenant-config`
+2. tenant settings are cached in `TenantConfigProvider`
+3. theme tokens are applied to `document.documentElement`
+4. module switches and terminology become available to routing and navigation
 
-### Type Safety
+### Theme Application
 
-- both apps are TypeScript-based
-- shared packages define reusable types
-- workspace-wide typecheck is part of the development workflow
+The frontend applies tenant theme settings by:
+- setting CSS custom properties for `primary`, `secondary`, `accent`, and `ring`
+- switching light/dark mode through the root `dark` class
+- setting root `data-*` attributes for sidebar style, card style, density, and font preference
+- updating hero glow colors and font families through CSS variables
 
-### Versioning
+### Module Gating
 
-- API versioning starts at `/api/v1`
-- package versions remain aligned at `0.1.0` for now
-- changelog documents phase-based delivery
+Module visibility now depends on both:
+- RBAC permission codes
+- tenant module enablement
 
-### Environment Handling
+That means a route is only open when:
+- the user has permission
+- the tenant has not disabled the module
 
-- local environment variables are documented in `.env.example`
-- API env values are parsed and validated through Zod
-- frontend env expectations are documented even when not yet heavily used
+### Terminology Propagation
 
-## Current Non-Goals
+Terminology overrides are currently reflected in:
+- sidebar labels
+- topbar labels
+- placeholder module page titles and summaries
 
-Phase 1 does not implement:
-- persistence repositories
-- migrations
-- auth
-- tenancy resolution
-- background workers
-- AI execution
-- module-specific APIs
+This keeps the naming foundation live before full CRUD modules arrive.
 
-## Implementation Guidance
+## Seed Design
+
+The seed runner now bootstraps:
+- default tenant
+- admin user
+- permission catalog
+- role templates and tenant roles
+- workspace settings
+- theme defaults
+- module enablement map
+- terminology defaults
+- seeded option sets
+- seeded custom form layouts
+
+The seed remains idempotent and updates existing seeded records instead of duplicating them.
+
+## Current Limits
+
+Phase 5 intentionally does not yet implement:
+- public self-signup
+- tenant-created user lifecycle UI
+- record-level authorization
+- business-module CRUD
+- form-rendering from custom layout metadata
+- dynamic runtime rendering of custom fields inside CRM entity forms
+
+## Next Technical Steps
 
 The next implementation phase should:
-- introduce authentication and authorization before business-module CRUD work
-- propagate tenant context through API request handling
-- begin defining shared API contracts for CRM core entities
-- keep frontend data access centralized instead of sprinkling fetch logic through page components
-- preserve the current separation between platform foundations and business modules
-
-## Phase 1 Note
-
-This document reflects actual initialized runtime code, but the platform remains at the foundation stage rather than the feature-complete stage.
+- introduce tenant-aware CRM core tables for leads, accounts, and contacts
+- consume tenant option sets and terminology in those modules
+- read custom-field metadata during form rendering
+- preserve audit logging and RBAC checks for business CRUD

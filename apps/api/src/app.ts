@@ -67,7 +67,7 @@ export function createApp() {
   app.get("/", (_request, response) => {
     response.status(200).json({
       name: "AI-Native CRM API",
-      phase: "Phase 4",
+      phase: "Phase 5",
       docs: apiConfig.versionPrefix
     });
   });

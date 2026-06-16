@@ -1,6 +1,8 @@
 import type { PermissionActionKey, PermissionModuleKey } from "./rbac.js";
+import type { TenantSummary } from "./tenant-config.js";
 
 export * from "./rbac.js";
+export * from "./tenant-config.js";
 
 export type EnvironmentName = "development" | "test" | "production";
 
@@ -36,12 +38,6 @@ export interface ModuleHighlight {
   title: string;
   description: string;
   status: "planned" | "foundation" | "coming-soon";
-}
-
-export interface TenantSummary {
-  id: string;
-  slug: string;
-  name: string;
 }
 
 export interface RoleSummary {

@@ -1,15 +1,20 @@
 import { ModulePage } from "./module-page";
+import { useTenantConfig } from "@/providers/tenant-config-provider";
 
 export function LeadsPage() {
+  const { getModuleLabel } = useTenantConfig();
+  const leadLabel = getModuleLabel("leads", "singular");
+  const leadsLabel = getModuleLabel("leads");
+
   return (
     <ModulePage
       eyebrow="Revenue development"
-      title="Lead qualification and SDR workflows will begin from this route."
-      summary="The leads workspace is currently a placeholder surface so we can lock routing, navigation, and shell behavior before introducing qualification logic, assignment rules, and activity flows."
+      title={`${leadLabel} qualification and SDR workflows will begin from this route.`}
+      summary={`The ${leadsLabel.toLowerCase()} workspace is currently a placeholder surface so we can lock routing, navigation, and shell behavior before introducing qualification logic, assignment rules, and activity flows.`}
       highlights={[
         {
-          title: "Lead intake",
-          description: "Reserved for campaign and channel-sourced lead capture and review flows.",
+          title: `${leadLabel} intake`,
+          description: `Reserved for campaign and channel-sourced ${leadLabel.toLowerCase()} capture and review flows.`,
           status: "planned"
         },
         {
@@ -31,4 +36,3 @@ export function LeadsPage() {
     />
   );
 }
-

@@ -1,15 +1,20 @@
 import { ModulePage } from "./module-page";
+import { useTenantConfig } from "@/providers/tenant-config-provider";
 
 export function SupportPage() {
+  const { getModuleLabel } = useTenantConfig();
+  const supportLabel = getModuleLabel("support");
+  const ticketLabel = getModuleLabel("support", "singular");
+
   return (
     <ModulePage
       eyebrow="Service operations"
-      title="Support ticketing and service response workflows will be built from this route."
-      summary="The support workspace currently exists as a navigable placeholder so that future ticket queues, SLAs, AI assist, and escalation flows can arrive on a stable shell."
+      title={`${supportLabel} ticketing and service response workflows will be built from this route.`}
+      summary={`The ${supportLabel.toLowerCase()} workspace currently exists as a navigable placeholder so that future ${ticketLabel.toLowerCase()} queues, SLAs, AI assist, and escalation flows can arrive on a stable shell.`}
       highlights={[
         {
           title: "Case intake and routing",
-          description: "Future ticket creation, severity tagging, and queue assignment will live here.",
+          description: `Future ${ticketLabel.toLowerCase()} creation, severity tagging, and queue assignment will live here.`,
           status: "planned"
         },
         {
@@ -31,4 +36,3 @@ export function SupportPage() {
     />
   );
 }
-

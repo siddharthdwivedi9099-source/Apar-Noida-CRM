@@ -7,8 +7,9 @@ This repository now contains the implemented foundation for:
 - Phase 2: PostgreSQL integration, migrations, seeds, and base schema
 - Phase 3: authentication, session handling, and protected frontend routing
 - Phase 4: RBAC, role templates, permission middleware, and admin role management
+- Phase 5: tenant settings, theme configuration, module switches, terminology, and custom-field metadata foundations
 
-The current codebase is intentionally platform-first. CRM business entities and workflows are still future work.
+The codebase is still platform-first. Full CRM entity CRUD is the next phase.
 
 ## What Exists Now
 
@@ -16,26 +17,24 @@ The current codebase is intentionally platform-first. CRM business entities and 
 
 - React + TypeScript + Vite
 - protected routing with current-user loading
-- working login page
-- auth state provider
-- logout from the application shell
-- redirected access to protected routes
-- permission-aware navigation and route access states
-- admin role-management workspace
+- auth state provider and logout flow
+- permission-aware navigation
+- tenant-config bootstrap provider
+- admin settings pages for workspace, theme, modules, terminology, and custom fields
+- RBAC management workspace
+- live theme reflection from tenant settings
+- module-aware route blocking for disabled modules
 
 ### Backend
 
 - Express + TypeScript API
-- PostgreSQL-backed database health
-- migration CLI and SQL migration chain
+- PostgreSQL-backed health checks
+- SQL migration runner and rollback support
 - idempotent seed system
-- base multi-tenant schema
-- login, logout, refresh, and current-user endpoints
-- RBAC catalog, role-management, and user-role assignment endpoints
-- JWT access and refresh token handling
-- database-backed session tracking
-- login rate limiting, account lockout, and auth audit logs
-- permission middleware for RBAC-protected endpoints
+- authentication and refresh-token session flow
+- RBAC catalog, role management, and user-role assignment APIs
+- tenant configuration APIs for settings, theme, modules, terminology, custom fields, option sets, and form layouts
+- audit logging for auth, RBAC, and tenant-config writes
 
 ### Shared Packages
 
@@ -45,28 +44,6 @@ The current codebase is intentionally platform-first. CRM business entities and 
 - `@crm/auth`
 - `@crm/ai`
 - `@crm/database`
-
-## Repository Structure
-
-```text
-apps/
-  web/                React + Vite frontend
-  api/                Express + TypeScript API
-
-packages/
-  types/              Shared contracts
-  config/             Shared platform constants
-  ui/                 Shared UI primitives and tokens
-  auth/               Shared auth route metadata
-  ai/                 AI foundation package
-  database/           PostgreSQL client, migrations, and seeds
-
-docs/
-  technical/          Data model, API, migrations
-  architecture/       System and multi-tenancy design
-  security/           Security, audit logging, and access control
-  user-guides/        Admin workflow guidance
-```
 
 ## Quick Start
 
@@ -80,7 +57,7 @@ npm install
 
 Use a local PostgreSQL instance or the repository `docker-compose.yml` service.
 
-Default connection string:
+Default local connection string:
 
 ```text
 postgresql://crm:crm@localhost:5433/crm
@@ -126,9 +103,16 @@ npm run typecheck
 npm run build
 ```
 
-## Environment Highlights
+## Current Admin Routes
 
-The canonical template lives in [`.env.example`](/Users/apar/Documents/CRM for Apar and eLite/.env.example).
+- `/admin`
+- `/admin/theme`
+- `/admin/modules`
+- `/admin/terminology`
+- `/admin/custom-fields`
+- `/admin/rbac`
+
+## Environment Highlights
 
 Important variables:
 - `DATABASE_URL`
@@ -144,20 +128,24 @@ Important variables:
 - `VITE_API_BASE_URL`
 - `VITE_DEFAULT_TENANT_SLUG`
 
-For local browser auth, `API_CORS_ORIGIN` now supports a comma-separated allowlist. The default local setup includes both `http://127.0.0.1:5173` and `http://localhost:5173` so the refresh-cookie flow works in either dev URL.
+For local browser auth, the default CORS configuration supports both:
+- `http://127.0.0.1:5173`
+- `http://localhost:5173`
 
 ## Current Limitations
 
 Not implemented yet:
 - public registration
-- user-creation lifecycle UI
+- admin-created user lifecycle UI
 - business-module CRUD
 - record-level authorization
+- dynamic form rendering from custom-field metadata
 - Redis-backed caching and workers
 - AI execution runtime
 
 ## Documentation Map
 
+- technical design: [docs/technical/TECHNICAL_DESIGN.md](docs/technical/TECHNICAL_DESIGN.md)
 - data model: [docs/technical/DATA_MODEL.md](docs/technical/DATA_MODEL.md)
 - migrations and seeds: [docs/technical/DATABASE_MIGRATIONS.md](docs/technical/DATABASE_MIGRATIONS.md)
 - API surface: [docs/technical/API_DOCUMENTATION.md](docs/technical/API_DOCUMENTATION.md)

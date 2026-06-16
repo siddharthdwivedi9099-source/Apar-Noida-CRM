@@ -1,15 +1,20 @@
 import { ModulePage } from "./module-page";
+import { useTenantConfig } from "@/providers/tenant-config-provider";
 
 export function AccountsPage() {
+  const { getModuleLabel } = useTenantConfig();
+  const accountLabel = getModuleLabel("accounts", "singular");
+  const accountsLabel = getModuleLabel("accounts");
+
   return (
     <ModulePage
       eyebrow="CRM core"
-      title="Accounts will become the shared customer context spine for every downstream module."
-      summary="This route is where account, contact, stakeholder, and lifecycle visibility will converge. For now it provides the navigation and layout anchor needed before domain modeling begins."
+      title={`${accountsLabel} will become the shared customer context spine for every downstream module.`}
+      summary={`This route is where ${accountLabel.toLowerCase()}, contact, stakeholder, and lifecycle visibility will converge. For now it provides the navigation and layout anchor needed before domain modeling begins.`}
       highlights={[
         {
-          title: "Account system of record",
-          description: "Future account identity, ownership, and relationship views will anchor here.",
+          title: `${accountLabel} system of record`,
+          description: `Future ${accountLabel.toLowerCase()} identity, ownership, and relationship views will anchor here.`,
           status: "planned"
         },
         {
@@ -31,4 +36,3 @@ export function AccountsPage() {
     />
   );
 }
-

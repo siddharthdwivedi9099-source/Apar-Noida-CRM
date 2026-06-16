@@ -3,6 +3,7 @@ import { platformMetadata } from "@crm/config";
 import { authFoundation } from "@crm/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useTenantConfig } from "@/providers/tenant-config-provider";
 
 const foundationHighlights = [
   {
@@ -23,6 +24,8 @@ const foundationHighlights = [
 ] as const;
 
 export function DashboardPage() {
+  const { summary, settings } = useTenantConfig();
+
   return (
     <div className="space-y-6">
       <section className="glass-panel overflow-hidden rounded-[2rem]">
@@ -31,12 +34,12 @@ export function DashboardPage() {
             <Badge>{platformMetadata.currentPhase}</Badge>
             <div className="space-y-4">
               <h2 className="max-w-3xl font-display text-4xl font-semibold leading-tight">
-                The workspace foundation now includes tenant-aware RBAC and a working role management surface.
+                The workspace foundation now includes tenant-aware RBAC and a live tenant configuration engine.
               </h2>
               <p className="max-w-3xl text-base leading-7 text-muted-foreground">
                 This dashboard is intentionally centered on platform readiness rather than business metrics. It now
                 reflects the authenticated shell, PostgreSQL-backed identity flow, shared packages, RBAC controls,
-                and the local runtime needed before CRM domain features begin.
+                tenant theme settings, and the local runtime needed before CRM domain features begin.
               </p>
             </div>
           </div>
@@ -45,24 +48,24 @@ export function DashboardPage() {
             <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Current guardrails</p>
             <div className="mt-4 space-y-4">
               <div>
-                <p className="font-semibold">Authentication and RBAC are now live</p>
+                <p className="font-semibold">Authentication, RBAC, and tenant settings are now live</p>
                 <p className="mt-1 text-sm text-slate-300">
-                  Login, logout, refresh rotation, session tracking, protected routes, and admin role management are
-                  implemented for the seeded tenant flow.
+                  Login, logout, refresh rotation, session tracking, protected routes, admin role management, and
+                  tenant-configured shell settings are implemented for the seeded tenant flow.
                 </p>
               </div>
               <div>
-                <p className="font-semibold">Module access now follows permission bundles</p>
+                <p className="font-semibold">Module access now follows permission bundles and tenant switches</p>
                 <p className="mt-1 text-sm text-slate-300">
                   Leads, accounts, campaigns, support, success, admin, and AI routes only appear when the current
-                  user has matching module permissions.
+                  user has matching module permissions and the tenant has the module enabled.
                 </p>
               </div>
               <div>
-                <p className="font-semibold">AI remains governed but non-executable</p>
+                <p className="font-semibold">Tenant configuration is now part of the platform foundation</p>
                 <p className="mt-1 text-sm text-slate-300">
-                  The platform keeps the AI architecture visible, and RBAC now distinguishes between AI use and AI
-                  management before model-backed workflows arrive.
+                  {settings.workspaceName} now carries its own theme, terminology, module map, option sets, and
+                  form-layout metadata before full CRM records arrive.
                 </p>
               </div>
             </div>
@@ -73,7 +76,7 @@ export function DashboardPage() {
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Phase 4 platform overview</CardTitle>
+            <CardTitle>Phase 5 platform overview</CardTitle>
             <CardDescription>
               These cards summarize the current authenticated and authorized platform foundation before business
               modules are fully built out.
@@ -92,14 +95,30 @@ export function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>AI foundation preview</CardTitle>
-            <CardDescription>These cards are powered from the shared AI package to keep future surfaces consistent.</CardDescription>
+            <CardTitle>Configuration readiness</CardTitle>
+            <CardDescription>Tenant configuration assets are now available for later CRM modules to consume directly.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {aiFoundationCards.map((item) => (
+            {[
+              {
+                title: "Option sets",
+                value: String(summary.optionSetCount),
+                description: "Dropdowns, pipelines, ticket statuses, and success stages are tenant-configurable."
+              },
+              {
+                title: "Custom fields",
+                value: String(summary.customFieldCount),
+                description: "Field metadata can now be created and soft deleted through the admin workspace."
+              },
+              {
+                title: "Form layouts",
+                value: String(summary.formLayoutCount),
+                description: "Seeded lead, account, and contact layout scaffolds are already stored per tenant."
+              }
+            ].map((item) => (
               <div key={item.title} className="rounded-[1.25rem] bg-background/75 p-5 shadow-sm">
-                <Badge variant={item.status === "foundation" ? "success" : "muted"}>{item.status}</Badge>
-                <p className="mt-3 font-semibold">{item.title}</p>
+                <Badge variant="muted">{item.title}</Badge>
+                <p className="mt-3 font-display text-3xl font-semibold">{item.value}</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
               </div>
             ))}
@@ -129,14 +148,14 @@ export function DashboardPage() {
             <CardTitle>What comes next</CardTitle>
             <CardDescription>
               The secure platform baseline is in place. The next phase can focus on domain workflows that plug into
-              the RBAC layer already shipping here.
+              the RBAC and tenant-configuration layers already shipping here.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {[
               "Start the CRM kernel with accounts, contacts, leads, and activity structures.",
               "Connect real business APIs to the module-level and action-level permissions already seeded.",
-              "Expand tenant administration into full user lifecycle management, audit review, and settings workflows."
+              "Read custom fields, option sets, and terminology directly from the tenant configuration engine."
             ].map((nextStep) => (
               <div key={nextStep} className="rounded-[1rem] bg-background/75 px-4 py-4 text-sm leading-6 text-muted-foreground">
                 {nextStep}

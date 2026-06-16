@@ -2,15 +2,24 @@
 
 ## Purpose
 
-This guide covers the current administrative workflow for local and early-stage tenant operation.
+This guide covers the current tenant-admin workflow through Phase 5.
 
-## Bootstrap Workflow
+## Local Bootstrap
 
-### 1. Start PostgreSQL
+### 1. Start infrastructure
 
 Ensure PostgreSQL is reachable on `DATABASE_URL`.
 
-The repository includes `docker-compose.yml`, but Docker must actually be running before that service can be used.
+The repository includes `docker-compose.yml` with:
+- PostgreSQL
+- Redis
+- MinIO
+
+For the default local PostgreSQL service:
+
+```text
+postgresql://crm:crm@localhost:5433/crm
+```
 
 ### 2. Run migrations
 
@@ -24,12 +33,17 @@ npm run db:migrate
 npm run db:seed
 ```
 
-This seed now creates:
+The seed now creates:
 - the default tenant
-- the full RBAC permission catalog
-- seeded role templates
-- seeded tenant roles
+- the RBAC permission catalog
+- seeded role templates and tenant roles
 - the bootstrap admin user
+- tenant workspace settings
+- tenant theme defaults
+- module configuration defaults
+- terminology defaults
+- seeded option sets
+- seeded form-layout metadata
 
 ### 4. Start the applications
 
@@ -37,7 +51,17 @@ This seed now creates:
 npm run dev
 ```
 
-If you access the frontend as `http://localhost:5173` instead of `http://127.0.0.1:5173`, keep `API_CORS_ORIGIN` aligned. The default local config allows both origins.
+Frontend:
+
+```text
+http://127.0.0.1:5173
+```
+
+API:
+
+```text
+http://127.0.0.1:4000/api/v1
+```
 
 ### 5. Sign in
 
@@ -52,46 +76,92 @@ Default bootstrap credentials:
 - email: `admin@sample-tenant.local`
 - password: `ChangeMe123!`
 
+## Current Admin Routes
+
+Implemented admin pages:
+- `/admin`
+- `/admin/theme`
+- `/admin/modules`
+- `/admin/terminology`
+- `/admin/custom-fields`
+- `/admin/rbac`
+
 ## Current Admin Capabilities
 
-Implemented today:
-- sign in and maintain an authenticated session
-- load current user and permission context
-- view the permission catalog and seeded role templates
-- create tenant roles
+### Tenant settings
+
+Admins can now:
+- update workspace name
+- update timezone, locale, and formatting defaults
+
+### Theme settings
+
+Admins can now:
+- update logo URL
+- update primary, secondary, and accent colors
+- switch light/dark mode
+- change sidebar style
+- change card style
+- change font preference
+- change layout density
+
+Theme changes apply to the live shell after save.
+
+### Module settings
+
+Admins can now:
+- enable or disable modules per tenant
+- immediately affect navigation visibility
+- immediately affect route availability
+
+The `admin` module remains locked on so the tenant does not disable its own governance surface.
+
+### Terminology settings
+
+Admins can now:
+- rename business-facing labels such as Leads, Accounts, and Tickets
+- update singular/plural terminology
+- see those changes reflected in navigation and module copy
+
+### Custom-field foundation
+
+Admins can now:
+- create custom field metadata
+- update field metadata
+- soft delete custom fields
+- associate fields with tenant option sets
+- review seeded form-layout metadata
+
+### RBAC
+
+Admins can still:
+- create roles
 - edit role metadata
 - assign permissions to roles
-- assign roles to existing users
+- assign roles to users
 - delete non-system roles
 
+## Recommended Admin Workflow
+
+Suggested order for a fresh tenant:
+1. Verify login with the seeded admin account.
+2. Review `/admin` and update workspace settings.
+3. Open `/admin/theme` and apply tenant branding.
+4. Open `/admin/modules` and disable modules not needed for the rollout.
+5. Open `/admin/terminology` and align business language.
+6. Open `/admin/custom-fields` and prepare metadata for later CRM forms.
+7. Open `/admin/rbac` and adjust roles or assignments as needed.
+
+## Security and Governance Notes
+
 Current protections:
-- permission middleware blocks unauthorized RBAC API calls
-- the admin UI hides or disables controls when the user lacks the matching `admin.*` permission
-- the API prevents the current admin from removing their own active administrative access during role reassignment
+- admin APIs require valid access tokens
+- admin APIs require matching `admin.*` permissions
+- configuration writes create audit-log entries
+- disabled modules are blocked even if a user still has matching module permissions
+- custom fields use soft delete rather than destructive removal
 
-## Using the Admin UI
-
-### Create a role
-
-1. Open `/admin`
-2. Pick a template or leave the form in custom mode
-3. Enter the role name, slug, and description
-4. Save the role
-
-### Assign permissions to a role
-
-1. Select the role from the tenant role list
-2. Review the module-grouped permission matrix
-3. Toggle permission checkboxes
-4. Save permissions
-
-### Assign roles to a user
-
-1. Select a user in the user-assignment section
-2. Toggle the roles that should apply
-3. Save the assignment
-
-## Rotating the Seeded Admin Password
+## Password Rotation for the Seeded Admin
 
 Update `DEFAULT_ADMIN_PASSWORD` in the environment and rerun:
 
@@ -99,13 +169,13 @@ Update `DEFAULT_ADMIN_PASSWORD` in the environment and rerun:
 npm run db:seed
 ```
 
-The seed is idempotent and will update the bootstrap admin password hash.
+The seed remains idempotent and updates the bootstrap admin password hash.
 
-## What Is Still Out of Scope
+## Current Limits
 
-Not implemented yet:
+Still intentionally out of scope:
 - public self-signup
-- admin-created user onboarding UI
 - password reset workflows
-- CRM business CRUD backed by live module APIs
-- record-level authorization rules
+- admin-created user onboarding UI
+- business-module CRUD for leads, accounts, and contacts
+- visual form rendering from custom-field metadata

@@ -1,14 +1,19 @@
 import { ModulePage } from "./module-page";
+import { useTenantConfig } from "@/providers/tenant-config-provider";
 
 export function CampaignsPage() {
+  const { getModuleLabel } = useTenantConfig();
+  const campaignLabel = getModuleLabel("campaigns", "singular");
+  const campaignsLabel = getModuleLabel("campaigns");
+
   return (
     <ModulePage
       eyebrow="Marketing orchestration"
-      title="Campaign planning and attribution surfaces will grow here."
-      summary="This placeholder route validates the information architecture for marketing and campaign operations while keeping the business logic deferred to later phases."
+      title={`${campaignLabel} planning and attribution surfaces will grow here.`}
+      summary={`This placeholder route validates the information architecture for marketing and ${campaignsLabel.toLowerCase()} operations while keeping the business logic deferred to later phases.`}
       highlights={[
         {
-          title: "Campaign planning",
+          title: `${campaignLabel} planning`,
           description: "Reserved for goals, audiences, channels, and ownership setup.",
           status: "planned"
         },
@@ -31,4 +36,3 @@ export function CampaignsPage() {
     />
   );
 }
-

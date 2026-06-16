@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document describes the current implemented schema after Phase 2, Phase 3, and Phase 4 foundation work.
+This document describes the current implemented schema after Phase 2, Phase 3, Phase 4, and Phase 5 foundation work.
 
 ## Implemented Scope
 
@@ -16,6 +16,9 @@ The database baseline now covers:
 - authentication sessions
 - audit logging
 - system settings
+- tenant option sets and option values
+- custom field definitions
+- custom form layouts
 - migration and seed tracking
 
 It does not yet cover CRM business entities such as accounts, contacts, leads, or opportunities.
@@ -76,6 +79,10 @@ The current pattern is:
 | `auth_sessions` | tenant | Refresh token storage and session tracking | Stores hashed refresh token, expiry, revoke state |
 | `audit_logs` | tenant or global | Immutable security and admin trail | Used for auth and RBAC lifecycle events |
 | `system_settings` | tenant or global | JSONB-backed configuration storage | Supports tenant overrides and bootstrap metadata |
+| `tenant_option_sets` | tenant | Configurable dropdown, stage, and status catalogs | Supports pipelines, ticket statuses, and success stages |
+| `tenant_option_values` | tenant | Values inside a tenant option set | Soft-delete-ready and ordered by `sort_order` |
+| `custom_field_definitions` | tenant | Tenant-managed custom field metadata | Supports data type, required flag, option-set linkage, and soft delete |
+| `custom_form_layouts` | tenant | Tenant-managed form layout metadata | Stores section-oriented layout schema JSONB |
 | `schema_migrations` | global | Migration execution ledger | Managed by the migration runner |
 | `seed_runs` | global | Seed execution ledger | Managed by the seed runner |
 
@@ -90,6 +97,9 @@ The current pattern is:
 - `user_roles` grants tenant-scoped roles to users
 - `auth_sessions` belongs to a tenant user and tracks refresh token rotation
 - `audit_logs` may reference a tenant, actor user, and session when known
+- `tenant_option_sets` and `tenant_option_values` hold tenant-specific configurable catalogs
+- `custom_field_definitions` may optionally reference a tenant option set
+- `custom_form_layouts` holds future per-entity form section metadata
 
 ## Seeded Bootstrap Records
 
@@ -100,6 +110,9 @@ The core seed currently creates or updates:
 - seeded tenant roles derived from those templates
 - the default admin user from `DEFAULT_ADMIN_*`
 - a `super-admin` assignment for that user
+- tenant workspace settings, theme, modules, and terminology in `system_settings`
+- seeded option sets for lead, opportunity, support, and customer-success flows
+- seeded lead, account, and contact form-layout metadata
 - tenant bootstrap metadata in `system_settings`
 
 If a legacy `tenant-admin` role exists from an earlier foundation seed, the seed migrates it into `super-admin` when possible.
@@ -109,4 +122,5 @@ If a legacy `tenant-admin` role exists from an earlier foundation seed, the seed
 - cross-tenant user membership is not implemented yet
 - platform-level impersonation flows are not implemented yet
 - record-level and field-level authorization are not implemented yet
+- custom fields are stored as metadata but not yet rendered in live CRM entity forms
 - CRM business entities will arrive in later migrations

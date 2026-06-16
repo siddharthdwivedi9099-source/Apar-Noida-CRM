@@ -1,11 +1,16 @@
 import { ModulePage } from "./module-page";
+import { useTenantConfig } from "@/providers/tenant-config-provider";
 
 export function OpportunitiesPage() {
+  const { getModuleLabel } = useTenantConfig();
+  const opportunityLabel = getModuleLabel("opportunities", "singular");
+  const opportunitiesLabel = getModuleLabel("opportunities");
+
   return (
     <ModulePage
       eyebrow="Sales execution"
-      title="Opportunity management will later extend this initialized route."
-      summary="The shell is ready for opportunity pipelines, stage progression, collaboration, and forecast-oriented workflows. Phase 1 intentionally stops at the routed UI placeholder."
+      title={`${opportunityLabel} management will later extend this initialized route.`}
+      summary={`The shell is ready for ${opportunitiesLabel.toLowerCase()} pipelines, stage progression, collaboration, and forecast-oriented workflows. Phase 1 intentionally stops at the routed UI placeholder.`}
       highlights={[
         {
           title: "Pipeline stages",
@@ -31,4 +36,3 @@ export function OpportunitiesPage() {
     />
   );
 }
-

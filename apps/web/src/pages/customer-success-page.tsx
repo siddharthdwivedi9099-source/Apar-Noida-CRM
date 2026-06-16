@@ -1,10 +1,14 @@
 import { ModulePage } from "./module-page";
+import { useTenantConfig } from "@/providers/tenant-config-provider";
 
 export function CustomerSuccessPage() {
+  const { getModuleLabel } = useTenantConfig();
+  const customerSuccessLabel = getModuleLabel("customer_success");
+
   return (
     <ModulePage
       eyebrow="Post-sales growth"
-      title="Customer success, onboarding, training, and health signals will converge here."
+      title={`${customerSuccessLabel}, onboarding, training, and health signals will converge here.`}
       summary="This page is the Phase 1 placeholder for the post-sales operating surface. It already sits in the routed shell so future lifecycle modules can expand on a stable structure."
       highlights={[
         {
@@ -31,4 +35,3 @@ export function CustomerSuccessPage() {
     />
   );
 }
-

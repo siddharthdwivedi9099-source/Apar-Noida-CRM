@@ -1,8 +1,16 @@
 import { createHash } from "node:crypto";
 import {
+  defaultCustomFormLayoutDefinitions,
   defaultPermissionCatalog,
   defaultRoleTemplateDefinitions,
-  type RoleTemplateDefinition
+  defaultTenantCoreSettings,
+  defaultTenantOptionSetDefinitions,
+  defaultTenantTerminologyEntries,
+  defaultTenantThemeSettings,
+  tenantModuleDefinitions,
+  type CustomFormLayoutSeedDefinition,
+  type RoleTemplateDefinition,
+  type TenantOptionSetSeedDefinition
 } from "@crm/types";
 import type { Pool, PoolClient } from "pg";
 import type { CoreSeedOptions, PermissionCatalogEntry, SeedResult } from "./types.js";
@@ -33,10 +41,55 @@ function createSeedChecksum(options: CoreSeedOptions) {
         ...options,
         adminPassword: "[redacted]",
         permissionCatalog: DEFAULT_PERMISSION_CATALOG,
-        roleTemplates: DEFAULT_ROLE_TEMPLATES
+        roleTemplates: DEFAULT_ROLE_TEMPLATES,
+        tenantCoreSettings: defaultTenantCoreSettings,
+        tenantThemeSettings: defaultTenantThemeSettings,
+        tenantModuleDefinitions,
+        tenantTerminology: defaultTenantTerminologyEntries,
+        tenantOptionSets: defaultTenantOptionSetDefinitions,
+        customFormLayouts: defaultCustomFormLayoutDefinitions
       })
     )
     .digest("hex");
+}
+
+function buildTenantCoreSettingsValue(options: CoreSeedOptions) {
+  return {
+    ...defaultTenantCoreSettings,
+    workspaceName: `${options.defaultTenantName.trim()} Workspace`
+  };
+}
+
+function buildTenantThemeSettingsValue() {
+  return {
+    ...defaultTenantThemeSettings
+  };
+}
+
+function buildTenantModuleSettingsValue() {
+  return Object.fromEntries(
+    tenantModuleDefinitions.map((definition) => [
+      definition.moduleKey,
+      {
+        enabled: definition.defaultEnabled,
+        locked: definition.locked,
+        label: definition.label
+      }
+    ])
+  );
+}
+
+function buildTenantTerminologySettingsValue() {
+  return Object.fromEntries(
+    defaultTenantTerminologyEntries.map((entry) => [
+      entry.moduleKey,
+      {
+        singular: entry.singular,
+        plural: entry.plural,
+        description: entry.description
+      }
+    ])
+  );
 }
 
 async function ensureSeedRunsTable(pool: Pool) {
@@ -334,6 +387,368 @@ async function syncTenantRoleFromTemplate(
   return roleId;
 }
 
+async function upsertTenantSystemSetting(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    settingKey: string;
+    settingValue: Record<string, unknown>;
+    description: string;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  const updateResult = await client.query(
+    `
+      UPDATE system_settings
+      SET
+        setting_value = $3::jsonb,
+        description = $4,
+        owner_id = COALESCE(owner_id, $2),
+        deleted_at = NULL,
+        updated_at = NOW(),
+        updated_by = $2,
+        metadata = system_settings.metadata || $5::jsonb
+      WHERE tenant_id = $1
+        AND setting_key = $6
+    `,
+    [
+      input.tenantId,
+      input.actorUserId,
+      JSON.stringify(input.settingValue),
+      input.description,
+      JSON.stringify(input.metadata ?? {}),
+      input.settingKey
+    ]
+  );
+
+  if (updateResult.rowCount === 0) {
+    await client.query(
+      `
+        INSERT INTO system_settings (
+          tenant_id,
+          setting_key,
+          setting_value,
+          description,
+          owner_id,
+          created_by,
+          updated_by,
+          metadata
+        )
+        VALUES ($1, $2, $3::jsonb, $4, $5, $5, $5, $6::jsonb)
+      `,
+      [
+        input.tenantId,
+        input.settingKey,
+        JSON.stringify(input.settingValue),
+        input.description,
+        input.actorUserId,
+        JSON.stringify(input.metadata ?? {})
+      ]
+    );
+  }
+}
+
+async function upsertTenantOptionSet(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    definition: TenantOptionSetSeedDefinition;
+  }
+) {
+  const { tenantId, actorUserId, definition } = input;
+
+  const optionSetUpdateResult = await client.query<{ id: string }>(
+    `
+      UPDATE tenant_option_sets
+      SET
+        module_key = $3,
+        kind = $4,
+        name = $5,
+        description = $6,
+        is_system_set = true,
+        is_active = true,
+        owner_id = COALESCE(owner_id, $2),
+        deleted_at = NULL,
+        updated_at = NOW(),
+        updated_by = $2,
+        metadata = tenant_option_sets.metadata || $7::jsonb
+      WHERE tenant_id = $1
+        AND set_key = $8
+      RETURNING id
+    `,
+    [
+      tenantId,
+      actorUserId,
+      definition.moduleKey,
+      definition.kind,
+      definition.name,
+      definition.description,
+      JSON.stringify({
+        seeded: true,
+        phase: "phase-5-config",
+        ...(definition.metadata ?? {})
+      }),
+      definition.setKey
+    ]
+  );
+
+  const optionSetId =
+    optionSetUpdateResult.rows[0]?.id ??
+    (
+      await client.query<{ id: string }>(
+        `
+          INSERT INTO tenant_option_sets (
+            tenant_id,
+            set_key,
+            module_key,
+            kind,
+            name,
+            description,
+            is_system_set,
+            is_active,
+            owner_id,
+            created_by,
+            updated_by,
+            metadata
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, true, true, $7, $7, $7, $8::jsonb)
+          RETURNING id
+        `,
+        [
+          tenantId,
+          definition.setKey,
+          definition.moduleKey,
+          definition.kind,
+          definition.name,
+          definition.description,
+          actorUserId,
+          JSON.stringify({
+            seeded: true,
+            phase: "phase-5-config",
+            ...(definition.metadata ?? {})
+          })
+        ]
+      )
+    ).rows[0]?.id;
+
+  if (!optionSetId) {
+    throw new Error(`Tenant option set seed failed for "${definition.setKey}".`);
+  }
+
+  const activeValueKeys = definition.values.map((value) => value.key);
+
+  for (const value of definition.values) {
+    const optionValueUpdateResult = await client.query(
+      `
+        UPDATE tenant_option_values
+        SET
+          label = $4,
+          description = $5,
+          color = $6,
+          sort_order = $7,
+          is_default = $8,
+          is_active = COALESCE($9, true),
+          owner_id = COALESCE(owner_id, $2),
+          deleted_at = NULL,
+          updated_at = NOW(),
+          updated_by = $2,
+          metadata = tenant_option_values.metadata || $10::jsonb
+        WHERE tenant_id = $1
+          AND option_set_id = $3
+          AND value_key = $11
+      `,
+      [
+        tenantId,
+        actorUserId,
+        optionSetId,
+        value.label,
+        value.description ?? null,
+        value.color ?? null,
+        value.sortOrder,
+        value.isDefault ?? false,
+        value.isActive ?? true,
+        JSON.stringify({
+          seeded: true,
+          phase: "phase-5-config",
+          ...(value.metadata ?? {})
+        }),
+        value.key
+      ]
+    );
+
+    if (optionValueUpdateResult.rowCount === 0) {
+      await client.query(
+        `
+          INSERT INTO tenant_option_values (
+            tenant_id,
+            option_set_id,
+            value_key,
+            label,
+            description,
+            color,
+            sort_order,
+            is_default,
+            is_active,
+            owner_id,
+            created_by,
+            updated_by,
+            metadata
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            COALESCE($9, true),
+            $10,
+            $10,
+            $10,
+            $11::jsonb
+          )
+        `,
+        [
+          tenantId,
+          optionSetId,
+          value.key,
+          value.label,
+          value.description ?? null,
+          value.color ?? null,
+          value.sortOrder,
+          value.isDefault ?? false,
+          value.isActive ?? true,
+          actorUserId,
+          JSON.stringify({
+            seeded: true,
+            phase: "phase-5-config",
+            ...(value.metadata ?? {})
+          })
+        ]
+      );
+    }
+  }
+
+  await client.query(
+    `
+      UPDATE tenant_option_values
+      SET
+        deleted_at = NOW(),
+        updated_at = NOW(),
+        updated_by = $3,
+        metadata = tenant_option_values.metadata || jsonb_build_object('retiredBy', 'phase-5-config')
+      WHERE tenant_id = $1
+        AND option_set_id = $2
+        AND deleted_at IS NULL
+        AND metadata @> '{"seeded": true}'::jsonb
+        AND value_key <> ALL($4::text[])
+    `,
+    [tenantId, optionSetId, actorUserId, activeValueKeys]
+  );
+}
+
+async function upsertCustomFormLayout(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    definition: CustomFormLayoutSeedDefinition;
+  }
+) {
+  const { tenantId, actorUserId, definition } = input;
+  const updateResult = await client.query(
+    `
+      UPDATE custom_form_layouts
+      SET
+        module_key = $3,
+        name = $4,
+        description = $5,
+        layout_schema = $6::jsonb,
+        is_active = true,
+        is_system_layout = true,
+        owner_id = COALESCE(owner_id, $2),
+        deleted_at = NULL,
+        updated_at = NOW(),
+        updated_by = $2,
+        metadata = custom_form_layouts.metadata || $7::jsonb
+      WHERE tenant_id = $1
+        AND entity_key = $8
+        AND layout_key = $9
+    `,
+    [
+      tenantId,
+      actorUserId,
+      definition.moduleKey,
+      definition.name,
+      definition.description,
+      JSON.stringify(definition.layoutSchema),
+      JSON.stringify({
+        seeded: true,
+        phase: "phase-5-config",
+        ...(definition.metadata ?? {})
+      }),
+      definition.entityKey,
+      definition.layoutKey
+    ]
+  );
+
+  if (updateResult.rowCount === 0) {
+    await client.query(
+      `
+        INSERT INTO custom_form_layouts (
+          tenant_id,
+          module_key,
+          entity_key,
+          layout_key,
+          name,
+          description,
+          layout_schema,
+          is_active,
+          is_system_layout,
+          owner_id,
+          created_by,
+          updated_by,
+          metadata
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7::jsonb,
+          true,
+          true,
+          $8,
+          $8,
+          $8,
+          $9::jsonb
+        )
+      `,
+      [
+        tenantId,
+        definition.moduleKey,
+        definition.entityKey,
+        definition.layoutKey,
+        definition.name,
+        definition.description,
+        JSON.stringify(definition.layoutSchema),
+        actorUserId,
+        JSON.stringify({
+          seeded: true,
+          phase: "phase-5-config",
+          ...(definition.metadata ?? {})
+        })
+      ]
+    );
+  }
+}
+
 async function ensureSeedRunsRecord(client: PoolClient, checksum: string) {
   await client.query(
     `
@@ -503,79 +918,93 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       [tenantId, adminUserId, adminRoleId, DEFAULT_ADMIN_TEMPLATE_KEY]
     );
 
-    await client.query(
-      `
-        UPDATE system_settings
-        SET
-          setting_value = jsonb_build_object(
-            'slug', $2::text,
-            'name', $3::text,
-            'adminEmail', $4::text,
-            'rbacTemplateCount', $5::int
-          ),
-          description = 'Bootstrap metadata for the default development tenant.',
-          deleted_at = NULL,
-          updated_at = NOW(),
-          updated_by = $6,
-          metadata = system_settings.metadata || jsonb_build_object('seeded', true, 'phase', 'phase-4-rbac')
-        WHERE tenant_id = $1 AND setting_key = 'tenant.bootstrap'
-      `,
-      [
-        tenantId,
-        options.defaultTenantSlug,
-        options.defaultTenantName,
-        normalizedEmail,
-        DEFAULT_ROLE_TEMPLATES.length,
-        adminUserId
-      ]
-    );
+    await upsertTenantSystemSetting(client, {
+      tenantId,
+      actorUserId: adminUserId,
+      settingKey: "tenant.settings",
+      settingValue: buildTenantCoreSettingsValue(options),
+      description: "Tenant-level workspace settings for locale, timezone, and formatting.",
+      metadata: {
+        seeded: true,
+        phase: "phase-5-config",
+        category: "tenant-core"
+      }
+    });
 
-    if (
-      (
-        await client.query(
-          "SELECT 1 FROM system_settings WHERE tenant_id = $1 AND setting_key = 'tenant.bootstrap'",
-          [tenantId]
-        )
-      ).rowCount === 0
-    ) {
-      await client.query(
-        `
-          INSERT INTO system_settings (
-            tenant_id,
-            setting_key,
-            setting_value,
-            description,
-            owner_id,
-            created_by,
-            updated_by,
-            metadata
-          )
-          VALUES (
-            $1,
-            'tenant.bootstrap',
-            jsonb_build_object(
-              'slug', $2::text,
-              'name', $3::text,
-              'adminEmail', $4::text,
-              'rbacTemplateCount', $5::int
-            ),
-            'Bootstrap metadata for the default development tenant.',
-            $6,
-            $6,
-            $6,
-            jsonb_build_object('seeded', true, 'phase', 'phase-4-rbac')
-          )
-        `,
-        [
-          tenantId,
-          options.defaultTenantSlug,
-          options.defaultTenantName,
-          normalizedEmail,
-          DEFAULT_ROLE_TEMPLATES.length,
-          adminUserId
-        ]
-      );
+    await upsertTenantSystemSetting(client, {
+      tenantId,
+      actorUserId: adminUserId,
+      settingKey: "tenant.theme",
+      settingValue: buildTenantThemeSettingsValue(),
+      description: "Tenant theme tokens for branding, density, and layout presentation.",
+      metadata: {
+        seeded: true,
+        phase: "phase-5-config",
+        category: "tenant-theme"
+      }
+    });
+
+    await upsertTenantSystemSetting(client, {
+      tenantId,
+      actorUserId: adminUserId,
+      settingKey: "tenant.modules",
+      settingValue: buildTenantModuleSettingsValue(),
+      description: "Tenant module enablement map for configurable navigation and route access.",
+      metadata: {
+        seeded: true,
+        phase: "phase-5-config",
+        category: "tenant-modules"
+      }
+    });
+
+    await upsertTenantSystemSetting(client, {
+      tenantId,
+      actorUserId: adminUserId,
+      settingKey: "tenant.terminology",
+      settingValue: buildTenantTerminologySettingsValue(),
+      description: "Tenant terminology overrides for business-facing labels and workspace copy.",
+      metadata: {
+        seeded: true,
+        phase: "phase-5-config",
+        category: "tenant-terminology"
+      }
+    });
+
+    for (const optionSet of defaultTenantOptionSetDefinitions) {
+      await upsertTenantOptionSet(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition: optionSet
+      });
     }
+
+    for (const layoutDefinition of defaultCustomFormLayoutDefinitions) {
+      await upsertCustomFormLayout(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition: layoutDefinition
+      });
+    }
+
+    await upsertTenantSystemSetting(client, {
+      tenantId,
+      actorUserId: adminUserId,
+      settingKey: "tenant.bootstrap",
+      settingValue: {
+        slug: options.defaultTenantSlug,
+        name: options.defaultTenantName,
+        adminEmail: normalizedEmail,
+        rbacTemplateCount: DEFAULT_ROLE_TEMPLATES.length,
+        optionSetCount: defaultTenantOptionSetDefinitions.length,
+        formLayoutCount: defaultCustomFormLayoutDefinitions.length
+      },
+      description: "Bootstrap metadata for the default development tenant.",
+      metadata: {
+        seeded: true,
+        phase: "phase-5-config",
+        category: "bootstrap"
+      }
+    });
 
     await ensureSeedRunsRecord(client, checksum);
     await client.query("COMMIT");

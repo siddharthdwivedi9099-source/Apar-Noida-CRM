@@ -2,11 +2,12 @@ import { platformMetadata } from "@crm/config";
 import { shellLayout } from "@crm/ui";
 import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { getVisibleNavItems } from "@/components/navigation/nav-items";
+import { getNavItemLabel, getVisibleNavItems } from "@/components/navigation/nav-items";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { useTenantConfig } from "@/providers/tenant-config-provider";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -22,7 +23,11 @@ export function Sidebar({
   onCloseMobile
 }: SidebarProps) {
   const { user } = useAuth();
-  const navItems = getVisibleNavItems(user?.permissionCodes ?? []);
+  const { theme, settings, modules, terminology } = useTenantConfig();
+  const navItems = getVisibleNavItems(
+    user?.permissionCodes ?? [],
+    new Set(modules.filter((module) => module.enabled).map((module) => module.moduleKey))
+  );
 
   return (
     <>
@@ -35,19 +40,26 @@ export function Sidebar({
       />
       <aside
         className={cn(
-          "fixed inset-y-4 left-4 z-40 flex rounded-[1.75rem] border border-white/50 bg-white/88 backdrop-blur-xl shadow-panel transition-all duration-300 dark:border-white/10 dark:bg-slate-950/88",
+          "workspace-sidebar-panel fixed inset-y-4 left-4 z-40 flex rounded-[1.75rem] transition-all duration-300",
           mobileOpen ? "translate-x-0" : "-translate-x-[120%] md:translate-x-0"
         )}
-            style={{
+        style={{
           width: collapsed ? shellLayout.sidebarCollapsedWidth : shellLayout.sidebarWidth
         }}
       >
         <div className="flex w-full flex-col gap-6 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className={cn("space-y-2", collapsed && "md:hidden")}>
-              <Badge variant="success">Phase 4</Badge>
+              <Badge variant="success">Phase 5</Badge>
               <div>
-                <p className="font-display text-lg font-semibold">{platformMetadata.name}</p>
+                {theme.logo ? (
+                  <img
+                    src={theme.logo}
+                    alt={`${settings.workspaceName} logo`}
+                    className="mb-3 h-10 w-auto rounded-xl object-contain"
+                  />
+                ) : null}
+                <p className="font-display text-lg font-semibold">{settings.workspaceName}</p>
                 <p className="text-sm text-muted-foreground">{platformMetadata.currentPhase}</p>
               </div>
             </div>
@@ -80,7 +92,7 @@ export function Sidebar({
                     cn(
                       "group flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition",
                       isActive
-                        ? "bg-slate-950 text-white shadow-lg dark:bg-primary dark:text-primary-foreground"
+                        ? "bg-primary text-primary-foreground shadow-lg"
                         : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                     )
                   }
@@ -89,7 +101,7 @@ export function Sidebar({
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className={cn("min-w-0", collapsed && "md:hidden")}>
-                    <p className="truncate font-semibold">{item.title}</p>
+                    <p className="truncate font-semibold">{getNavItemLabel(item, terminology)}</p>
                     <p className="truncate text-xs opacity-80">{item.description}</p>
                   </div>
                 </NavLink>
@@ -98,9 +110,9 @@ export function Sidebar({
           </nav>
 
           <div className={cn("rounded-2xl bg-background/70 p-4", collapsed && "md:hidden")}>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">RBAC</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{platformMetadata.name}</p>
             <p className="mt-2 text-sm font-medium">
-              Navigation now follows the active user&apos;s tenant roles and permission set.
+              Navigation now follows the active tenant&apos;s role permissions and module configuration.
             </p>
           </div>
         </div>

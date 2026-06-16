@@ -38,7 +38,7 @@ Recommended headings for future releases:
 
 ## [Unreleased]
 
-This section represents the **current implemented repository state after `v0.1.0`**. It now includes the Phase 1 runtime foundation plus Phase 2 database work, Phase 3 authentication work, and Phase 4 RBAC work.
+This section represents the **current implemented repository state after `v0.1.0`**. It now includes the Phase 1 runtime foundation plus Phase 2 database work, Phase 3 authentication work, Phase 4 RBAC work, and Phase 5 tenant configuration work.
 
 ### Added
 
@@ -56,6 +56,12 @@ This section represents the **current implemented repository state after `v0.1.0
 - admin role-management UI with role creation, permission editing, and user-role assignment
 - permission-aware sidebar navigation and route-level access-denied rendering in the frontend
 - technical, architecture, security, admin, audit, access-control, and API documentation for the new database and auth foundation
+- tenant configuration APIs for workspace settings, theme settings, module switches, terminology, custom fields, option sets, and form layouts
+- frontend tenant settings provider that bootstraps tenant configuration after auth
+- admin settings workspace at `/admin` with dedicated theme, modules, terminology, and custom-field pages
+- live tenant theme reflection across the frontend shell using CSS variables and tenant-config-driven data attributes
+- seeded tenant option sets for lead statuses, lead sources, opportunity pipelines, support ticket statuses, and customer-success stages
+- seeded form-layout metadata for future lead, account, and contact forms
 
 ### Changed
 
@@ -66,6 +72,11 @@ This section represents the **current implemented repository state after `v0.1.0
 - the API now allows credentialed CORS for the configured frontend origin allowlist so browser-based login and refresh flows work reliably in local development
 - the seed system now bootstraps the Phase 4 RBAC permission matrix, role templates, default tenant roles, and `super-admin` assignment
 - the authenticated request context now resolves permission codes for permission middleware and frontend access trimming
+- platform metadata now reflects Phase 5 tenant configuration work
+- the admin route is now the tenant settings hub, while RBAC management moves to `/admin/rbac`
+- sidebar visibility and route access now depend on both RBAC permission checks and tenant module enablement
+- navigation and module copy now support tenant terminology overrides
+- the seed system now bootstraps tenant theme, module, terminology, option-set, and form-layout defaults
 
 ### Security
 
@@ -73,11 +84,13 @@ This section represents the **current implemented repository state after `v0.1.0
 - password hashes are generated with PostgreSQL `pgcrypto`
 - authentication failures now write structured audit events with request correlation metadata
 - RBAC role creation, role updates, permission replacement, and user-role reassignment now write audit events
+- tenant configuration updates now write structured audit events with actor, session, and request context
 
 ### Notes
 
 - public self-signup is still intentionally out of scope
 - business-module CRUD is still future work even though module-level permission vocabulary and UI/API gating are now in place
+- custom-field and form-layout metadata now exist, but dynamic business-form rendering still belongs to a later phase
 - local verification of migrations and seeds requires a reachable PostgreSQL instance at `DATABASE_URL`
 
 ## [v0.1.0] - 2026-06-14

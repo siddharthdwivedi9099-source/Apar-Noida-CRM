@@ -6,18 +6,19 @@ Latest documented release version: **v0.1.0**
 
 ## Current Repository State
 
-The repository currently contains **completed Phase 1, Phase 2, Phase 3, and Phase 4 foundation work** on `main`, including:
+The repository currently contains **completed Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 foundation work** on `main`, including:
 - a runnable frontend in `apps/web`
 - a runnable backend API in `apps/api`
 - PostgreSQL integration with migrations and seeds
 - tenant-aware core schema
 - implemented authentication and session handling
 - implemented RBAC, role templates, permission middleware, and admin role management
+- implemented tenant settings, theming, module switches, terminology, and custom-field metadata foundations
 - updated technical, architecture, security, and admin documentation
 
 This means:
 - `v0.1.0` is still the latest formally documented release baseline
-- Phase 1 through Phase 4 implementation work are present in the repository and recorded in `CHANGELOG.md` under `Unreleased`
+- Phase 1 through Phase 5 implementation work are present in the repository and recorded in `CHANGELOG.md` under `Unreleased`
 - the next formal release should be cut separately rather than silently assumed
 
 ## Why This Matters
@@ -48,11 +49,12 @@ That is because Phase 1 added:
 - local runtime workflows
 - shared package initialization
 
-And Phases 2, 3, and 4 added:
+And Phases 2, 3, 4, and 5 added:
 - database contracts and migration tooling
 - base multi-tenant persistence
 - authentication and session controls
 - role templates, permission middleware, and admin role management
+- tenant configuration APIs and tenant-driven frontend theming/navigation
 - new security-sensitive runtime behavior
 
 ## Scope of the Latest Formal Release

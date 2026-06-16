@@ -1,4 +1,4 @@
-import type { NavItem } from "@crm/types";
+import type { NavItem, PermissionModuleKey, TenantTerminologyEntry } from "@crm/types";
 import {
   BarChart3,
   BriefcaseBusiness,
@@ -15,6 +15,7 @@ import { routePermissionRequirements } from "@/lib/rbac";
 
 export interface AppNavItem extends NavItem {
   icon: LucideIcon;
+  moduleKey: PermissionModuleKey;
   requiredPermissionCodes: readonly string[];
 }
 
@@ -24,6 +25,7 @@ export const appNavItems: AppNavItem[] = [
     href: "/dashboard",
     description: "Operational scorecards and rollout overview.",
     icon: LayoutDashboard,
+    moduleKey: "dashboards",
     requiredPermissionCodes: routePermissionRequirements.dashboard
   },
   {
@@ -31,6 +33,7 @@ export const appNavItems: AppNavItem[] = [
     href: "/admin",
     description: "Tenant, platform, and governance controls.",
     icon: ShieldCheck,
+    moduleKey: "admin",
     requiredPermissionCodes: routePermissionRequirements.admin
   },
   {
@@ -38,6 +41,7 @@ export const appNavItems: AppNavItem[] = [
     href: "/leads",
     description: "Lead intake, qualification, and SDR flow.",
     icon: Users,
+    moduleKey: "leads",
     requiredPermissionCodes: routePermissionRequirements.leads
   },
   {
@@ -45,6 +49,7 @@ export const appNavItems: AppNavItem[] = [
     href: "/accounts",
     description: "Customer and stakeholder system-of-record view.",
     icon: Building2,
+    moduleKey: "accounts",
     requiredPermissionCodes: routePermissionRequirements.accounts
   },
   {
@@ -52,6 +57,7 @@ export const appNavItems: AppNavItem[] = [
     href: "/opportunities",
     description: "Revenue progression and deal collaboration.",
     icon: BriefcaseBusiness,
+    moduleKey: "opportunities",
     requiredPermissionCodes: routePermissionRequirements.opportunities
   },
   {
@@ -59,6 +65,7 @@ export const appNavItems: AppNavItem[] = [
     href: "/campaigns",
     description: "Marketing and multi-channel campaign coordination.",
     icon: Megaphone,
+    moduleKey: "campaigns",
     requiredPermissionCodes: routePermissionRequirements.campaigns
   },
   {
@@ -66,6 +73,7 @@ export const appNavItems: AppNavItem[] = [
     href: "/support",
     description: "Ticketing and service response placeholder.",
     icon: LifeBuoy,
+    moduleKey: "support",
     requiredPermissionCodes: routePermissionRequirements.support
   },
   {
@@ -73,6 +81,7 @@ export const appNavItems: AppNavItem[] = [
     href: "/customer-success",
     description: "Health, onboarding, and retention planning.",
     icon: BarChart3,
+    moduleKey: "customer_success",
     requiredPermissionCodes: routePermissionRequirements.customerSuccess
   },
   {
@@ -80,16 +89,38 @@ export const appNavItems: AppNavItem[] = [
     href: "/ai-assistant",
     description: "Gateway, prompts, agents, and RAG readiness.",
     icon: Sparkles,
+    moduleKey: "ai",
     requiredPermissionCodes: routePermissionRequirements.aiAssistant
   }
 ];
 
 export function getCurrentNavItem(pathname: string) {
-  return appNavItems.find((item) => item.href === pathname) ?? appNavItems[0];
+  return (
+    appNavItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? appNavItems[0]
+  );
 }
 
-export function getVisibleNavItems(permissionCodes: string[]) {
-  return appNavItems.filter((item) =>
-    item.requiredPermissionCodes.some((permissionCode) => permissionCodes.includes(permissionCode))
+export function getNavItemLabel(
+  item: AppNavItem,
+  terminology: TenantTerminologyEntry[],
+  form: "singular" | "plural" = "plural"
+) {
+  const terminologyEntry = terminology.find((entry) => entry.moduleKey === item.moduleKey);
+
+  if (!terminologyEntry) {
+    return item.title;
+  }
+
+  return form === "singular" ? terminologyEntry.singular : terminologyEntry.plural;
+}
+
+export function getVisibleNavItems(
+  permissionCodes: string[],
+  enabledModuleKeys: Set<PermissionModuleKey>
+) {
+  return appNavItems.filter(
+    (item) =>
+      enabledModuleKeys.has(item.moduleKey) &&
+      item.requiredPermissionCodes.some((permissionCode) => permissionCodes.includes(permissionCode))
   );
 }

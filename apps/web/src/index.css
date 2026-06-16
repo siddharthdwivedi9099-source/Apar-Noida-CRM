@@ -20,6 +20,11 @@
     --input: 30 17% 84%;
     --ring: 24 95% 53%;
     --radius: 1rem;
+    --hero-primary-rgb: 249 115 22;
+    --hero-accent-rgb: 14 165 233;
+    --font-sans-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --font-display-family: "Space Grotesk", "Avenir Next", system-ui, sans-serif;
+    --density-scale: 1;
   }
 
   .dark {
@@ -49,10 +54,16 @@
   }
 
   body {
-    @apply min-h-screen bg-background font-sans text-foreground antialiased;
+    @apply min-h-screen bg-background text-foreground antialiased;
+    font-family: var(--font-sans-family);
+    font-size: calc(1rem * var(--density-scale));
     background-image:
-      radial-gradient(circle at top left, rgba(249, 115, 22, 0.16), transparent 28%),
-      radial-gradient(circle at bottom right, rgba(8, 145, 178, 0.14), transparent 26%);
+      radial-gradient(circle at top left, rgb(var(--hero-primary-rgb) / 0.16), transparent 28%),
+      radial-gradient(circle at bottom right, rgb(var(--hero-accent-rgb) / 0.14), transparent 26%);
+  }
+
+  .font-display {
+    font-family: var(--font-display-family);
   }
 }
 
@@ -60,5 +71,62 @@
   .glass-panel {
     @apply border border-white/40 bg-white/75 shadow-panel backdrop-blur dark:border-white/10 dark:bg-slate-900/70;
   }
+
+  .workspace-sidebar-panel {
+    @apply border shadow-panel;
+    border-color: rgb(255 255 255 / 0.5);
+    background: rgb(255 255 255 / 0.88);
+    backdrop-filter: blur(24px);
+  }
+
+  .workspace-topbar-panel {
+    @apply border shadow-sm;
+    border-color: rgb(255 255 255 / 0.5);
+    background: rgb(255 255 255 / 0.7);
+    backdrop-filter: blur(24px);
+  }
 }
 
+.dark .workspace-sidebar-panel {
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(2 6 23 / 0.88);
+}
+
+.dark .workspace-topbar-panel {
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(2 6 23 / 0.72);
+}
+
+html[data-card-style="solid"] .glass-panel {
+  @apply border border-border bg-card shadow-panel;
+  backdrop-filter: none;
+}
+
+html[data-card-style="outline"] .glass-panel {
+  @apply border border-border bg-transparent shadow-none;
+  backdrop-filter: none;
+}
+
+html[data-sidebar-style="solid"] .workspace-sidebar-panel,
+html[data-sidebar-style="solid"] .workspace-topbar-panel {
+  @apply border border-border bg-card;
+  backdrop-filter: none;
+}
+
+html[data-sidebar-style="contrast"] .workspace-sidebar-panel {
+  background: linear-gradient(180deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+  border-color: rgb(255 255 255 / 0.16);
+  color: hsl(var(--primary-foreground));
+}
+
+html[data-sidebar-style="contrast"] .workspace-sidebar-panel .text-muted-foreground {
+  color: rgb(255 255 255 / 0.78);
+}
+
+html[data-sidebar-style="contrast"] .workspace-sidebar-panel .bg-background\/70 {
+  background: rgb(255 255 255 / 0.14);
+}
+
+html[data-sidebar-style="contrast"] .workspace-sidebar-panel .bg-white\/50 {
+  background: rgb(255 255 255 / 0.12);
+}

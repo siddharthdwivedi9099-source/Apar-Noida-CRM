@@ -3,6 +3,7 @@ import { apiConfig } from "@crm/config";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
 import { createHealthRouter } from "../modules/health/health.router.js";
 import { createRbacRouter } from "../modules/rbac/rbac.router.js";
+import { createTenantConfigRouter } from "../modules/tenant-config/tenant-config.router.js";
 import { DatabaseService } from "../platform/database/database.service.js";
 import { RedisService } from "../platform/redis/redis.service.js";
 
@@ -21,13 +22,14 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-4-operational"
+      status: "phase-5-operational"
     });
   });
 
   router.use(createHealthRouter({ databaseService, redisService }));
   router.use("/auth", createAuthRouter({ databaseService }));
   router.use("/rbac", createRbacRouter({ databaseService }));
+  router.use("/tenant-config", createTenantConfigRouter({ databaseService }));
 
   return router;
 }
