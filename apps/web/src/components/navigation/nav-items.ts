@@ -5,6 +5,8 @@ import {
   Building2,
   CalendarRange,
   ContactRound,
+  PhoneCall,
+  PhoneForwarded,
   LayoutDashboard,
   LifeBuoy,
   Megaphone,
@@ -45,6 +47,22 @@ export const appNavItems: AppNavItem[] = [
     icon: Users,
     moduleKey: "leads",
     requiredPermissionCodes: routePermissionRequirements.leads
+  },
+  {
+    title: "SDR Workspace",
+    href: "/sales/sdr",
+    description: "Prospecting queue, qualification flow, and lead handoff execution.",
+    icon: PhoneCall,
+    moduleKey: "sales",
+    requiredPermissionCodes: routePermissionRequirements.salesWorkspaces
+  },
+  {
+    title: "Inside Sales",
+    href: "/sales/inside-sales",
+    description: "Lead queue, call disposition, and conversion handoff workspace.",
+    icon: PhoneForwarded,
+    moduleKey: "sales",
+    requiredPermissionCodes: routePermissionRequirements.salesWorkspaces
   },
   {
     title: "Accounts",

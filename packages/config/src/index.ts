@@ -1,7 +1,7 @@
 export const platformMetadata = {
   name: "AI-Native CRM",
   shortName: "AICRM",
-  currentPhase: "Phase 10: Sales Pipeline and Opportunity Management"
+  currentPhase: "Phase 11: SDR and Inside Sales Workspace"
 } as const;
 
 export const apiConfig = {

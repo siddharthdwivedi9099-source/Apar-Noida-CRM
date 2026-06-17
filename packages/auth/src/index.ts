@@ -5,6 +5,8 @@ export const authFoundation = {
     "/dashboard",
     "/admin",
     "/leads",
+    "/sales/sdr",
+    "/sales/inside-sales",
     "/accounts",
     "/contacts",
     "/opportunities",

@@ -18,6 +18,7 @@ import { ContactsPage } from "./pages/contacts-page";
 import { CustomFieldsPage } from "./pages/custom-fields-page";
 import { CustomerSuccessPage } from "./pages/customer-success-page";
 import { DashboardPage } from "./pages/dashboard-page";
+import { InsideSalesWorkspacePage } from "./pages/inside-sales-workspace-page";
 import { LeadDetailPage } from "./pages/lead-detail-page";
 import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
@@ -29,6 +30,7 @@ import { OpportunitiesPage } from "./pages/opportunities-page";
 import { SocialDetailPage } from "./pages/social-detail-page";
 import { SocialFormPage } from "./pages/social-form-page";
 import { SocialPage } from "./pages/social-page";
+import { SdrWorkspacePage } from "./pages/sdr-workspace-page";
 import { ThemeSettingsPage } from "./pages/theme-settings-page";
 import { TerminologySettingsPage } from "./pages/terminology-settings-page";
 import { SupportPage } from "./pages/support-page";
@@ -296,6 +298,32 @@ export const router = createBrowserRouter([
                 moduleKey="leads"
               >
                 <LeadFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "sales/sdr",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.salesWorkspaces}
+                title="Sales workspace access is limited by role."
+                description="Open the SDR workspace with a role that includes lead or sales access."
+                moduleKey="sales"
+              >
+                <SdrWorkspacePage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "sales/inside-sales",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.salesWorkspaces}
+                title="Inside sales workspace access is limited by role."
+                description="Open the inside sales workspace with a role that includes lead or sales access."
+                moduleKey="sales"
+              >
+                <InsideSalesWorkspacePage />
               </PermissionRoute>
             )
           },

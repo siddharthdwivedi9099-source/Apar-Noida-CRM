@@ -318,6 +318,151 @@ export interface LeadOptionsResponse {
   sources: CrmOptionValueSummary[];
 }
 
+export const leadQualificationFrameworks = ["bant", "meddic", "custom"] as const;
+export type LeadQualificationFramework = (typeof leadQualificationFrameworks)[number];
+
+export interface LeadBantChecklist {
+  budget: boolean;
+  authority: boolean;
+  need: boolean;
+  timeline: boolean;
+}
+
+export interface LeadCustomQualificationField {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export interface LeadCustomQualificationFieldInput {
+  id?: string;
+  label: string;
+  value: string;
+}
+
+export interface LeadQualificationFrameworkDefinition {
+  key: LeadQualificationFramework;
+  label: string;
+  description: string;
+  available: boolean;
+}
+
+export interface LeadWorkspaceState {
+  outreachStatus: CrmOptionValueSummary | null;
+  handoffStatus: CrmOptionValueSummary | null;
+  callDisposition: CrmOptionValueSummary | null;
+  qualificationFramework: LeadQualificationFramework;
+  qualificationChecklist: LeadBantChecklist;
+  qualificationChecklistCompletionCount: number;
+  qualificationChecklistTotal: number;
+  customQualificationFields: LeadCustomQualificationField[];
+  qualificationNotes: string | null;
+  handoffUpdatedAt: string | null;
+  meddicPlaceholder: {
+    available: false;
+    message: string;
+  };
+  emailSequencePlaceholder: {
+    available: false;
+    message: string;
+  };
+  meetingBookingPlaceholder: {
+    available: false;
+    message: string;
+  };
+}
+
+export interface SalesWorkspaceAiPlaceholderAction {
+  key:
+    | "call_script_generator"
+    | "objection_handling"
+    | "lead_research_summary"
+    | "follow_up_email_generator"
+    | "qualification_score";
+  label: string;
+  description: string;
+}
+
+export interface SalesWorkspaceAiPlaceholderSummary {
+  actions: SalesWorkspaceAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface SalesWorkspaceLeadSummary extends LeadSummary {
+  workspace: LeadWorkspaceState;
+  openTaskCount: number;
+  openCallTaskCount: number;
+  overdueTaskCount: number;
+  nextOpenTaskDueAt: string | null;
+}
+
+export interface SalesWorkspaceTaskSummary extends CrmTaskSummary {
+  lead: {
+    id: string;
+    fullName: string;
+    companyName: string;
+    owner: CrmLookupUserSummary | null;
+    status: CrmOptionValueSummary | null;
+  };
+}
+
+export interface SalesWorkspaceOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  leadStatuses: CrmOptionValueSummary[];
+  leadSources: CrmOptionValueSummary[];
+  outreachStatuses: CrmOptionValueSummary[];
+  handoffStatuses: CrmOptionValueSummary[];
+  callDispositions: CrmOptionValueSummary[];
+  qualificationFrameworks: LeadQualificationFrameworkDefinition[];
+}
+
+export interface SdrWorkspaceResponse {
+  dashboard: {
+    assignedLeadCount: number;
+    prospectingLeadCount: number;
+    activeOutreachCount: number;
+    callTaskCount: number;
+    meetingBookedCount: number;
+    readyForHandoffCount: number;
+  };
+  assignedLeads: SalesWorkspaceLeadSummary[];
+  prospectingQueue: SalesWorkspaceLeadSummary[];
+  callTaskList: SalesWorkspaceTaskSummary[];
+  aiPlaceholders: SalesWorkspaceAiPlaceholderSummary;
+}
+
+export interface InsideSalesWorkspaceResponse {
+  dashboard: {
+    leadQueueCount: number;
+    callQueueCount: number;
+    followUpTaskCount: number;
+    qualifiedLeadCount: number;
+    handedOffLeadCount: number;
+    completedCallCount: number;
+  };
+  leadQueue: SalesWorkspaceLeadSummary[];
+  callQueue: SalesWorkspaceTaskSummary[];
+  followUpTasks: SalesWorkspaceTaskSummary[];
+  aiPlaceholders: SalesWorkspaceAiPlaceholderSummary;
+}
+
+export interface UpdateLeadWorkspaceRequestBody {
+  statusKey?: string;
+  ownerId?: string | null;
+  outreachStatusKey?: string | null;
+  handoffStatusKey?: string | null;
+  callDispositionKey?: string | null;
+  qualificationFramework?: LeadQualificationFramework;
+  qualificationChecklist?: Partial<LeadBantChecklist>;
+  customQualificationFields?: LeadCustomQualificationFieldInput[];
+  qualificationNotes?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SalesWorkspaceLeadResponse {
+  lead: SalesWorkspaceLeadSummary;
+}
+
 export const accountSortFields = ["createdAt", "updatedAt", "name", "accountType", "industry", "owner"] as const;
 export type AccountSortField = (typeof accountSortFields)[number];
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document summarizes the platform behavior now implemented through Phase 10.
+This document summarizes the platform behavior now implemented through Phase 11.
 
 ## Functional Principles
 
@@ -57,6 +57,7 @@ Implemented:
 - CRM create, update, delete, note, activity, and task audit events
 - campaign and social marketing create, update, and delete audit events
 - opportunity create, update, delete, and stage-change audit events
+- SDR and inside-sales workflow, handoff, and task-linked queue audit events
 
 ## Implemented CRM Functions
 
@@ -185,6 +186,32 @@ Implemented:
 - forecast placeholder
 - deal risk placeholder
 
+### SDR and Inside Sales Workspace
+
+Implemented:
+- SDR prospecting queue
+- SDR assigned-lead queue
+- SDR call task list
+- outreach status tracking
+- qualification checklist using BANT
+- MEDDIC placeholder
+- custom qualification fields stored in lead metadata
+- qualification notes
+- lead handoff status tracking
+- inside-sales lead queue
+- inside-sales call queue
+- inside-sales follow-up task queue
+- lead status updates from the workspace
+- call disposition tracking
+- conversion handoff to sales
+- productivity dashboard metrics
+- AI workspace placeholders for:
+  - call script generation
+  - objection handling
+  - lead research summary
+  - follow-up email generation
+  - qualification score
+
 ### Social Media Marketing Module
 
 Implemented:
@@ -258,6 +285,7 @@ Implemented:
 - validation
 - tenant isolation
 - RBAC-backed route and action gating
+- assigned-lead visibility enforcement inside SDR and inside-sales queues for non-manager roles
 - soft delete
 - audit logging on write operations
 - loading states

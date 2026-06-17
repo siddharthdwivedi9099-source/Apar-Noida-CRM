@@ -28,6 +28,9 @@ export const routePermissionRequirements = {
   dashboard: getSpecificPermissionCodes("dashboards", ["view", "view_dashboard"]),
   admin: getModuleAccessPermissionCodes("admin"),
   leads: getModuleAccessPermissionCodes("leads"),
+  salesWorkspaces: Array.from(
+    new Set([...getModuleAccessPermissionCodes("leads"), ...getModuleAccessPermissionCodes("sales")])
+  ),
   accounts: getModuleAccessPermissionCodes("accounts"),
   contacts: getModuleAccessPermissionCodes("contacts"),
   opportunities: getModuleAccessPermissionCodes("opportunities"),

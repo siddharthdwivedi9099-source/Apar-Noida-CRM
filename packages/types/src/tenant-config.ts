@@ -539,6 +539,66 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "lead-outreach-status",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Outreach Status",
+    description: "Default outreach states for SDR and inside-sales execution.",
+    values: [
+      { key: "not_started", label: "Not Started", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "researching", label: "Researching", color: "#0ea5e9", sortOrder: 1 },
+      { key: "attempting_contact", label: "Attempting Contact", color: "#06b6d4", sortOrder: 2 },
+      { key: "in_sequence", label: "In Sequence", color: "#8b5cf6", sortOrder: 3 },
+      { key: "responded", label: "Responded", color: "#22c55e", sortOrder: 4 },
+      { key: "meeting_booked", label: "Meeting Booked", color: "#14b8a6", sortOrder: 5 },
+      { key: "nurture", label: "Nurture", color: "#f59e0b", sortOrder: 6 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "lead-workspace"
+    }
+  },
+  {
+    setKey: "lead-handoff-status",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Handoff Status",
+    description: "Default handoff workflow states between SDR, inside sales, and sales.",
+    values: [
+      { key: "not_ready", label: "Not Ready", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "qualifying", label: "Qualifying", color: "#0ea5e9", sortOrder: 1 },
+      { key: "sales_ready", label: "Sales Ready", color: "#22c55e", sortOrder: 2 },
+      { key: "handed_to_sales", label: "Handed to Sales", color: "#14b8a6", sortOrder: 3 },
+      { key: "accepted_by_sales", label: "Accepted by Sales", color: "#8b5cf6", sortOrder: 4 },
+      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "lead-workflow"
+    }
+  },
+  {
+    setKey: "lead-call-disposition",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Call Disposition",
+    description: "Default call outcomes for SDR and inside-sales call logging.",
+    values: [
+      { key: "pending", label: "Pending", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "connected", label: "Connected", color: "#22c55e", sortOrder: 1 },
+      { key: "voicemail", label: "Voicemail", color: "#0ea5e9", sortOrder: 2 },
+      { key: "no_answer", label: "No Answer", color: "#f59e0b", sortOrder: 3 },
+      { key: "follow_up_needed", label: "Follow-up Needed", color: "#8b5cf6", sortOrder: 4 },
+      { key: "meeting_booked", label: "Meeting Booked", color: "#14b8a6", sortOrder: 5 },
+      { key: "not_interested", label: "Not Interested", color: "#ef4444", sortOrder: 6 },
+      { key: "disqualified", label: "Disqualified", color: "#b91c1c", sortOrder: 7 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "lead-workflow"
+    }
+  },
+  {
     setKey: "account-type",
     moduleKey: "accounts",
     kind: "dropdown",

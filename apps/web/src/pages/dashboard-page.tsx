@@ -9,17 +9,17 @@ const foundationHighlights = [
   {
     label: "CRM modules",
     value: "Sales live",
-    detail: "Opportunities now extend the CRM kernel with live pipeline metrics, Kanban stage movement, and account-linked commercial tracking."
+    detail: "SDR and inside sales now extend the CRM kernel with focused lead queues, qualification workbenches, and handoff tracking."
   },
   {
     label: "Backend API",
     value: "/api/v1",
-    detail: "Express now serves auth, RBAC, tenant config, tenant-safe CRM CRUD, opportunity flows, campaign flows, and social media marketing APIs."
+    detail: "Express now serves auth, RBAC, tenant config, tenant-safe CRM CRUD, sales workspaces, opportunity flows, campaign flows, and social APIs."
   },
   {
     label: "Shared packages",
     value: "6 packages",
-    detail: "Config, types, UI, auth, AI, and database packages now share CRM, opportunity, campaign, social, productivity, and RBAC contracts."
+    detail: "Config, types, UI, auth, AI, and database packages now share CRM, productivity, SDR, inside-sales, campaign, social, and RBAC contracts."
   }
 ] as const;
 
@@ -34,13 +34,13 @@ export function DashboardPage() {
             <Badge>{platformMetadata.currentPhase}</Badge>
             <div className="space-y-4">
               <h2 className="max-w-3xl font-display text-4xl font-semibold leading-tight">
-                The workspace now includes live sales pipeline management alongside campaign and social execution on top of tenant-aware auth, RBAC, and configuration.
+                The workspace now includes dedicated SDR and inside-sales execution surfaces alongside live pipeline, campaign, and social workflows.
               </h2>
               <p className="max-w-3xl text-base leading-7 text-muted-foreground">
                 This dashboard is still platform-forward, but the CRM kernel now includes opportunities, campaigns,
-                social post planning, shared touchpoint tracking, and approval-aware workflows. It reflects the
-                authenticated shell, PostgreSQL-backed identity flow, tenant configuration, the live lead, account,
-                contact, and opportunity experiences, and the new revenue-pipeline execution path.
+                social post planning, shared touchpoint tracking, SDR qualification queues, and inside-sales handoff
+                workflows. It reflects the authenticated shell, PostgreSQL-backed identity flow, tenant configuration,
+                and the live lead-to-revenue execution path.
               </p>
             </div>
           </div>
@@ -49,17 +49,18 @@ export function DashboardPage() {
             <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Current guardrails</p>
             <div className="mt-4 space-y-4">
               <div>
-                <p className="font-semibold">Authentication, RBAC, tenant settings, sales pipeline, campaigns, and social planning are now live</p>
+                <p className="font-semibold">Authentication, RBAC, tenant settings, SDR workspaces, sales pipeline, campaigns, and social planning are now live</p>
                 <p className="mt-1 text-sm text-slate-300">
                   Login, logout, refresh rotation, session tracking, protected routes, admin role management, theme
-                  settings, and the tenant-safe CRM, opportunity, campaign, and social marketing records now run on the seeded workspace.
+                  settings, and the tenant-safe CRM, SDR, inside-sales, opportunity, campaign, and social marketing records now run on the seeded workspace.
                 </p>
               </div>
               <div>
-                <p className="font-semibold">Sales, CRM, and marketing records now follow permission bundles, tenant switches, audit logs, and unified timelines</p>
+                <p className="font-semibold">Sales, CRM, and marketing records now follow permission bundles, tenant switches, audit logs, unified timelines, and workspace-specific task queues</p>
                 <p className="mt-1 text-sm text-slate-300">
                   Leads, accounts, contacts, and opportunities now support CRUD, ownership, notes, activities, tasks,
-                  timeline views, and soft delete while campaigns and social posts add approval, scheduling, member, and channel-aware planning.
+                  timeline views, and soft delete while campaigns, social posts, and sales workspaces add approval,
+                  scheduling, qualification, member, and channel-aware planning.
                 </p>
               </div>
               <div>
@@ -77,9 +78,9 @@ export function DashboardPage() {
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Phase 10 platform overview</CardTitle>
+            <CardTitle>Phase 11 platform overview</CardTitle>
             <CardDescription>
-              These cards summarize the current authenticated platform foundation now that opportunities, campaigns, and social marketing are live.
+              These cards summarize the current authenticated platform foundation now that SDR, inside sales, opportunities, campaigns, and social marketing are live.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
@@ -147,12 +148,12 @@ export function DashboardPage() {
           <CardHeader>
             <CardTitle>What comes next</CardTitle>
             <CardDescription>
-              The secure platform baseline, sales pipeline, campaign engine, and social workspace are in place. The next phase can deepen those workflows instead of rebuilding foundation pieces.
+              The secure platform baseline, sales workspaces, pipeline engine, campaign engine, and social workspace are in place. The next phase can deepen those workflows instead of rebuilding foundation pieces.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {[
-              "Extend the CRM kernel from live opportunities into downstream ticketing and customer lifecycle workflows.",
+              "Extend the SDR and inside-sales queues into richer sequencing, scheduling, and conversion workflows.",
               "Connect social publishing, engagement ingestion, and social lead capture to the new planning workspace.",
               "Keep applying module-level and action-level permissions to every new workflow surface.",
               "Read more custom fields, option sets, and layouts directly from the tenant configuration engine."

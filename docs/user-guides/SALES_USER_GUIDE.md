@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide explains how sales-facing users can work with the live CRM and sales workspace through Phase 10.
+This guide explains how sales-facing users can work with the live CRM and sales workspace through Phase 11.
 
 ## What Is Available
 
@@ -11,6 +11,8 @@ The current release includes:
 - accounts
 - contacts
 - opportunities
+- SDR workspace
+- inside sales workspace
 - role-aware navigation
 - protected routes
 - notes, activities, tasks, and timeline support on detail pages
@@ -68,6 +70,59 @@ The lead form supports:
 - source
 - owner
 - score placeholder
+
+## SDR Workspace
+
+### What SDRs Can Do
+
+The SDR workspace supports:
+- prospecting queue visibility
+- assigned leads visibility
+- outreach status updates
+- BANT qualification checklist updates
+- qualification notes
+- custom qualification fields
+- call task creation from the workspace
+- lead handoff status updates
+- AI placeholders when the role includes AI permissions
+
+### SDR Queue Behavior
+
+For contributor roles:
+- the workspace only shows leads currently assigned to that user
+- leads owned by other users are hidden
+- owner reassignment remains blocked unless the role includes assign permissions
+
+### SDR Placeholders
+
+Visible placeholders in this phase:
+- email sequence placeholder
+- meeting booking placeholder
+- MEDDIC placeholder
+- AI call script and objection-handling placeholders
+
+## Inside Sales Workspace
+
+### What Inside Sales Can Do
+
+The inside sales workspace supports:
+- lead queue visibility
+- call queue visibility
+- follow-up task visibility
+- lead status updates
+- call disposition updates
+- qualification framework selection
+- BANT completion tracking
+- custom qualification fields
+- handoff to sales workflow updates
+- productivity dashboard metrics
+
+### Inside Sales Queue Behavior
+
+For contributor roles:
+- the queue is constrained to leads they own
+- call and follow-up tasks remain attached to the originating lead
+- handoff state changes are audit logged and reflected in the lead timeline
 
 ## Accounts Workflow
 
@@ -209,6 +264,7 @@ Typical behavior:
 - users without edit permissions cannot open edit forms
 - users without delete permissions do not see delete actions
 - users without timeline write permissions cannot add notes or activities
+- users without assign permissions cannot reassign lead ownership from SDR or inside-sales workspaces
 
 ## Current Limits
 
@@ -216,5 +272,5 @@ Still not implemented:
 - lead conversion
 - dynamic custom fields in the live CRM forms
 - public registration
-- record-level authorization beyond tenant boundaries
+- full MEDDIC execution logic, email sequencing, and meeting-booking automation
 - true forecast modeling, deal-risk scoring, proposal drafting, and win-probability AI execution

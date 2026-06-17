@@ -56,6 +56,75 @@ Implemented route groups:
 
 These remain unchanged from Phases 4 and 5 and continue to require authenticated, permission-aware access.
 
+## SDR and Inside Sales Workspace
+
+### Sales workspace routes
+
+- `GET /sales-workspaces/options`
+- `GET /sales-workspaces/sdr`
+- `GET /sales-workspaces/inside-sales`
+- `PATCH /sales-workspaces/leads/:leadId/workflow`
+
+### Sales workspace options behavior
+
+`GET /sales-workspaces/options` returns:
+- `owners`
+- `leadStatuses`
+- `leadSources`
+- `outreachStatuses`
+- `handoffStatuses`
+- `callDispositions`
+- `qualificationFrameworks`
+
+### SDR workspace behavior
+
+`GET /sales-workspaces/sdr` returns:
+- `dashboard`
+- `assignedLeads`
+- `prospectingQueue`
+- `callTaskList`
+- `aiPlaceholders`
+
+Non-manager roles only receive leads they own. Manager and admin-style roles with assign or configure access can see a broader tenant queue.
+
+### Inside-sales workspace behavior
+
+`GET /sales-workspaces/inside-sales` returns:
+- `dashboard`
+- `leadQueue`
+- `callQueue`
+- `followUpTasks`
+- `aiPlaceholders`
+
+### Lead workflow update example
+
+`PATCH /sales-workspaces/leads/:leadId/workflow`
+
+```json
+{
+  "statusKey": "qualified",
+  "outreachStatusKey": "responded",
+  "handoffStatusKey": "sales_ready",
+  "callDispositionKey": "connected",
+  "qualificationFramework": "bant",
+  "qualificationChecklist": {
+    "budget": true,
+    "authority": true,
+    "need": true,
+    "timeline": false
+  },
+  "qualificationNotes": "Discovery complete and budget validated.",
+  "customQualificationFields": [
+    {
+      "label": "Region",
+      "value": "North America"
+    }
+  ]
+}
+```
+
+Owner reassignment through this route requires assign or configure permissions. Constrained users attempting to update a lead they do not own receive `404 LEAD_NOT_FOUND`.
+
 ## CRM Foundations, Opportunities, Campaigns, and Social Marketing
 
 All CRM routes require:
@@ -371,6 +440,14 @@ Request body:
 }
 ```
 
+Phase 11 workspace task creators use the metadata pattern:
+
+```json
+{
+  "phase11TaskType": "call"
+}
+```
+
 ### `PATCH /records/:entityType/:entityId/tasks/:taskId`
 
 Updates task ownership, assignee, status, priority, due date, reminder, description, title, and metadata merge.
@@ -444,6 +521,7 @@ Common behaviors:
 - missing records return `404`
 - unauthorized access returns `403 FORBIDDEN`
 - assign-only users attempting unsupported edits return `403 AUTHORIZATION_ERROR`
+- constrained sales-workspace users trying to mutate another user's lead return `404 LEAD_NOT_FOUND`
 
 ## Audit Logging
 
@@ -453,6 +531,8 @@ Shared productivity writes produce CRM audit events such as:
 - `lead.activity.create`
 - `lead.task.create`
 - `lead.task.update`
+- `lead.workspace.update`
+- `lead.handoff.update`
 - `campaign.note.create`
 - `campaign.activity.create`
 - `campaign.task.create`

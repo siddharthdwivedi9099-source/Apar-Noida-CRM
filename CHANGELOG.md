@@ -2,9 +2,22 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 10 implementation work.
+Current repository state now includes Phase 1 through Phase 11 implementation work.
 
 ### Added
+
+- Phase 11 SDR and inside-sales workspace APIs:
+  - `GET /sales-workspaces/options`
+  - `GET /sales-workspaces/sdr`
+  - `GET /sales-workspaces/inside-sales`
+  - `PATCH /sales-workspaces/leads/:leadId/workflow`
+- SDR and inside-sales frontend routes:
+  - `/sales/sdr`
+  - `/sales/inside-sales`
+- shared lead-workspace workbench UI for qualification, handoff, and task creation
+- seeded lead workspace option sets for outreach status, handoff status, and call disposition
+- exhaustive Phase 11 validation script `tests/phase11-sales-workspaces-exhaustive.mjs`
+- updated functional, API, sales-guide, README, and version documentation for the sales workspace rollout
 
 - Phase 10 migration `20260617010000_phase10_sales_pipeline.sql`
 - tenant-scoped `opportunities` and `opportunity_stakeholders` tables
@@ -56,6 +69,9 @@ Current repository state now includes Phase 1 through Phase 10 implementation wo
 
 ### Changed
 
+- platform metadata now reflects Phase 11: SDR and Inside Sales Workspace
+- the dashboard now highlights SDR and inside-sales execution readiness alongside pipeline, campaign, and social modules
+- sales-facing navigation now includes dedicated SDR and inside-sales workspace entries
 - platform metadata now reflects Phase 10: Sales Pipeline and Opportunity Management
 - tenant option sets and form-layout metadata now include opportunity sources, outcome statuses, and a default opportunity layout
 - the shared CRM record engine now resolves `opportunity` against a live primary table instead of a future placeholder
@@ -72,6 +88,9 @@ Current repository state now includes Phase 1 through Phase 10 implementation wo
 
 ### Security
 
+- sales workspace routes now enforce module-aware RBAC checks and assigned-lead visibility for non-manager roles
+- owner reassignment from sales workspaces now remains assign-aware while workflow edits stay available to contributor roles with edit access
+- workspace writes remain tenant-scoped and audit logged, including `lead.workspace.update` and `lead.handoff.update`
 - opportunity routes now enforce module-aware RBAC checks
 - opportunity owner updates enforce assign-aware authorization rules
 - opportunity stage updates enforce approval and workflow-aware authorization rules
@@ -86,6 +105,7 @@ Current repository state now includes Phase 1 through Phase 10 implementation wo
 
 ### Notes
 
+- email sequencing, meeting booking, MEDDIC execution, and AI-powered workspace actions remain placeholders in this phase
 - products and services, forecast modeling, deal risk scoring, next-best-action logic, proposal drafting, and win probability remain placeholders in this phase
 - social publishing, engagement ingestion, listening, competitor benchmarks, and social lead capture remain placeholders in this phase
 - ticket and customer-success-account primary tables are still future work

@@ -13,6 +13,7 @@ This repository now contains the implemented foundation for:
 - Phase 8: campaign management and marketing foundation
 - Phase 9: social media marketing module
 - Phase 10: sales pipeline and opportunity management
+- Phase 11: SDR and inside sales workspace
 
 ## What Exists Now
 
@@ -29,6 +30,7 @@ This repository now contains the implemented foundation for:
 - module-aware route blocking for disabled modules
 - live leads, accounts, and contacts list/detail/form flows
 - live opportunity list/detail/form flows with dashboard metrics and Kanban stage movement
+- dedicated SDR and inside-sales workspace routes with qualification, handoff, and queue management
 - notes, activities, tasks, and timeline experiences on CRM detail pages
 - live campaigns list/detail/form flows with member management and AI placeholders
 
@@ -42,6 +44,7 @@ This repository now contains the implemented foundation for:
 - RBAC catalog, role management, and user-role assignment APIs
 - tenant configuration APIs for settings, theme, modules, terminology, custom fields, option sets, and form layouts
 - CRM APIs for leads, accounts, contacts, opportunities, campaigns, and shared productivity records
+- sales workspace APIs for SDR and inside-sales queues, workflow state, and lead handoff updates
 - audit logging for auth, RBAC, tenant-config, and CRM writes
 
 ### Shared Packages
@@ -109,6 +112,8 @@ Change these through environment variables before using anything beyond local de
 - `/contacts/new`
 - `/opportunities`
 - `/opportunities/new`
+- `/sales/sdr`
+- `/sales/inside-sales`
 - `/campaigns`
 - `/campaigns/new`
 
