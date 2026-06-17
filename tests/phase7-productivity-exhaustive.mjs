@@ -998,8 +998,22 @@ async function main() {
     assert.equal(legacyContactNote.note.body, `Legacy contact note ${runToken}`);
     assert.equal(legacyContactActivity.activity.subject, `Legacy contact activity ${runToken}`);
 
-    log("Exercising future-facing shared record support for opportunity, ticket, and customer-success-account entity types.");
-    const opportunityId = randomUUID();
+    log("Exercising shared record support for real opportunities and future-facing ticket and customer-success-account entity types.");
+    const opportunityRecord = await request("/opportunities", {
+      method: "POST",
+      accessToken: adminAccessToken,
+      expectedStatus: 201,
+      body: {
+        name: `Opportunity foundation ${runToken}`,
+        ownerId: adminUserId,
+        stageKey: "discovery",
+        sourceKey: "inbound",
+        metadata: {
+          runToken
+        }
+      }
+    });
+    const opportunityId = opportunityRecord.opportunity.id;
     const opportunityNote = await request(`/records/opportunity/${opportunityId}/notes`, {
       method: "POST",
       accessToken: adminAccessToken,
