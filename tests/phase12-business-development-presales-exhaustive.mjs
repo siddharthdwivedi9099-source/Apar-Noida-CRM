@@ -343,6 +343,26 @@ async function main() {
     assert.ok(bdList.targetAccounts.some((entry) => entry.id === targetAccountId), "BD list should include the created account.");
     assert.ok(bdList.pagination.total >= 1);
 
+    const bdTierFiltered = await request("/business-development?tier=strategic&isPartnership=true", {
+      accessToken: bdSession.accessToken
+    });
+    assert.ok(
+      bdTierFiltered.targetAccounts.some((entry) => entry.id === targetAccountId),
+      "BD list should support tier and partnership filters."
+    );
+    const bdStageMissFiltered = await request("/business-development?stage=on_hold", { accessToken: bdSession.accessToken });
+    assert.ok(
+      !bdStageMissFiltered.targetAccounts.some((entry) => entry.id === targetAccountId),
+      "BD stage filter should exclude accounts in other stages."
+    );
+    const bdSearchFiltered = await request(`/business-development?search=Strategic%20Target%20${runToken}`, {
+      accessToken: bdSession.accessToken
+    });
+    assert.ok(
+      bdSearchFiltered.targetAccounts.some((entry) => entry.id === targetAccountId),
+      "BD search filter should match the account name."
+    );
+
     const bdDetail = await request(`/business-development/${targetAccountId}`, { accessToken: bdSession.accessToken });
     assert.equal(bdDetail.targetAccount.name, `Strategic Target ${runToken}`);
     assert.equal(bdDetail.targetAccount.annualRevenue, 5000000);
@@ -473,6 +493,42 @@ async function main() {
     });
     assert.equal(demoRequest.request.type?.key, "demo", "Demo request type should be supported.");
     assert.equal(demoRequest.request.requirementCount, 0, "Demo request should start with no requirements.");
+
+    log("Creating an RFI-type presales request to complete RFP/RFI coverage.");
+    const rfiRequest = await request("/presales", {
+      method: "POST",
+      accessToken: presalesSession.accessToken,
+      expectedStatus: 201,
+      body: {
+        title: `RFI Response ${runToken}`,
+        typeKey: "rfi",
+        priority: "low",
+        accountId,
+        ownerId: presalesUser.userId,
+        assigneeId: presalesUser.userId,
+        requirements: [{ label: "Integration overview", category: "integration", complianceStatus: "met", priority: "low" }]
+      }
+    });
+    assert.equal(rfiRequest.request.type?.key, "rfi", "RFI request type should be supported.");
+    assert.equal(rfiRequest.request.requirementCount, 1);
+
+    log("Validating presales list filters by type, status, and priority.");
+    const presalesByType = await request("/presales?type=rfp", { accessToken: presalesSession.accessToken });
+    assert.ok(presalesByType.requests.some((entry) => entry.id === presalesRequestId), "Type filter should match the RFP request.");
+    assert.ok(
+      !presalesByType.requests.some((entry) => entry.id === demoRequest.request.id),
+      "Type filter should exclude requests of other types."
+    );
+    const presalesByPriority = await request("/presales?priority=high", { accessToken: presalesSession.accessToken });
+    assert.ok(
+      presalesByPriority.requests.some((entry) => entry.id === presalesRequestId),
+      "Priority filter should match the high-priority request."
+    );
+    const presalesByStatus = await request("/presales?status=in_review", { accessToken: presalesSession.accessToken });
+    assert.ok(
+      presalesByStatus.requests.some((entry) => entry.id === presalesRequestId),
+      "Status filter should match the in-review request."
+    );
 
     await assertAuditLog(client, {
       tenantId,
