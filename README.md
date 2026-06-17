@@ -12,6 +12,7 @@ This repository now contains the implemented foundation for:
 - Phase 7: activities, tasks, notes, and customer timeline
 - Phase 8: campaign management and marketing foundation
 - Phase 9: social media marketing module
+- Phase 10: sales pipeline and opportunity management
 
 ## What Exists Now
 
@@ -27,6 +28,7 @@ This repository now contains the implemented foundation for:
 - live theme reflection from tenant settings
 - module-aware route blocking for disabled modules
 - live leads, accounts, and contacts list/detail/form flows
+- live opportunity list/detail/form flows with dashboard metrics and Kanban stage movement
 - notes, activities, tasks, and timeline experiences on CRM detail pages
 - live campaigns list/detail/form flows with member management and AI placeholders
 
@@ -39,7 +41,7 @@ This repository now contains the implemented foundation for:
 - authentication and refresh-token session flow
 - RBAC catalog, role management, and user-role assignment APIs
 - tenant configuration APIs for settings, theme, modules, terminology, custom fields, option sets, and form layouts
-- CRM APIs for leads, accounts, contacts, campaigns, and shared productivity records
+- CRM APIs for leads, accounts, contacts, opportunities, campaigns, and shared productivity records
 - audit logging for auth, RBAC, tenant-config, and CRM writes
 
 ### Shared Packages
@@ -105,6 +107,8 @@ Change these through environment variables before using anything beyond local de
 - `/accounts/new`
 - `/contacts`
 - `/contacts/new`
+- `/opportunities`
+- `/opportunities/new`
 - `/campaigns`
 - `/campaigns/new`
 
@@ -120,6 +124,7 @@ npm run db:seed
 npm run typecheck
 npm run build
 node tests/phase8-campaigns-exhaustive.mjs
+node tests/phase10-opportunities-exhaustive.mjs
 ```
 
 ## Environment Highlights
@@ -146,7 +151,6 @@ For local browser auth, the default CORS configuration supports both:
 Not implemented yet:
 - public registration
 - admin-created user lifecycle UI
-- dedicated opportunities
 - lead conversion
 - dedicated ticket and customer-success operational modules
 - dynamic form rendering from custom-field metadata

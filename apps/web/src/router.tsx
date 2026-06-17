@@ -23,6 +23,8 @@ import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
 import { LoginPage } from "./pages/login-page";
 import { ModuleSettingsPage } from "./pages/module-settings-page";
+import { OpportunityDetailPage } from "./pages/opportunity-detail-page";
+import { OpportunityFormPage } from "./pages/opportunity-form-page";
 import { OpportunitiesPage } from "./pages/opportunities-page";
 import { SocialDetailPage } from "./pages/social-detail-page";
 import { SocialFormPage } from "./pages/social-form-page";
@@ -411,6 +413,51 @@ export const router = createBrowserRouter([
                 moduleKey="opportunities"
               >
                 <OpportunitiesPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "opportunities/new",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["opportunities.create", "opportunities.configure"]}
+                title="Opportunity creation requires create permissions."
+                description="Only roles with opportunity creation permissions can open the opportunity form."
+                moduleKey="opportunities"
+              >
+                <OpportunityFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "opportunities/:opportunityId",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.opportunities}
+                title="Opportunity detail access is limited by role."
+                description="Open this record with a role that includes Opportunities access."
+                moduleKey="opportunities"
+              >
+                <OpportunityDetailPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "opportunities/:opportunityId/edit",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={[
+                  "opportunities.edit",
+                  "opportunities.assign",
+                  "opportunities.approve",
+                  "opportunities.configure",
+                  "opportunities.manage_workflow"
+                ]}
+                title="Opportunity editing requires edit, assign, approve, or workflow permissions."
+                description="Only roles with opportunity edit, assignment, approval, workflow, or configuration permissions can update this record."
+                moduleKey="opportunities"
+              >
+                <OpportunityFormPage />
               </PermissionRoute>
             )
           },

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide explains how sales-facing users can work with the Phase 6 CRM foundation.
+This guide explains how sales-facing users can work with the live CRM and sales workspace through Phase 10.
 
 ## What Is Available
 
@@ -10,9 +10,10 @@ The current release includes:
 - leads
 - accounts
 - contacts
+- opportunities
 - role-aware navigation
 - protected routes
-- notes and activities on detail pages
+- notes, activities, tasks, and timeline support on detail pages
 
 Your visible modules and actions depend on:
 - your assigned roles
@@ -137,6 +138,69 @@ The contact form supports:
 - owner
 - related account
 
+## Opportunities Workflow
+
+### Opportunity List
+
+The Opportunities page supports:
+- search by name, account, contact, competitor, or next step
+- filter by stage
+- filter by source
+- filter by outcome status
+- filter by owner, account, and contact
+- stalled-deal filtering
+- my pipeline, team pipeline, and all pipeline scopes based on permission
+- sorting and pagination
+
+### Opportunity Dashboard and Kanban
+
+The opportunity workspace also shows:
+- visible pipeline count
+- pipeline value
+- closing this month metrics
+- stalled deals metrics
+- stage distribution
+- forecast placeholder
+- deal risk placeholder
+- Kanban stage movement with audit logging
+
+### Opportunity Detail
+
+Each opportunity detail page shows:
+- linked account
+- linked primary contact
+- owner
+- stage, source, and outcome status
+- amount and probability
+- expected close date
+- competitor
+- stakeholders
+- next step
+- win and loss reason
+- products and services placeholder
+- notes
+- activities
+- tasks
+- timeline
+
+### Create or Edit Opportunity
+
+The opportunity form supports:
+- opportunity name
+- linked account
+- linked primary contact
+- owner
+- stage
+- source
+- outcome status
+- amount
+- probability
+- expected close date
+- competitor
+- stakeholder contacts
+- next step
+- win and loss reason
+
 ## Permissions and Visibility
 
 Typical behavior:
@@ -149,8 +213,8 @@ Typical behavior:
 ## Current Limits
 
 Still not implemented:
-- opportunities
 - lead conversion
 - dynamic custom fields in the live CRM forms
 - public registration
 - record-level authorization beyond tenant boundaries
+- true forecast modeling, deal-risk scoring, proposal drafting, and win-probability AI execution

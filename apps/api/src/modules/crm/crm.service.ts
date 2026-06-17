@@ -449,7 +449,7 @@ const crmEntityConfig = {
   opportunity: {
     actionPrefix: "opportunity",
     label: "Opportunity",
-    tableName: null
+    tableName: "opportunities"
   },
   ticket: {
     actionPrefix: "ticket",
@@ -2891,7 +2891,7 @@ export class CrmService {
       })),
       relatedOpportunitiesPlaceholder: {
         available: false,
-        message: "Opportunity relationships will attach to accounts in a later revenue phase."
+        message: "Linked opportunities now live in the Opportunities workspace and can be filtered by account."
       }
     };
   }

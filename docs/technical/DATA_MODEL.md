@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document describes the implemented database model after Phase 9.
+This document describes the implemented database model after Phase 10.
 
 ## Implemented Scope
 
@@ -20,6 +20,8 @@ The database now covers:
 - leads
 - accounts
 - contacts
+- opportunities
+- opportunity stakeholders
 - campaigns
 - campaign members
 - social posts
@@ -101,6 +103,8 @@ The standard pattern is:
 | `leads` | tenant | Lead identity, source, status, owner, and score placeholder |
 | `accounts` | tenant | Shared customer or company records |
 | `contacts` | tenant | Stakeholder records linked to accounts |
+| `opportunities` | tenant | Revenue pipeline records linked to accounts, contacts, ownership, and configurable stages |
+| `opportunity_stakeholders` | tenant | Buying-committee and stakeholder linkage rows attached to opportunities |
 | `campaigns` | tenant | Campaign strategy, ownership, channel, budget, and related asset references |
 | `campaign_members` | tenant | Lead, contact, and account membership records attached to campaigns |
 | `social_posts` | tenant | Social post planning, scheduling, approval, ownership, and campaign linkage |
@@ -150,6 +154,32 @@ Key columns:
 - `role_option_id`
 - `owner_id`
 - `account_id`
+- `metadata`
+
+### `opportunities`
+
+Key columns:
+- `name`
+- `account_id`
+- `primary_contact_id`
+- `owner_id`
+- `stage_option_id`
+- `source_option_id`
+- `outcome_status_option_id`
+- `amount`
+- `probability`
+- `expected_close_date`
+- `competitor`
+- `next_step`
+- `win_loss_reason`
+- `last_stage_changed_at`
+- `metadata`
+
+### `opportunity_stakeholders`
+
+Key columns:
+- `opportunity_id`
+- `contact_id`
 - `metadata`
 
 ### `campaigns`
@@ -355,7 +385,7 @@ The seed now creates or updates:
 
 ## Current Limits
 
-- dedicated `opportunities`, `tickets`, and `customer_success_accounts` primary tables are still a later phase
+- dedicated `tickets` and `customer_success_accounts` primary tables are still a later phase
 - shared productivity tables already accept those entity types to avoid schema rewrites later
 - campaign performance metrics, attribution, and true calendar scheduling remain placeholders on top of the now-live campaign schema
 - social publishing, engagement ingestion, lead capture, listening, and competitor benchmarking remain placeholders on top of the now-live social planning schema

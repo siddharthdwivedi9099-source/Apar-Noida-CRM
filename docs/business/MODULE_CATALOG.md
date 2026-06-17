@@ -120,9 +120,21 @@ This catalog records the major platform and business modules in the product and 
 
 ### Opportunities
 
-- Status: planned
-- Purpose: revenue pipeline progression and forecasting
-- Expected dependencies: accounts, contacts, leads, workflows, dashboards
+- Status: implemented in Phase 10
+- Purpose: revenue pipeline progression, relationship tracking, and sales forecasting foundations
+- Primary users: sales executives, sales managers, sales heads, presales, partner managers, reseller managers
+- Implemented capabilities:
+  - list, detail, create, edit, soft delete
+  - account and primary-contact linkage
+  - owner assignment
+  - configurable pipeline stages
+  - amount, probability, expected close, source, competitor, and next-step tracking
+  - stakeholder management
+  - win/loss status and reason capture
+  - Kanban stage movement with audit logging
+  - dashboard metrics for pipeline value, distribution, closing this month, and stalled deals
+  - shared notes, activities, tasks, timeline, and permission-aware AI placeholders
+- Shared dependencies: RBAC, tenant option sets, audit logging, accounts, contacts, dashboards, and shared productivity routes
 
 ### Support
 
@@ -159,6 +171,6 @@ This catalog records the major platform and business modules in the product and 
 ## Dependency Guidance
 
 - Leads, accounts, and contacts are now the shared CRM kernel.
-- Future opportunities, support, onboarding, and customer-success modules should extend these entities rather than duplicate them.
+- Support, onboarding, and customer-success modules should extend these entities rather than duplicate them.
 - Tenant option sets and terminology must remain the source of truth for configurable dropdowns and labels.
 - Every new module should inherit the existing RBAC, audit, and soft-delete patterns.

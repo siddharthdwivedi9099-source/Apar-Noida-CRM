@@ -228,7 +228,7 @@ export function AccountDetailPage() {
           <CardHeader>
             <CardTitle>Foundation summary</CardTitle>
             <CardDescription>
-              These cards show what is already live for this account before opportunity management lands.
+              These cards show what is already live for this account now that opportunity management is available.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -287,12 +287,12 @@ export function AccountDetailPage() {
           <CardHeader>
             <CardTitle>What comes next</CardTitle>
             <CardDescription>
-              This record is already prepared for later opportunity, support, and success attachments.
+              This record is already prepared for downstream support and customer-success attachments.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {[
-              "Opportunity relationships will attach here in a later revenue phase.",
+              "Opportunity relationships now live in the dedicated Opportunities workspace with account and contact linkage.",
               "Support and customer-success stages can reuse this shared account identity without duplication.",
               "Custom fields and layouts from the tenant configuration engine can extend account forms next."
             ].map((message) => (

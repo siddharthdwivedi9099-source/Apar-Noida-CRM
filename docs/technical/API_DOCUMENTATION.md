@@ -56,7 +56,7 @@ Implemented route groups:
 
 These remain unchanged from Phases 4 and 5 and continue to require authenticated, permission-aware access.
 
-## CRM Foundations, Campaigns, and Social Marketing
+## CRM Foundations, Opportunities, Campaigns, and Social Marketing
 
 All CRM routes require:
 
@@ -85,6 +85,69 @@ Permission checks map to module families:
 - `opportunity` -> `opportunities.*`
 - `ticket` -> `support.*`
 - `customer_success_account` -> `customer_success.*`
+
+## Opportunity CRUD, Dashboarding, and Pipeline Management
+
+### Opportunity routes
+
+- `GET /opportunities/options`
+- `GET /opportunities/dashboard`
+- `GET /opportunities`
+- `POST /opportunities`
+- `GET /opportunities/:opportunityId`
+- `PATCH /opportunities/:opportunityId`
+- `DELETE /opportunities/:opportunityId`
+
+### Opportunity detail payload behavior
+
+`GET /opportunities/:opportunityId` now returns:
+- base commercial fields
+- account, primary contact, owner, stage, source, and outcome references
+- `stakeholders`
+- `productsServicesPlaceholder`
+- `forecastPlaceholder`
+- `dealRiskPlaceholder`
+- `aiPlaceholders`
+- `notes`
+- `activities`
+- `tasks`
+- `timeline`
+
+### Opportunity dashboard behavior
+
+`GET /opportunities/dashboard` returns:
+- `visibleCount`
+- `pipelineValue`
+- `closingThisMonthCount`
+- `closingThisMonthValue`
+- `stalledDealsCount`
+- `stalledDealsValue`
+- `stageDistribution`
+- `forecastPlaceholder`
+- `dealRiskPlaceholder`
+
+### Opportunity request example
+
+`POST /opportunities`
+
+```json
+{
+  "name": "North Region Expansion",
+  "accountId": "11111111-1111-1111-1111-111111111111",
+  "primaryContactId": "22222222-2222-2222-2222-222222222222",
+  "ownerId": "33333333-3333-3333-3333-333333333333",
+  "stageKey": "proposal",
+  "amount": 125000,
+  "probability": 60,
+  "expectedCloseDate": "2026-07-28",
+  "sourceKey": "referral",
+  "competitor": "Legacy Vendor Inc",
+  "stakeholderContactIds": ["22222222-2222-2222-2222-222222222222"],
+  "nextStep": "Review commercial proposal with procurement"
+}
+```
+
+Stage updates through `PATCH /opportunities/:opportunityId` write both standard CRM audit events and an `opportunity.stage_change` audit log when the pipeline stage changes.
 
 ## Campaign CRUD and Member Management
 

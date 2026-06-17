@@ -756,6 +756,43 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "opportunity-source",
+    moduleKey: "opportunities",
+    kind: "dropdown",
+    name: "Opportunity Source",
+    description: "Default source attribution values for opportunity creation and pipeline reporting.",
+    values: [
+      { key: "inbound", label: "Inbound", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "outbound", label: "Outbound", color: "#14b8a6", sortOrder: 1 },
+      { key: "referral", label: "Referral", color: "#22c55e", sortOrder: 2 },
+      { key: "campaign", label: "Campaign", color: "#8b5cf6", sortOrder: 3 },
+      { key: "partner", label: "Partner", color: "#6366f1", sortOrder: 4 },
+      { key: "reseller", label: "Reseller", color: "#64748b", sortOrder: 5 },
+      { key: "renewal", label: "Renewal", color: "#b45309", sortOrder: 6 },
+      { key: "expansion", label: "Expansion", color: "#f97316", sortOrder: 7 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "pipeline"
+    }
+  },
+  {
+    setKey: "opportunity-outcome-status",
+    moduleKey: "opportunities",
+    kind: "dropdown",
+    name: "Opportunity Outcome Status",
+    description: "Default commercial outcome states for open, won, and lost opportunities.",
+    values: [
+      { key: "open", label: "Open", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "won", label: "Won", color: "#22c55e", sortOrder: 1 },
+      { key: "lost", label: "Lost", color: "#ef4444", sortOrder: 2 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "pipeline"
+    }
+  },
+  {
     setKey: "opportunity-pipeline",
     moduleKey: "opportunities",
     kind: "pipeline",
@@ -891,6 +928,35 @@ export const defaultCustomFormLayoutDefinitions: CustomFormLayoutSeedDefinition[
           id: "contact-context",
           title: "Context",
           fields: ["account_id", "role", "owner_id", "notes"]
+        }
+      ]
+    },
+    metadata: {
+      seeded: true
+    }
+  },
+  {
+    moduleKey: "opportunities",
+    entityKey: "opportunity",
+    layoutKey: "default-opportunity-layout",
+    name: "Default Opportunity Layout",
+    description: "Primary layout scaffold for opportunity creation, progression, and close management.",
+    layoutSchema: {
+      sections: [
+        {
+          id: "opportunity-commercial",
+          title: "Commercial Context",
+          fields: ["name", "account_id", "primary_contact_id", "owner_id", "source", "stage"]
+        },
+        {
+          id: "opportunity-forecasting",
+          title: "Pipeline and Forecasting",
+          fields: ["amount", "probability", "expected_close_date", "next_step", "stakeholders"]
+        },
+        {
+          id: "opportunity-closeout",
+          title: "Competition and Closeout",
+          fields: ["competitor", "outcome_status", "outcome_reason", "products_services_placeholder"]
         }
       ]
     },

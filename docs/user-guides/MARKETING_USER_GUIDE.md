@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide explains how marketing users work with the Phase 8 campaign foundation and the Phase 9 social media marketing workspace.
+This guide explains how marketing users work with the Phase 8 campaign foundation and the live social media marketing workspace.
 
 ## Where to Work
 
@@ -153,7 +153,7 @@ Social post detail can show:
 - Summarize engagement
 - Detect lead intent
 
-These are placeholders only in Phase 9. If you do not see them, your role probably lacks social or AI usage permissions.
+These remain placeholders in the current release. If you do not see them, your role probably lacks social or AI usage permissions.
 
 ## Social Permissions
 

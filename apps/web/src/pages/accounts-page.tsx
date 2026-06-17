@@ -137,7 +137,7 @@ export function AccountsPage() {
       <CrmHero
         eyebrow="Customer context spine"
         title={`${accountsLabel} now hold shared ownership, relationship context, and tenant-safe lifecycle metadata.`}
-        summary={`This workspace establishes the production-ready ${accountLabel.toLowerCase()} system of record that future opportunities, support, and customer-success flows can attach to without duplicating customer identity.`}
+        summary={`This workspace establishes the production-ready ${accountLabel.toLowerCase()} system of record that opportunities, support, and customer-success flows can attach to without duplicating customer identity.`}
         actions={
           canCreate ? (
             <Button asChild>

@@ -494,6 +494,175 @@ export interface ContactOptionsResponse {
   accounts: AccountLookupSummary[];
 }
 
+export const opportunitySortFields = [
+  "createdAt",
+  "updatedAt",
+  "name",
+  "stage",
+  "amount",
+  "probability",
+  "expectedCloseDate",
+  "owner",
+  "account",
+  "outcomeStatus"
+] as const;
+export type OpportunitySortField = (typeof opportunitySortFields)[number];
+
+export const opportunityPipelineScopes = ["mine", "team", "all"] as const;
+export type OpportunityPipelineScope = (typeof opportunityPipelineScopes)[number];
+
+export interface OpportunityListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  stage?: string;
+  source?: string;
+  ownerId?: string;
+  accountId?: string;
+  contactId?: string;
+  outcomeStatus?: string;
+  expectedCloseFrom?: string;
+  expectedCloseTo?: string;
+  stalledDays?: number;
+  scope?: OpportunityPipelineScope;
+  sortBy?: OpportunitySortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface OpportunityStakeholderSummary extends ContactRelationshipSummary {}
+
+export interface OpportunityPlaceholderSurface {
+  available: false;
+  message: string;
+}
+
+export interface OpportunityAiPlaceholderAction {
+  key:
+    | "opportunity_summary"
+    | "deal_risk"
+    | "next_best_action"
+    | "proposal_draft"
+    | "win_probability";
+  label: string;
+  description: string;
+}
+
+export interface OpportunityAiPlaceholderSummary {
+  actions: OpportunityAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface OpportunityStageDistributionItem {
+  stage: CrmOptionValueSummary | null;
+  opportunityCount: number;
+  totalAmount: number;
+}
+
+export interface OpportunitySummary {
+  id: string;
+  name: string;
+  account: AccountLookupSummary | null;
+  primaryContact: ContactRelationshipSummary | null;
+  owner: CrmLookupUserSummary | null;
+  stage: CrmOptionValueSummary | null;
+  source: CrmOptionValueSummary | null;
+  outcomeStatus: CrmOptionValueSummary | null;
+  amount: number | null;
+  probability: number | null;
+  expectedCloseDate: string | null;
+  competitor: string | null;
+  nextStep: string | null;
+  winLossReason: string | null;
+  stakeholderCount: number;
+  noteCount: number;
+  activityCount: number;
+  lastActivityAt: string | null;
+  lastStageChangedAt: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OpportunityDetail extends OpportunitySummary {
+  stakeholders: OpportunityStakeholderSummary[];
+  notes: CrmNoteSummary[];
+  activities: CrmActivitySummary[];
+  tasks: CrmTaskSummary[];
+  timeline: CrmTimelineItem[];
+  productsServicesPlaceholder: OpportunityPlaceholderSurface;
+  forecastPlaceholder: OpportunityPlaceholderSurface;
+  dealRiskPlaceholder: OpportunityPlaceholderSurface;
+  aiPlaceholders: OpportunityAiPlaceholderSummary;
+}
+
+export interface CreateOpportunityRequestBody {
+  name: string;
+  accountId?: string | null;
+  primaryContactId?: string | null;
+  ownerId?: string | null;
+  stageKey: string;
+  amount?: number | null;
+  probability?: number | null;
+  expectedCloseDate?: string | null;
+  sourceKey: string;
+  competitor?: string | null;
+  stakeholderContactIds?: string[];
+  nextStep?: string | null;
+  outcomeStatusKey?: string | null;
+  outcomeReason?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateOpportunityRequestBody {
+  name?: string;
+  accountId?: string | null;
+  primaryContactId?: string | null;
+  ownerId?: string | null;
+  stageKey?: string;
+  amount?: number | null;
+  probability?: number | null;
+  expectedCloseDate?: string | null;
+  sourceKey?: string;
+  competitor?: string | null;
+  stakeholderContactIds?: string[];
+  nextStep?: string | null;
+  outcomeStatusKey?: string | null;
+  outcomeReason?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface OpportunityResponse {
+  opportunity: OpportunityDetail;
+}
+
+export interface OpportunitiesResponse {
+  opportunities: OpportunitySummary[];
+  pagination: CrmPagination;
+}
+
+export interface OpportunityOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  accounts: AccountLookupSummary[];
+  contacts: ContactRelationshipSummary[];
+  stages: CrmOptionValueSummary[];
+  sources: CrmOptionValueSummary[];
+  outcomeStatuses: CrmOptionValueSummary[];
+  availableScopes: OpportunityPipelineScope[];
+}
+
+export interface OpportunityDashboardResponse {
+  scope: OpportunityPipelineScope;
+  visibleCount: number;
+  pipelineValue: number;
+  closingThisMonthCount: number;
+  closingThisMonthValue: number;
+  stalledDealsCount: number;
+  stalledDealsValue: number;
+  stageDistribution: OpportunityStageDistributionItem[];
+  forecastPlaceholder: OpportunityPlaceholderSurface;
+  dealRiskPlaceholder: OpportunityPlaceholderSurface;
+}
+
 export const campaignSortFields = [
   "createdAt",
   "updatedAt",

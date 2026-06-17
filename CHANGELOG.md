@@ -2,9 +2,23 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 9 implementation work.
+Current repository state now includes Phase 1 through Phase 10 implementation work.
 
 ### Added
+
+- Phase 10 migration `20260617010000_phase10_sales_pipeline.sql`
+- tenant-scoped `opportunities` and `opportunity_stakeholders` tables
+- opportunity CRUD APIs with options, dashboard metrics, stage-aware updates, and tenant-safe stakeholder linkage
+- opportunity frontend for:
+  - list
+  - detail
+  - create and edit form
+  - sales metrics cards
+  - Kanban pipeline
+  - stage distribution
+  - permission-aware AI placeholders
+- exhaustive Phase 10 validation script `tests/phase10-opportunities-exhaustive.mjs`
+- opportunity coverage in functional, technical, API, and sales documentation
 
 - Phase 9 migration `20260616233000_phase9_social_media_marketing.sql`
 - tenant-scoped `social_posts` and `social_post_channels` tables
@@ -42,6 +56,10 @@ Current repository state now includes Phase 1 through Phase 9 implementation wor
 
 ### Changed
 
+- platform metadata now reflects Phase 10: Sales Pipeline and Opportunity Management
+- tenant option sets and form-layout metadata now include opportunity sources, outcome statuses, and a default opportunity layout
+- the shared CRM record engine now resolves `opportunity` against a live primary table instead of a future placeholder
+- account detail guidance now points users to the live Opportunities workspace for account-linked revenue tracking
 - platform metadata now reflects Phase 9: Social Media Marketing Module
 - tenant option sets and form-layout metadata now include social channels, post statuses, approval statuses, and a default social layout
 - the social module now replaces a previously vocabulary-only shell with a live PostgreSQL-backed workspace
@@ -54,6 +72,10 @@ Current repository state now includes Phase 1 through Phase 9 implementation wor
 
 ### Security
 
+- opportunity routes now enforce module-aware RBAC checks
+- opportunity owner updates enforce assign-aware authorization rules
+- opportunity stage updates enforce approval and workflow-aware authorization rules
+- opportunity writes remain tenant-scoped and audit logged, including stage-change audit events and timeline activities
 - social routes now enforce module-aware RBAC checks
 - social owner and campaign linkage updates enforce assign-aware authorization rules
 - social approval updates enforce approval-aware authorization rules
@@ -64,7 +86,8 @@ Current repository state now includes Phase 1 through Phase 9 implementation wor
 
 ### Notes
 
+- products and services, forecast modeling, deal risk scoring, next-best-action logic, proposal drafting, and win probability remain placeholders in this phase
 - social publishing, engagement ingestion, listening, competitor benchmarks, and social lead capture remain placeholders in this phase
-- dedicated opportunity, ticket, and customer-success-account primary tables are still future work
+- ticket and customer-success-account primary tables are still future work
 - campaign performance analytics, attribution, and true scheduling remain placeholders in this phase
 - the campaign foundation is now live and ready for later marketing automation, attribution, and AI Gateway integration

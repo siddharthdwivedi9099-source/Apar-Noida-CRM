@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document summarizes the platform behavior now implemented through Phase 9.
+This document summarizes the platform behavior now implemented through Phase 10.
 
 ## Functional Principles
 
@@ -56,6 +56,7 @@ Implemented:
 - tenant configuration audit events
 - CRM create, update, delete, note, activity, and task audit events
 - campaign and social marketing create, update, and delete audit events
+- opportunity create, update, delete, and stage-change audit events
 
 ## Implemented CRM Functions
 
@@ -137,6 +138,53 @@ Implemented:
 - campaign calendar placeholder
 - AI campaign placeholders
 
+### Opportunity Module
+
+Implemented:
+- opportunity list
+- opportunity detail
+- create opportunity
+- edit opportunity
+- soft delete opportunity
+- account linkage
+- primary contact linkage
+- owner assignment
+- configurable stage
+- amount
+- probability
+- expected close date
+- source
+- competitor tracking
+- stakeholder tracking
+- next step
+- win and loss status
+- win and loss reason
+- products and services placeholder
+- AI opportunity placeholders
+- notes
+- activities
+- tasks
+- timeline
+
+### Sales Pipeline and Dashboarding
+
+Implemented:
+- configurable opportunity pipeline stages
+- Kanban pipeline view
+- drag-and-drop stage updates
+- stage-change audit logging
+- stage-change timeline activity creation
+- pipeline filters
+- my pipeline scope
+- team pipeline scope based on permission
+- tenant-wide pipeline scope based on permission
+- pipeline value metric
+- stage distribution metric
+- closing this month metric
+- stalled deals metric
+- forecast placeholder
+- deal risk placeholder
+
 ### Social Media Marketing Module
 
 Implemented:
@@ -196,8 +244,7 @@ Implemented:
 - timeline filters by touchpoint type
 - chronological timeline ordering
 
-Foundation-only shared record support is also prepared for:
-- opportunities
+Foundation-only shared record support is still prepared for:
 - tickets
 - customer-success accounts
 
@@ -230,6 +277,7 @@ Implemented:
 - filterable timeline component on detail pages
 - role-aware action buttons
 - protected routes for list, detail, create, and edit flows
+- sales dashboard cards and Kanban stage movement for opportunities
 
 Current UX behavior:
 - unauthorized users do not see modules in navigation
