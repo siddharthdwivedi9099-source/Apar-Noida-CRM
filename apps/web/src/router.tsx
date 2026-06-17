@@ -22,6 +22,7 @@ import { BusinessDevelopmentPage } from "./pages/business-development-page";
 import { InsideSalesWorkspacePage } from "./pages/inside-sales-workspace-page";
 import { PartnersPage } from "./pages/partners-page";
 import { PresalesPage } from "./pages/presales-page";
+import { ResellersPage } from "./pages/resellers-page";
 import { LeadDetailPage } from "./pages/lead-detail-page";
 import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
@@ -528,6 +529,19 @@ export const router = createBrowserRouter([
                 moduleKey="partners"
               >
                 <PartnersPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "resellers",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.resellers}
+                title="Reseller access is limited by role."
+                description="Open this module with a role that includes Resellers access."
+                moduleKey="resellers"
+              >
+                <ResellersPage />
               </PermissionRoute>
             )
           },

@@ -1730,3 +1730,273 @@ export interface PartnerDashboardResponse {
   tierDistribution: Array<{ tier: CrmOptionValueSummary | null; partnerCount: number }>;
   performancePlaceholder: PartnerPlaceholderSurface;
 }
+
+// ============================================================================
+// Phase 14: Reseller Management
+// ============================================================================
+
+export const resellerPipelineScopes = ["mine", "team", "all"] as const;
+export type ResellerPipelineScope = (typeof resellerPipelineScopes)[number];
+
+export const resellerSortFields = ["name", "status", "pricingTier", "updatedAt", "createdAt"] as const;
+export type ResellerSortField = (typeof resellerSortFields)[number];
+
+export const resellerOnboardingTaskStatuses = ["pending", "in_progress", "completed", "blocked"] as const;
+export type ResellerOnboardingTaskStatus = (typeof resellerOnboardingTaskStatuses)[number];
+
+export interface ResellerListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  pricingTier?: string;
+  marginProfile?: string;
+  onboardingStatus?: string;
+  ownerId?: string;
+  scope?: ResellerPipelineScope;
+  sortBy?: ResellerSortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface ResellerPlaceholderSurface {
+  available: false;
+  message: string;
+}
+
+export interface ResellerAiPlaceholderAction {
+  key:
+    | "reseller_performance_insight"
+    | "reseller_sales_prediction"
+    | "margin_optimization"
+    | "reseller_opportunity_recommendation"
+    | "inactivity_alert"
+    | "reseller_coaching_recommendation";
+  label: string;
+  description: string;
+}
+
+export interface ResellerAiPlaceholderSummary {
+  actions: ResellerAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface ResellerContactSummary {
+  id: string;
+  name: string;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  isPrimary: boolean;
+  contact: ContactRelationshipSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResellerContactInput {
+  id?: string;
+  contactId?: string | null;
+  name: string;
+  title?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  isPrimary?: boolean;
+}
+
+export interface ResellerOnboardingTaskSummary {
+  id: string;
+  label: string;
+  status: ResellerOnboardingTaskStatus;
+  sortOrder: number;
+  dueDate: string | null;
+  completedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResellerOnboardingTaskInput {
+  id?: string;
+  label: string;
+  status?: ResellerOnboardingTaskStatus;
+  sortOrder?: number;
+  dueDate?: string | null;
+  notes?: string | null;
+}
+
+export interface ResellerDealRegistrationSummary {
+  id: string;
+  resellerId: string;
+  name: string;
+  customerName: string | null;
+  stage: CrmOptionValueSummary | null;
+  amount: number | null;
+  marginPercent: number | null;
+  expectedCloseDate: string | null;
+  notes: string | null;
+  opportunity: OpportunityLookupSummary | null;
+  account: AccountLookupSummary | null;
+  leadId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateResellerDealRegistrationRequestBody {
+  name: string;
+  stageKey?: string;
+  customerName?: string | null;
+  amount?: number | null;
+  marginPercent?: number | null;
+  expectedCloseDate?: string | null;
+  notes?: string | null;
+  opportunityId?: string | null;
+  accountId?: string | null;
+  leadId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateResellerDealRegistrationRequestBody {
+  name?: string;
+  stageKey?: string;
+  customerName?: string | null;
+  amount?: number | null;
+  marginPercent?: number | null;
+  expectedCloseDate?: string | null;
+  notes?: string | null;
+  opportunityId?: string | null;
+  accountId?: string | null;
+  leadId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ResellerPerformanceSummary {
+  onboardingTaskCount: number;
+  completedOnboardingTaskCount: number;
+  onboardingCompletionRate: number;
+  dealCount: number;
+  registeredDealValue: number;
+  wonDealCount: number;
+  averageMarginPercent: number | null;
+  contactCount: number;
+}
+
+export interface ResellerSummary {
+  id: string;
+  name: string;
+  account: AccountLookupSummary | null;
+  owner: CrmLookupUserSummary | null;
+  status: CrmOptionValueSummary | null;
+  pricingTier: CrmOptionValueSummary | null;
+  marginProfile: CrmOptionValueSummary | null;
+  onboardingStatus: CrmOptionValueSummary | null;
+  region: string | null;
+  territory: string | null;
+  marginPercent: number | null;
+  agreementReference: string | null;
+  agreementStartDate: string | null;
+  agreementEndDate: string | null;
+  agreementNotes: string | null;
+  contactCount: number;
+  dealCount: number;
+  onboardingTaskCount: number;
+  completedOnboardingTaskCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResellerDetail extends ResellerSummary {
+  contacts: ResellerContactSummary[];
+  onboardingTasks: ResellerOnboardingTaskSummary[];
+  deals: ResellerDealRegistrationSummary[];
+  performance: ResellerPerformanceSummary;
+  catalogPlaceholder: ResellerPlaceholderSurface;
+  orderTrackingPlaceholder: ResellerPlaceholderSurface;
+  trainingPlaceholder: ResellerPlaceholderSurface;
+  certificationPlaceholder: ResellerPlaceholderSurface;
+  supportTicketsPlaceholder: ResellerPlaceholderSurface;
+  aiPlaceholders: ResellerAiPlaceholderSummary;
+}
+
+export interface CreateResellerRequestBody {
+  name: string;
+  accountId?: string | null;
+  ownerId?: string | null;
+  statusKey?: string;
+  pricingTierKey: string;
+  marginProfileKey: string;
+  onboardingStatusKey?: string;
+  region?: string | null;
+  territory?: string | null;
+  marginPercent?: number | null;
+  agreementReference?: string | null;
+  agreementStartDate?: string | null;
+  agreementEndDate?: string | null;
+  agreementNotes?: string | null;
+  contacts?: ResellerContactInput[];
+  onboardingTasks?: ResellerOnboardingTaskInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateResellerRequestBody {
+  name?: string;
+  accountId?: string | null;
+  ownerId?: string | null;
+  statusKey?: string;
+  pricingTierKey?: string;
+  marginProfileKey?: string;
+  onboardingStatusKey?: string;
+  region?: string | null;
+  territory?: string | null;
+  marginPercent?: number | null;
+  agreementReference?: string | null;
+  agreementStartDate?: string | null;
+  agreementEndDate?: string | null;
+  agreementNotes?: string | null;
+  contacts?: ResellerContactInput[];
+  onboardingTasks?: ResellerOnboardingTaskInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface ResellerResponse {
+  reseller: ResellerDetail;
+}
+
+export interface ResellersResponse {
+  resellers: ResellerSummary[];
+  pagination: CrmPagination;
+}
+
+export interface ResellerOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  accounts: AccountLookupSummary[];
+  contacts: ContactRelationshipSummary[];
+  opportunities: OpportunityLookupSummary[];
+  statuses: CrmOptionValueSummary[];
+  pricingTiers: CrmOptionValueSummary[];
+  marginProfiles: CrmOptionValueSummary[];
+  onboardingStatuses: CrmOptionValueSummary[];
+  dealStages: CrmOptionValueSummary[];
+  availableScopes: ResellerPipelineScope[];
+}
+
+export interface ResellerDealRegistrationResponse {
+  deal: ResellerDealRegistrationSummary;
+}
+
+export interface ResellerDealRegistrationsResponse {
+  deals: ResellerDealRegistrationSummary[];
+}
+
+export interface ResellerDashboardResponse {
+  scope: ResellerPipelineScope;
+  totalResellers: number;
+  activeResellers: number;
+  onboardingInProgress: number;
+  registeredDealCount: number;
+  registeredDealValue: number;
+  wonDealCount: number;
+  averageMarginPercent: number | null;
+  pricingTierDistribution: Array<{ pricingTier: CrmOptionValueSummary | null; resellerCount: number }>;
+  performancePlaceholder: ResellerPlaceholderSurface;
+}

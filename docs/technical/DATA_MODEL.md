@@ -294,6 +294,32 @@ Partner deal registration and partner opportunity/lead tracking. Key columns:
 - `name`, `customer_name`, `stage_option_id` (`partner-deal-stage`)
 - `amount`, `expected_close_date`, `notes`, `metadata`.
 
+## Reseller Management Tables (Phase 14)
+
+### `resellers`
+
+Reseller profile records. Key columns:
+- `account_id` (optional link to `accounts`), `owner_id` (reseller owner)
+- `name`, `region`, `territory`, `margin_percent`
+- `status_option_id` (`reseller-status`), `pricing_tier_option_id` (`reseller-pricing-tier`), `margin_profile_option_id` (`reseller-margin-profile`), `onboarding_status_option_id` (`reseller-onboarding-status`)
+- `agreement_reference`, `agreement_start_date`, `agreement_end_date`, `agreement_notes`
+- `metadata`; tenant-scoped composite FKs; soft-deleted via `deleted_at`.
+
+### `reseller_contacts`
+
+Reseller-side contacts. Key columns: `reseller_id`, optional `contact_id` link, `name`, `title`, `email`, `phone`, `is_primary`.
+
+### `reseller_onboarding_tasks`
+
+Reseller onboarding checklist. Key columns: `reseller_id`, `label`, `status` (`pending|in_progress|completed|blocked`), `sort_order`, `due_date`, `completed_at`, `notes`.
+
+### `reseller_deal_registrations`
+
+Reseller deal registration and reseller opportunity/lead tracking. Key columns:
+- `reseller_id`, optional `opportunity_id`, `account_id`, and `lead_id` links
+- `name`, `customer_name`, `stage_option_id` (`reseller-deal-stage`)
+- `amount`, `margin_percent`, `expected_close_date`, `notes`, `metadata`.
+
 ## Shared Productivity Tables
 
 ### `crm_notes`

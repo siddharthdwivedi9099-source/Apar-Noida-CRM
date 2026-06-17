@@ -37,6 +37,7 @@ export const routePermissionRequirements = {
   businessDevelopment: getModuleAccessPermissionCodes("business_development"),
   presales: getModuleAccessPermissionCodes("presales"),
   partners: getModuleAccessPermissionCodes("partners"),
+  resellers: getModuleAccessPermissionCodes("resellers"),
   campaigns: getModuleAccessPermissionCodes("campaigns"),
   social: getModuleAccessPermissionCodes("social"),
   support: getModuleAccessPermissionCodes("support"),

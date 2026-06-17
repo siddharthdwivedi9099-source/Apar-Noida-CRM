@@ -54,3 +54,46 @@ Permission-aware, deferred until the AI Gateway phase:
 - Automated deal-registration approval workflows
 - Live enablement asset library, training linkage, and support ticket linkage (placeholders only)
 - AI execution for the partner AI placeholders
+
+## Reseller Management (Phase 14)
+
+Phase 14 introduces a tenant-aware reseller module backed by the `resellers`, `reseller_contacts`, `reseller_onboarding_tasks`, and `reseller_deal_registrations` tables, governed by the `resellers.*` permission set.
+
+### Reseller Profile
+
+- Reseller name
+- Region and territory
+- Status (prospect, active, suspended, terminated)
+- Owner
+- Pricing tier (standard, preferred, premier, strategic)
+- Margin profile (standard, volume, strategic, custom) plus a numeric margin percent
+- Agreement details (reference, start date, end date, notes)
+- Reseller contacts (with optional links to CRM contacts and a primary flag)
+
+### Reseller Operations
+
+- Reseller onboarding: ordered checklist tasks with status, due dates, and notes, plus an onboarding status.
+- Reseller catalog: placeholder for a future product and pricing catalog.
+- Reseller lead tracking: deal registrations may reference an originating lead.
+- Reseller deal registration: reseller-sourced deals with stage (registered, approved, ordered, won, lost, rejected), customer name, amount, and per-deal margin percent.
+- Reseller order tracking: placeholder for a future order management runtime.
+- Reseller training linkage: placeholder for the training module.
+- Reseller certification: placeholder for the certification module.
+- Reseller support tickets linkage: placeholder pending the support module.
+- Reseller performance dashboard: active resellers, onboarding-in-progress, registered and won deals, registered value, average margin, and pricing-tier distribution.
+
+### AI Placeholders
+
+Permission-aware, deferred until the AI Gateway phase:
+- Reseller performance insight
+- Reseller sales prediction
+- Margin optimization
+- Reseller opportunity recommendation
+- Inactivity alert
+- Reseller coaching recommendation
+
+### Out of Scope (Phase 14)
+
+- Reseller portal / external reseller login
+- Live catalog, order tracking, training, and certification (placeholders only)
+- AI execution for the reseller AI placeholders

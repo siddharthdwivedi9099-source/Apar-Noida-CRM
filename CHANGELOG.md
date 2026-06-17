@@ -2,9 +2,30 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 13 implementation work.
+Current repository state now includes Phase 1 through Phase 14 implementation work.
 
 ### Added
+
+- Phase 14 migration `20260617070000_phase14_reseller_management.sql`
+- tenant-scoped `resellers`, `reseller_contacts`, `reseller_onboarding_tasks`, and `reseller_deal_registrations` tables
+- seeded reseller option sets for status, pricing tier, margin profile, onboarding status, and deal stage
+- Reseller management APIs:
+  - `GET /resellers/options`
+  - `GET /resellers/dashboard`
+  - `GET /resellers`
+  - `POST /resellers`
+  - `GET /resellers/:resellerId`
+  - `PATCH /resellers/:resellerId`
+  - `DELETE /resellers/:resellerId`
+  - `GET /resellers/:resellerId/deals`
+  - `POST /resellers/:resellerId/deals`
+  - `PATCH /resellers/:resellerId/deals/:dealId`
+- Reseller management frontend route `/resellers` with reseller dashboard, list, detail, onboarding checklist, and deal registration views
+- reseller AI placeholders (performance insight, sales prediction, margin optimization, opportunity recommendation, inactivity alert, coaching recommendation)
+- reseller catalog, order tracking, training, certification, and support tickets placeholders
+- exhaustive Phase 14 validation script `tests/phase14-reseller-management-exhaustive.mjs`
+- new reseller manager user guide plus partner/reseller functional spec, data model, and API documentation updates
+
 
 - Phase 13 migration `20260617050000_phase13_partner_channel_management.sql`
 - tenant-scoped `partners`, `partner_contacts`, `partner_onboarding_tasks`, and `partner_deal_registrations` tables

@@ -13,6 +13,7 @@ import {
   Megaphone,
   Presentation,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
   Target,
   Users
@@ -114,6 +115,14 @@ export const appNavItems: AppNavItem[] = [
     icon: Handshake,
     moduleKey: "partners",
     requiredPermissionCodes: routePermissionRequirements.partners
+  },
+  {
+    title: "Resellers",
+    href: "/resellers",
+    description: "Reseller profiles, pricing tiers, onboarding, and deal registration.",
+    icon: ShoppingBag,
+    moduleKey: "resellers",
+    requiredPermissionCodes: routePermissionRequirements.resellers
   },
   {
     title: "Campaigns",

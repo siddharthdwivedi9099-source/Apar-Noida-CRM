@@ -1093,6 +1093,92 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       seeded: true,
       category: "partners"
     }
+  },
+  {
+    setKey: "reseller-status",
+    moduleKey: "resellers",
+    kind: "dropdown",
+    name: "Reseller Status",
+    description: "Lifecycle status for resellers.",
+    values: [
+      { key: "prospect", label: "Prospect", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "active", label: "Active", color: "#22c55e", sortOrder: 1 },
+      { key: "suspended", label: "Suspended", color: "#f59e0b", sortOrder: 2 },
+      { key: "terminated", label: "Terminated", color: "#ef4444", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "resellers"
+    }
+  },
+  {
+    setKey: "reseller-pricing-tier",
+    moduleKey: "resellers",
+    kind: "dropdown",
+    name: "Reseller Pricing Tier",
+    description: "Pricing tiers governing reseller discount levels.",
+    values: [
+      { key: "standard", label: "Standard", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "preferred", label: "Preferred", color: "#0ea5e9", sortOrder: 1 },
+      { key: "premier", label: "Premier", color: "#8b5cf6", sortOrder: 2 },
+      { key: "strategic", label: "Strategic", color: "#22c55e", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "resellers"
+    }
+  },
+  {
+    setKey: "reseller-margin-profile",
+    moduleKey: "resellers",
+    kind: "dropdown",
+    name: "Reseller Margin Profile",
+    description: "Margin profiles describing reseller commercial arrangements.",
+    values: [
+      { key: "standard", label: "Standard", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "volume", label: "Volume", color: "#0ea5e9", sortOrder: 1 },
+      { key: "strategic", label: "Strategic", color: "#8b5cf6", sortOrder: 2 },
+      { key: "custom", label: "Custom", color: "#f59e0b", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "resellers"
+    }
+  },
+  {
+    setKey: "reseller-onboarding-status",
+    moduleKey: "resellers",
+    kind: "dropdown",
+    name: "Reseller Onboarding Status",
+    description: "Onboarding progression states for resellers.",
+    values: [
+      { key: "not_started", label: "Not Started", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "in_progress", label: "In Progress", color: "#0ea5e9", sortOrder: 1 },
+      { key: "completed", label: "Completed", color: "#22c55e", sortOrder: 2 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "resellers"
+    }
+  },
+  {
+    setKey: "reseller-deal-stage",
+    moduleKey: "resellers",
+    kind: "pipeline",
+    name: "Reseller Deal Stage",
+    description: "Deal registration stages for reseller-sourced opportunities.",
+    values: [
+      { key: "registered", label: "Registered", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "approved", label: "Approved", color: "#06b6d4", sortOrder: 1 },
+      { key: "ordered", label: "Ordered", color: "#8b5cf6", sortOrder: 2 },
+      { key: "won", label: "Won", color: "#22c55e", sortOrder: 3 },
+      { key: "lost", label: "Lost", color: "#ef4444", sortOrder: 4 },
+      { key: "rejected", label: "Rejected", color: "#b91c1c", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "resellers"
+    }
   }
 ];
 

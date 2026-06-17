@@ -550,6 +550,21 @@ All routes require one of the `partners.*` permissions and are tenant-scoped wit
 - `POST /partners/:partnerId/deals` — register a deal (requires `name`); optional opportunity/account/lead links
 - `PATCH /partners/:partnerId/deals/:dealId` — update a registered deal (stage, amount, links)
 
+## Reseller Management Routes (Phase 14)
+
+All routes require one of the `resellers.*` permissions and are tenant-scoped with owner/team/all visibility.
+
+- `GET /resellers/options` — owners, accounts, contacts, opportunities, reseller status/pricing-tier/margin-profile/onboarding/deal-stage option sets, available scopes
+- `GET /resellers/dashboard` — reseller counts, active resellers, onboarding-in-progress, registered deal count/value, won deals, average margin, and pricing-tier distribution
+- `GET /resellers` — paginated resellers; filters: `search`, `status`, `pricingTier`, `marginProfile`, `onboardingStatus`, `ownerId`, `scope`, `sortBy`, `sortOrder`
+- `POST /resellers` — create a reseller (requires `pricingTierKey`, `marginProfileKey`); accepts profile fields, margin percent, `contacts[]`, and an `onboardingTasks[]` checklist
+- `GET /resellers/:resellerId` — reseller detail with contacts, onboarding checklist, registered deals, performance summary, and placeholders (catalog, order tracking, training, certification, support tickets)
+- `PATCH /resellers/:resellerId` — partial update; owner-only mutations allowed for assign permission; syncs contacts and onboarding tasks
+- `DELETE /resellers/:resellerId` — soft-delete the reseller and its child records
+- `GET /resellers/:resellerId/deals` — registered deals for the reseller
+- `POST /resellers/:resellerId/deals` — register a deal (requires `name`); optional opportunity/account/lead links and per-deal margin percent
+- `PATCH /resellers/:resellerId/deals/:dealId` — update a registered deal (stage, amount, margin, links)
+
 ## Validation and Error Handling
 
 Common behaviors:
