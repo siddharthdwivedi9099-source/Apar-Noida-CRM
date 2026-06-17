@@ -136,6 +136,37 @@ This catalog records the major platform and business modules in the product and 
   - shared notes, activities, tasks, timeline, and permission-aware AI placeholders
 - Shared dependencies: RBAC, tenant option sets, audit logging, accounts, contacts, dashboards, and shared productivity routes
 
+### Business Development
+
+- Status: implemented in Phase 12
+- Purpose: strategic account targeting, relationship mapping, executive engagement, and BD pipeline development
+- Primary users: business development executives and managers
+- Implemented capabilities:
+  - strategic/target account list, detail, create, edit, soft delete
+  - target account profile (tier, industry, region, revenue, employee count, executive sponsor)
+  - configurable BD pipeline stage and account tier
+  - relationship mapping with influence level, relationship strength, and executive flags
+  - market opportunity notes and partnership opportunity tracking
+  - territory mapping placeholder
+  - permission-aware AI placeholders (account research brief, stakeholder map)
+- Shared dependencies: RBAC, tenant option sets, audit logging, accounts, contacts, dashboards
+
+### Presales
+
+- Status: implemented in Phase 12
+- Purpose: presales request intake, RFP/RFI tracking, technical requirement mapping, and proposal collaboration
+- Primary users: presales executives and managers
+- Implemented capabilities:
+  - presales request intake, detail, create, edit, soft delete
+  - link request to opportunity and account
+  - demo, RFP, RFI, proposal, technical-validation, and PoC request types
+  - status, priority, due date, and presales task assignment
+  - RFP/RFI requirement tracker with compliance matrix status
+  - proposal workspace content capture
+  - demo calendar and solution repository placeholders
+  - permission-aware AI placeholders (RFP extraction, compliance matrix, demo script, proposal response draft, technical risk detection)
+- Shared dependencies: RBAC, tenant option sets, audit logging, opportunities, accounts, dashboards
+
 ### Support
 
 - Status: planned

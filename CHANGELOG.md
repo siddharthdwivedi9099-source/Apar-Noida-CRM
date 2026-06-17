@@ -2,9 +2,34 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 11 implementation work.
+Current repository state now includes Phase 1 through Phase 12 implementation work.
 
 ### Added
+
+- Phase 12 migration `20260617030000_phase12_business_development_presales.sql`
+- tenant-scoped `bd_target_accounts`, `bd_account_stakeholders`, `presales_requests`, and `presales_requirements` tables
+- new `business_development` permission module plus seeded option sets for BD account tier, BD pipeline stage, BD partnership type, presales request type, and presales request status
+- Business Development APIs:
+  - `GET /business-development/options`
+  - `GET /business-development`
+  - `POST /business-development`
+  - `GET /business-development/:targetAccountId`
+  - `PATCH /business-development/:targetAccountId`
+  - `DELETE /business-development/:targetAccountId`
+- Presales APIs:
+  - `GET /presales/options`
+  - `GET /presales`
+  - `POST /presales`
+  - `GET /presales/:requestId`
+  - `PATCH /presales/:requestId`
+  - `DELETE /presales/:requestId`
+- Business Development and Presales frontend routes:
+  - `/business-development`
+  - `/presales`
+- strategic account targeting, relationship/executive mapping, BD pipeline, presales intake, RFP/RFI requirement tracker, and proposal workspace surfaces
+- BD and presales AI placeholders (account research brief, stakeholder map, RFP extraction, compliance matrix, demo script, proposal response draft, technical risk detection)
+- exhaustive Phase 12 validation script `tests/phase12-business-development-presales-exhaustive.mjs`
+- updated functional, module catalog, data model, API, and sales-guide documentation for the BD and presales rollout
 
 - Phase 11 SDR and inside-sales workspace APIs:
   - `GET /sales-workspaces/options`

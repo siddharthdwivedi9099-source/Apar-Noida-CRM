@@ -18,7 +18,9 @@ import { ContactsPage } from "./pages/contacts-page";
 import { CustomFieldsPage } from "./pages/custom-fields-page";
 import { CustomerSuccessPage } from "./pages/customer-success-page";
 import { DashboardPage } from "./pages/dashboard-page";
+import { BusinessDevelopmentPage } from "./pages/business-development-page";
 import { InsideSalesWorkspacePage } from "./pages/inside-sales-workspace-page";
+import { PresalesPage } from "./pages/presales-page";
 import { LeadDetailPage } from "./pages/lead-detail-page";
 import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
@@ -486,6 +488,32 @@ export const router = createBrowserRouter([
                 moduleKey="opportunities"
               >
                 <OpportunityFormPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "business-development",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.businessDevelopment}
+                title="Business development access is limited by role."
+                description="Open this module with a role that includes Business Development access."
+                moduleKey="business_development"
+              >
+                <BusinessDevelopmentPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "presales",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.presales}
+                title="Presales access is limited by role."
+                description="Open this module with a role that includes Presales access."
+                moduleKey="presales"
+              >
+                <PresalesPage />
               </PermissionRoute>
             )
           },

@@ -513,6 +513,28 @@ The original Phase 6 routes remain available for lead, account, and contact note
 
 These now use the shared productivity service behavior internally.
 
+## Business Development Routes (Phase 12)
+
+All routes require one of the `business_development.*` permissions and are tenant-scoped with owner/team/all visibility.
+
+- `GET /business-development/options` — owners, accounts, contacts, tier/stage/partnership option sets, available scopes
+- `GET /business-development` — paginated target accounts; filters: `search`, `tier`, `stage`, `partnershipType`, `ownerId`, `isPartnership`, `scope`, `sortBy`, `sortOrder`
+- `POST /business-development` — create a target account (requires `tierKey`, `stageKey`); accepts profile fields and an optional `stakeholders[]` relationship map
+- `GET /business-development/:targetAccountId` — target account detail with stakeholders, territory placeholder, and AI placeholders
+- `PATCH /business-development/:targetAccountId` — partial update; owner-only mutations allowed for assign permission
+- `DELETE /business-development/:targetAccountId` — soft-delete the target account and its stakeholders
+
+## Presales Routes (Phase 12)
+
+All routes require one of the `presales.*` permissions and are tenant-scoped; `mine` scope matches owner or assignee.
+
+- `GET /presales/options` — owners, accounts, opportunities, request-type/status option sets, priorities, available scopes
+- `GET /presales` — paginated requests; filters: `search`, `type`, `status`, `priority`, `ownerId`, `assigneeId`, `opportunityId`, `accountId`, `scope`, `sortBy`, `sortOrder`
+- `POST /presales` — create a request (requires `title`, `typeKey`); optional `opportunityId` link plus a `requirements[]` RFP/RFI tracker
+- `GET /presales/:requestId` — request detail with requirements, proposal content, demo-calendar and solution-repository placeholders, and AI placeholders
+- `PATCH /presales/:requestId` — partial update; assignment-only mutations allowed for assign permission
+- `DELETE /presales/:requestId` — soft-delete the request and its requirements
+
 ## Validation and Error Handling
 
 Common behaviors:

@@ -1126,3 +1126,348 @@ export interface SocialOptionsResponse {
   approvalStatuses: CrmOptionValueSummary[];
   channels: CrmOptionValueSummary[];
 }
+
+// ============================================================================
+// Phase 12: Business Development and Presales
+// ============================================================================
+
+export const bdPipelineScopes = ["mine", "team", "all"] as const;
+export type BdPipelineScope = (typeof bdPipelineScopes)[number];
+
+export const bdTargetAccountSortFields = [
+  "name",
+  "tier",
+  "stage",
+  "owner",
+  "annualRevenue",
+  "updatedAt",
+  "createdAt"
+] as const;
+export type BdTargetAccountSortField = (typeof bdTargetAccountSortFields)[number];
+
+export const bdInfluenceLevels = ["low", "medium", "high", "champion", "blocker"] as const;
+export type BdInfluenceLevel = (typeof bdInfluenceLevels)[number];
+
+export const bdRelationshipStrengths = ["none", "developing", "engaged", "strong"] as const;
+export type BdRelationshipStrength = (typeof bdRelationshipStrengths)[number];
+
+export interface BdTargetAccountListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  tier?: string;
+  stage?: string;
+  partnershipType?: string;
+  ownerId?: string;
+  isPartnership?: boolean;
+  scope?: BdPipelineScope;
+  sortBy?: BdTargetAccountSortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface BdPlaceholderSurface {
+  available: false;
+  message: string;
+}
+
+export interface BdAiPlaceholderAction {
+  key: "account_research_brief" | "stakeholder_map";
+  label: string;
+  description: string;
+}
+
+export interface BdAiPlaceholderSummary {
+  actions: BdAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface BdAccountStakeholderSummary {
+  id: string;
+  name: string;
+  title: string | null;
+  contact: ContactRelationshipSummary | null;
+  influenceLevel: BdInfluenceLevel;
+  relationshipStrength: BdRelationshipStrength;
+  isExecutive: boolean;
+  lastEngagementAt: string | null;
+  engagementNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BdAccountStakeholderInput {
+  id?: string;
+  contactId?: string | null;
+  name: string;
+  title?: string | null;
+  influenceLevel?: BdInfluenceLevel;
+  relationshipStrength?: BdRelationshipStrength;
+  isExecutive?: boolean;
+  lastEngagementAt?: string | null;
+  engagementNotes?: string | null;
+}
+
+export interface BdTargetAccountSummary {
+  id: string;
+  name: string;
+  account: AccountLookupSummary | null;
+  owner: CrmLookupUserSummary | null;
+  tier: CrmOptionValueSummary | null;
+  stage: CrmOptionValueSummary | null;
+  partnershipType: CrmOptionValueSummary | null;
+  industry: string | null;
+  region: string | null;
+  annualRevenue: number | null;
+  employeeCount: number | null;
+  marketOpportunityNotes: string | null;
+  executiveSponsor: string | null;
+  nextStep: string | null;
+  isPartnership: boolean;
+  stakeholderCount: number;
+  executiveStakeholderCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BdTargetAccountDetail extends BdTargetAccountSummary {
+  stakeholders: BdAccountStakeholderSummary[];
+  territoryPlaceholder: BdPlaceholderSurface;
+  aiPlaceholders: BdAiPlaceholderSummary;
+}
+
+export interface CreateBdTargetAccountRequestBody {
+  name: string;
+  accountId?: string | null;
+  ownerId?: string | null;
+  tierKey: string;
+  stageKey: string;
+  partnershipTypeKey?: string | null;
+  industry?: string | null;
+  region?: string | null;
+  annualRevenue?: number | null;
+  employeeCount?: number | null;
+  marketOpportunityNotes?: string | null;
+  executiveSponsor?: string | null;
+  nextStep?: string | null;
+  isPartnership?: boolean;
+  stakeholders?: BdAccountStakeholderInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateBdTargetAccountRequestBody {
+  name?: string;
+  accountId?: string | null;
+  ownerId?: string | null;
+  tierKey?: string;
+  stageKey?: string;
+  partnershipTypeKey?: string | null;
+  industry?: string | null;
+  region?: string | null;
+  annualRevenue?: number | null;
+  employeeCount?: number | null;
+  marketOpportunityNotes?: string | null;
+  executiveSponsor?: string | null;
+  nextStep?: string | null;
+  isPartnership?: boolean;
+  stakeholders?: BdAccountStakeholderInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface BdTargetAccountResponse {
+  targetAccount: BdTargetAccountDetail;
+}
+
+export interface BdTargetAccountsResponse {
+  targetAccounts: BdTargetAccountSummary[];
+  pagination: CrmPagination;
+}
+
+export interface BdTargetAccountOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  accounts: AccountLookupSummary[];
+  contacts: ContactRelationshipSummary[];
+  tiers: CrmOptionValueSummary[];
+  stages: CrmOptionValueSummary[];
+  partnershipTypes: CrmOptionValueSummary[];
+  availableScopes: BdPipelineScope[];
+}
+
+export const presalesPipelineScopes = ["mine", "team", "all"] as const;
+export type PresalesPipelineScope = (typeof presalesPipelineScopes)[number];
+
+export const presalesRequestSortFields = [
+  "title",
+  "type",
+  "status",
+  "priority",
+  "dueDate",
+  "updatedAt",
+  "createdAt"
+] as const;
+export type PresalesRequestSortField = (typeof presalesRequestSortFields)[number];
+
+export const presalesPriorities = ["low", "medium", "high", "urgent"] as const;
+export type PresalesPriority = (typeof presalesPriorities)[number];
+
+export const presalesRequirementCategories = [
+  "functional",
+  "technical",
+  "security",
+  "commercial",
+  "integration",
+  "other"
+] as const;
+export type PresalesRequirementCategory = (typeof presalesRequirementCategories)[number];
+
+export const presalesComplianceStatuses = ["pending", "met", "partial", "gap", "not_applicable"] as const;
+export type PresalesComplianceStatus = (typeof presalesComplianceStatuses)[number];
+
+export interface PresalesRequestListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  type?: string;
+  status?: string;
+  priority?: PresalesPriority;
+  ownerId?: string;
+  assigneeId?: string;
+  opportunityId?: string;
+  accountId?: string;
+  scope?: PresalesPipelineScope;
+  sortBy?: PresalesRequestSortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface PresalesPlaceholderSurface {
+  available: false;
+  message: string;
+}
+
+export interface PresalesAiPlaceholderAction {
+  key:
+    | "rfp_extraction"
+    | "compliance_matrix"
+    | "demo_script"
+    | "proposal_response_draft"
+    | "technical_risk_detection";
+  label: string;
+  description: string;
+}
+
+export interface PresalesAiPlaceholderSummary {
+  actions: PresalesAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface OpportunityLookupSummary {
+  id: string;
+  name: string;
+  stage: CrmOptionValueSummary | null;
+}
+
+export interface PresalesRequirementSummary {
+  id: string;
+  label: string;
+  category: PresalesRequirementCategory;
+  requirement: string | null;
+  response: string | null;
+  complianceStatus: PresalesComplianceStatus;
+  priority: PresalesPriority;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PresalesRequirementInput {
+  id?: string;
+  label: string;
+  category?: PresalesRequirementCategory;
+  requirement?: string | null;
+  response?: string | null;
+  complianceStatus?: PresalesComplianceStatus;
+  priority?: PresalesPriority;
+  sortOrder?: number;
+}
+
+export interface PresalesRequestSummary {
+  id: string;
+  title: string;
+  type: CrmOptionValueSummary | null;
+  status: CrmOptionValueSummary | null;
+  priority: PresalesPriority;
+  opportunity: OpportunityLookupSummary | null;
+  account: AccountLookupSummary | null;
+  owner: CrmLookupUserSummary | null;
+  assignee: CrmLookupUserSummary | null;
+  dueDate: string | null;
+  summary: string | null;
+  requirementCount: number;
+  metRequirementCount: number;
+  gapRequirementCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PresalesRequestDetail extends PresalesRequestSummary {
+  technicalRequirements: string | null;
+  proposalContent: string | null;
+  requirements: PresalesRequirementSummary[];
+  demoCalendarPlaceholder: PresalesPlaceholderSurface;
+  solutionRepositoryPlaceholder: PresalesPlaceholderSurface;
+  aiPlaceholders: PresalesAiPlaceholderSummary;
+}
+
+export interface CreatePresalesRequestRequestBody {
+  title: string;
+  typeKey: string;
+  statusKey?: string;
+  priority?: PresalesPriority;
+  opportunityId?: string | null;
+  accountId?: string | null;
+  ownerId?: string | null;
+  assigneeId?: string | null;
+  dueDate?: string | null;
+  summary?: string | null;
+  technicalRequirements?: string | null;
+  proposalContent?: string | null;
+  requirements?: PresalesRequirementInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdatePresalesRequestRequestBody {
+  title?: string;
+  typeKey?: string;
+  statusKey?: string;
+  priority?: PresalesPriority;
+  opportunityId?: string | null;
+  accountId?: string | null;
+  ownerId?: string | null;
+  assigneeId?: string | null;
+  dueDate?: string | null;
+  summary?: string | null;
+  technicalRequirements?: string | null;
+  proposalContent?: string | null;
+  requirements?: PresalesRequirementInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface PresalesRequestResponse {
+  request: PresalesRequestDetail;
+}
+
+export interface PresalesRequestsResponse {
+  requests: PresalesRequestSummary[];
+  pagination: CrmPagination;
+}
+
+export interface PresalesRequestOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  accounts: AccountLookupSummary[];
+  opportunities: OpportunityLookupSummary[];
+  requestTypes: CrmOptionValueSummary[];
+  statuses: CrmOptionValueSummary[];
+  priorities: PresalesPriority[];
+  availableScopes: PresalesPipelineScope[];
+}

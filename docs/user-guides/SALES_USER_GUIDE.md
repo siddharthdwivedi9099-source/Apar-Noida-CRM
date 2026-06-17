@@ -266,6 +266,24 @@ Typical behavior:
 - users without timeline write permissions cannot add notes or activities
 - users without assign permissions cannot reassign lead ownership from SDR or inside-sales workspaces
 
+## Business Development Workspace (Phase 12)
+
+Open **Business Development** from the navigation (requires a role with Business Development access).
+
+- The strategic account list shows tier, BD pipeline stage, owner, stakeholder count, and partnership flag.
+- Use **Add target account** to create a target with its profile, tier, BD pipeline stage, and optional partnership type.
+- Select an account to review its profile, market opportunity notes, relationship map (with executive and influence indicators), and territory placeholder.
+- AI placeholders (account research brief, stakeholder map) appear for roles with BD or global AI usage permission.
+
+## Presales Workspace (Phase 12)
+
+Open **Presales** from the navigation (requires a role with Presales access).
+
+- The request queue shows request type, status, priority, linked opportunity/account, requirement count, and gaps.
+- Use **New presales request** to intake a demo, RFP, RFI, proposal, technical-validation, or PoC request and link it to an opportunity.
+- Select a request to review its summary, RFP/RFI requirement tracker with compliance status, proposal workspace content, and demo-calendar/solution-repository placeholders.
+- AI placeholders (RFP extraction, compliance matrix, demo script, proposal response draft, technical risk detection) appear for roles with presales or global AI usage permission.
+
 ## Current Limits
 
 Still not implemented:
@@ -274,3 +292,4 @@ Still not implemented:
 - public registration
 - full MEDDIC execution logic, email sequencing, and meeting-booking automation
 - true forecast modeling, deal-risk scoring, proposal drafting, and win-probability AI execution
+- BD territory mapping, presales demo-calendar scheduling, and the solution repository (placeholders in Phase 12)

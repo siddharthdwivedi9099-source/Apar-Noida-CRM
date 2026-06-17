@@ -230,6 +230,44 @@ Key columns:
 - `channel_option_id`
 - `metadata`
 
+## Business Development and Presales Tables (Phase 12)
+
+### `bd_target_accounts`
+
+Strategic/target accounts for business development. Key columns:
+- `account_id` (optional link to `accounts`)
+- `owner_id`
+- `name`, `industry`, `region`
+- `tier_option_id` (`bd-account-tier`), `stage_option_id` (`bd-pipeline-stage`), `partnership_type_option_id` (`bd-partnership-type`, nullable)
+- `annual_revenue`, `employee_count`
+- `market_opportunity_notes`, `executive_sponsor`, `next_step`
+- `is_partnership`, `metadata`
+- Tenant-scoped composite foreign keys on all references; soft-deleted via `deleted_at`.
+
+### `bd_account_stakeholders`
+
+Relationship mapping and executive engagement tracking for a target account. Key columns:
+- `target_account_id`, `contact_id` (optional link to `contacts`)
+- `name`, `title`
+- `influence_level` (`low|medium|high|champion|blocker`), `relationship_strength` (`none|developing|engaged|strong`)
+- `is_executive`, `last_engagement_at`, `engagement_notes`
+
+### `presales_requests`
+
+Presales intake records (demo, RFP, RFI, proposal, technical validation, PoC). Key columns:
+- `opportunity_id` (optional link to `opportunities`), `account_id`, `owner_id`, `assignee_id`
+- `title`, `request_type_option_id` (`presales-request-type`), `status_option_id` (`presales-request-status`)
+- `priority` (`low|medium|high|urgent`), `due_date`
+- `summary`, `technical_requirements`, `proposal_content`, `metadata`
+
+### `presales_requirements`
+
+Technical requirement mapping, RFP/RFI items, and compliance matrix rows. Key columns:
+- `request_id`
+- `label`, `category` (`functional|technical|security|commercial|integration|other`)
+- `requirement`, `response`
+- `compliance_status` (`pending|met|partial|gap|not_applicable`), `priority`, `sort_order`
+
 ## Shared Productivity Tables
 
 ### `crm_notes`

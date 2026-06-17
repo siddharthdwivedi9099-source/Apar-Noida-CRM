@@ -10,8 +10,10 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Megaphone,
+  Presentation,
   ShieldCheck,
   Sparkles,
+  Target,
   Users
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -87,6 +89,22 @@ export const appNavItems: AppNavItem[] = [
     icon: BriefcaseBusiness,
     moduleKey: "opportunities",
     requiredPermissionCodes: routePermissionRequirements.opportunities
+  },
+  {
+    title: "Business Development",
+    href: "/business-development",
+    description: "Strategic account targeting, relationship mapping, and BD pipeline.",
+    icon: Target,
+    moduleKey: "business_development",
+    requiredPermissionCodes: routePermissionRequirements.businessDevelopment
+  },
+  {
+    title: "Presales",
+    href: "/presales",
+    description: "Presales intake, RFP/RFI tracking, and proposal workspace.",
+    icon: Presentation,
+    moduleKey: "presales",
+    requiredPermissionCodes: routePermissionRequirements.presales
   },
   {
     title: "Campaigns",

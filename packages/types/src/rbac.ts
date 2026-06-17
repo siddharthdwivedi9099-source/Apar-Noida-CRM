@@ -25,6 +25,7 @@ export const permissionModuleKeys = [
   "social",
   "marketing",
   "sales",
+  "business_development",
   "presales",
   "partners",
   "resellers",
@@ -49,6 +50,7 @@ export const permissionModuleLabels: Record<PermissionModuleKey, string> = {
   social: "Social",
   marketing: "Marketing",
   sales: "Sales",
+  business_development: "Business Development",
   presales: "Presales",
   partners: "Partners",
   resellers: "Resellers",
@@ -357,7 +359,7 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Develops new pipeline across leads, accounts, contacts, and channel motions.",
     permissionCodes: unique([
       ...permissionsForModules(
-        ["leads", "accounts", "contacts", "opportunities", "partners", "resellers"],
+        ["business_development", "leads", "accounts", "contacts", "opportunities", "partners", "resellers"],
         contributorActions
       ),
       ...dashboardViewerPermissions,
@@ -372,7 +374,7 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Leads business development planning, approvals, partner-facing execution, and workflows.",
     permissionCodes: unique([
       ...permissionsForModules(
-        ["leads", "accounts", "contacts", "opportunities", "partners", "resellers"],
+        ["business_development", "leads", "accounts", "contacts", "opportunities", "partners", "resellers"],
         managerActions
       ),
       ...dashboardViewerPermissions,

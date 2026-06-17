@@ -315,6 +315,28 @@ Current UX behavior:
 - campaign and social forms use tenant-configured marketing vocabularies
 - social approval and channel choices are enforced through role-aware routes and APIs
 
+## Business Development and Presales (Phase 12)
+
+Business Development functions:
+- maintain a strategic/target account list with tier and BD pipeline stage
+- capture target account profile (industry, region, revenue, employees, executive sponsor)
+- map relationships and executive engagement with influence level and relationship strength
+- record market opportunity notes and track partnership opportunities
+- territory mapping is exposed as a placeholder for a later phase
+
+Presales functions:
+- intake presales requests for demos, RFP, RFI, proposals, technical validation, and PoCs
+- link a request to an opportunity and account
+- assign presales owners and assignees with priority and due dates
+- track RFP/RFI requirements with a compliance matrix (met, partial, gap, not applicable)
+- maintain proposal workspace content per request
+- demo calendar and solution repository are exposed as placeholders for a later phase
+
+Phase 12 UX behavior:
+- BD and presales modules respect tenant module switches and role permissions
+- BD pipeline stage, account tier, partnership type, presales request type, and status use tenant-configured option sets
+- AI placeholders are permission-aware and remain deferred until the AI Gateway phase
+
 ## Functions Still Pending
 
 Still out of scope:

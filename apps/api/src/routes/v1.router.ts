@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { apiConfig } from "@crm/config";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
+import {
+  createBusinessDevelopmentRouter,
+  createPresalesRouter
+} from "../modules/business-development/business-development.router.js";
 import { createCampaignRouter } from "../modules/campaigns/campaigns.router.js";
 import { createCrmRouter } from "../modules/crm/crm.router.js";
 import { createHealthRouter } from "../modules/health/health.router.js";
@@ -27,7 +31,7 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-11-operational"
+      status: "phase-12-operational"
     });
   });
 
@@ -37,6 +41,8 @@ export function createV1Router({
   router.use("/tenant-config", createTenantConfigRouter({ databaseService }));
   router.use("/campaigns", createCampaignRouter({ databaseService }));
   router.use("/opportunities", createOpportunityRouter({ databaseService }));
+  router.use("/business-development", createBusinessDevelopmentRouter({ databaseService }));
+  router.use("/presales", createPresalesRouter({ databaseService }));
   router.use("/sales-workspaces", createSalesWorkspacesRouter({ databaseService }));
   router.use("/social", createSocialRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));

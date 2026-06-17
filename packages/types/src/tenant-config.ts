@@ -349,6 +349,13 @@ export const tenantModuleDefinitions: TenantModuleDefinition[] = [
     locked: false
   },
   {
+    moduleKey: "business_development",
+    label: permissionModuleLabels.business_development,
+    description: "Strategic account targeting, relationship mapping, and BD pipeline development.",
+    defaultEnabled: true,
+    locked: false
+  },
+  {
     moduleKey: "presales",
     label: permissionModuleLabels.presales,
     description: "Technical discovery, solution validation, and presales collaboration.",
@@ -905,6 +912,99 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     metadata: {
       seeded: true,
       category: "customer-success"
+    }
+  },
+  {
+    setKey: "bd-account-tier",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Account Tier",
+    description: "Strategic tiering for business development target accounts.",
+    values: [
+      { key: "strategic", label: "Strategic", color: "#6366f1", sortOrder: 0, isDefault: true },
+      { key: "growth", label: "Growth", color: "#0ea5e9", sortOrder: 1 },
+      { key: "expansion", label: "Expansion", color: "#22c55e", sortOrder: 2 },
+      { key: "watch", label: "Watch", color: "#f59e0b", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "business-development"
+    }
+  },
+  {
+    setKey: "bd-pipeline-stage",
+    moduleKey: "business_development",
+    kind: "pipeline",
+    name: "BD Pipeline Stage",
+    description: "Business development pipeline stages for target account progression.",
+    values: [
+      { key: "identified", label: "Identified", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "researching", label: "Researching", color: "#0ea5e9", sortOrder: 1 },
+      { key: "engaged", label: "Engaged", color: "#06b6d4", sortOrder: 2 },
+      { key: "qualified", label: "Qualified", color: "#8b5cf6", sortOrder: 3 },
+      { key: "committed", label: "Committed", color: "#22c55e", sortOrder: 4 },
+      { key: "on_hold", label: "On Hold", color: "#f59e0b", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "business-development"
+    }
+  },
+  {
+    setKey: "bd-partnership-type",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Partnership Type",
+    description: "Partnership classifications for business development opportunity tracking.",
+    values: [
+      { key: "technology", label: "Technology", color: "#6366f1", sortOrder: 0, isDefault: true },
+      { key: "channel", label: "Channel", color: "#0ea5e9", sortOrder: 1 },
+      { key: "reseller", label: "Reseller", color: "#14b8a6", sortOrder: 2 },
+      { key: "strategic_alliance", label: "Strategic Alliance", color: "#8b5cf6", sortOrder: 3 },
+      { key: "oem", label: "OEM", color: "#f59e0b", sortOrder: 4 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "business-development"
+    }
+  },
+  {
+    setKey: "presales-request-type",
+    moduleKey: "presales",
+    kind: "dropdown",
+    name: "Presales Request Type",
+    description: "Presales intake request types for demos, RFP/RFI, proposals, and validation.",
+    values: [
+      { key: "demo", label: "Demo", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "rfp", label: "RFP", color: "#8b5cf6", sortOrder: 1 },
+      { key: "rfi", label: "RFI", color: "#6366f1", sortOrder: 2 },
+      { key: "proposal", label: "Proposal", color: "#f59e0b", sortOrder: 3 },
+      { key: "technical_validation", label: "Technical Validation", color: "#14b8a6", sortOrder: 4 },
+      { key: "poc", label: "Proof of Concept", color: "#22c55e", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "presales"
+    }
+  },
+  {
+    setKey: "presales-request-status",
+    moduleKey: "presales",
+    kind: "dropdown",
+    name: "Presales Request Status",
+    description: "Lifecycle states for presales request intake and delivery.",
+    values: [
+      { key: "new", label: "New", color: "#f97316", sortOrder: 0, isDefault: true },
+      { key: "in_review", label: "In Review", color: "#0ea5e9", sortOrder: 1 },
+      { key: "in_progress", label: "In Progress", color: "#06b6d4", sortOrder: 2 },
+      { key: "submitted", label: "Submitted", color: "#8b5cf6", sortOrder: 3 },
+      { key: "won", label: "Won", color: "#22c55e", sortOrder: 4 },
+      { key: "lost", label: "Lost", color: "#ef4444", sortOrder: 5 },
+      { key: "cancelled", label: "Cancelled", color: "#64748b", sortOrder: 6 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "presales"
     }
   }
 ];
