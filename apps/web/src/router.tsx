@@ -20,6 +20,7 @@ import { CustomerSuccessPage } from "./pages/customer-success-page";
 import { DashboardPage } from "./pages/dashboard-page";
 import { BusinessDevelopmentPage } from "./pages/business-development-page";
 import { InsideSalesWorkspacePage } from "./pages/inside-sales-workspace-page";
+import { PartnersPage } from "./pages/partners-page";
 import { PresalesPage } from "./pages/presales-page";
 import { LeadDetailPage } from "./pages/lead-detail-page";
 import { LeadFormPage } from "./pages/lead-form-page";
@@ -514,6 +515,19 @@ export const router = createBrowserRouter([
                 moduleKey="presales"
               >
                 <PresalesPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "partners",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.partners}
+                title="Partner access is limited by role."
+                description="Open this module with a role that includes Partners access."
+                moduleKey="partners"
+              >
+                <PartnersPage />
               </PermissionRoute>
             )
           },

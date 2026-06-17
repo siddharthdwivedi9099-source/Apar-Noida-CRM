@@ -9,6 +9,7 @@ import {
   PhoneForwarded,
   LayoutDashboard,
   LifeBuoy,
+  Handshake,
   Megaphone,
   Presentation,
   ShieldCheck,
@@ -105,6 +106,14 @@ export const appNavItems: AppNavItem[] = [
     icon: Presentation,
     moduleKey: "presales",
     requiredPermissionCodes: routePermissionRequirements.presales
+  },
+  {
+    title: "Partners",
+    href: "/partners",
+    description: "Partner profiles, onboarding, deal registration, and channel performance.",
+    icon: Handshake,
+    moduleKey: "partners",
+    requiredPermissionCodes: routePermissionRequirements.partners
   },
   {
     title: "Campaigns",

@@ -167,6 +167,22 @@ This catalog records the major platform and business modules in the product and 
   - permission-aware AI placeholders (RFP extraction, compliance matrix, demo script, proposal response draft, technical risk detection)
 - Shared dependencies: RBAC, tenant option sets, audit logging, opportunities, accounts, dashboards
 
+### Partner Channel Management
+
+- Status: implemented in Phase 13
+- Purpose: channel partner profiles, onboarding, deal registration, and channel performance tracking
+- Primary users: partner managers, reseller managers, business development
+- Implemented capabilities:
+  - partner list, detail, create, edit, soft delete
+  - partner profile (type, tier, status, region, territory, owner, agreement details)
+  - partner contacts management
+  - partner onboarding status and onboarding checklist
+  - partner deal registration with opportunity, account, and lead linkage
+  - partner performance dashboard (active partners, registered/won deals, tier distribution)
+  - enablement assets, training linkage, and support tickets placeholders
+  - permission-aware AI placeholders (fit score, performance summary, action plan, churn risk, conflict detection)
+- Shared dependencies: RBAC, tenant option sets, audit logging, accounts, contacts, opportunities, leads, dashboards
+
 ### Support
 
 - Status: planned

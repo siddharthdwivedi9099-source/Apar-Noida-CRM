@@ -535,6 +535,21 @@ All routes require one of the `presales.*` permissions and are tenant-scoped; `m
 - `PATCH /presales/:requestId` — partial update; assignment-only mutations allowed for assign permission
 - `DELETE /presales/:requestId` — soft-delete the request and its requirements
 
+## Partner Channel Routes (Phase 13)
+
+All routes require one of the `partners.*` permissions and are tenant-scoped with owner/team/all visibility.
+
+- `GET /partners/options` — owners, accounts, contacts, opportunities, partner type/tier/status/onboarding/deal-stage option sets, available scopes
+- `GET /partners/dashboard` — partner counts, active partners, onboarding-in-progress, registered deal count/value, won deals, and tier distribution
+- `GET /partners` — paginated partners; filters: `search`, `type`, `tier`, `status`, `onboardingStatus`, `ownerId`, `scope`, `sortBy`, `sortOrder`
+- `POST /partners` — create a partner (requires `typeKey`, `tierKey`); accepts profile fields, `contacts[]`, and an `onboardingTasks[]` checklist
+- `GET /partners/:partnerId` — partner detail with contacts, onboarding checklist, registered deals, performance summary, and placeholders (enablement assets, training, support tickets)
+- `PATCH /partners/:partnerId` — partial update; owner-only mutations allowed for assign permission; syncs contacts and onboarding tasks
+- `DELETE /partners/:partnerId` — soft-delete the partner and its child records
+- `GET /partners/:partnerId/deals` — registered deals for the partner
+- `POST /partners/:partnerId/deals` — register a deal (requires `name`); optional opportunity/account/lead links
+- `PATCH /partners/:partnerId/deals/:dealId` — update a registered deal (stage, amount, links)
+
 ## Validation and Error Handling
 
 Common behaviors:

@@ -1,5 +1,11 @@
-import { Pool, type QueryResultRow } from "pg";
+import { Pool, types, type QueryResultRow } from "pg";
 import type { DatabaseConfig, DatabaseHealth, DatabaseQueryResult } from "./types.js";
+
+// Return SQL `date` (OID 1082) values as raw `YYYY-MM-DD` strings instead of
+// JavaScript Date objects. The default driver parser builds a Date at local
+// midnight, which serializes to a timezone-shifted timestamp and moves the day
+// for non-UTC servers. Keeping dates as strings preserves the stored calendar day.
+types.setTypeParser(1082, (value) => value);
 
 const DEFAULT_POOL_SIZE = 10;
 const DEFAULT_IDLE_TIMEOUT_MS = 10_000;

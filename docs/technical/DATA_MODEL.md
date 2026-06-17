@@ -268,6 +268,32 @@ Technical requirement mapping, RFP/RFI items, and compliance matrix rows. Key co
 - `requirement`, `response`
 - `compliance_status` (`pending|met|partial|gap|not_applicable`), `priority`, `sort_order`
 
+## Partner Channel Tables (Phase 13)
+
+### `partners`
+
+Channel partner profile records. Key columns:
+- `account_id` (optional link to `accounts`), `owner_id` (partner owner)
+- `name`, `region`, `territory`
+- `type_option_id` (`partner-type`), `tier_option_id` (`partner-tier`), `status_option_id` (`partner-status`), `onboarding_status_option_id` (`partner-onboarding-status`)
+- `agreement_reference`, `agreement_start_date`, `agreement_end_date`, `agreement_notes`
+- `metadata`; tenant-scoped composite FKs; soft-deleted via `deleted_at`.
+
+### `partner_contacts`
+
+Partner-side contacts. Key columns: `partner_id`, optional `contact_id` link, `name`, `title`, `email`, `phone`, `is_primary`.
+
+### `partner_onboarding_tasks`
+
+Partner onboarding checklist. Key columns: `partner_id`, `label`, `status` (`pending|in_progress|completed|blocked`), `sort_order`, `due_date`, `completed_at`, `notes`.
+
+### `partner_deal_registrations`
+
+Partner deal registration and partner opportunity/lead tracking. Key columns:
+- `partner_id`, optional `opportunity_id`, `account_id`, and `lead_id` links
+- `name`, `customer_name`, `stage_option_id` (`partner-deal-stage`)
+- `amount`, `expected_close_date`, `notes`, `metadata`.
+
 ## Shared Productivity Tables
 
 ### `crm_notes`

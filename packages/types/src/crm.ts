@@ -1471,3 +1471,262 @@ export interface PresalesRequestOptionsResponse {
   priorities: PresalesPriority[];
   availableScopes: PresalesPipelineScope[];
 }
+
+// ============================================================================
+// Phase 13: Partner Channel Management
+// ============================================================================
+
+export const partnerPipelineScopes = ["mine", "team", "all"] as const;
+export type PartnerPipelineScope = (typeof partnerPipelineScopes)[number];
+
+export const partnerSortFields = ["name", "type", "tier", "status", "updatedAt", "createdAt"] as const;
+export type PartnerSortField = (typeof partnerSortFields)[number];
+
+export const partnerOnboardingTaskStatuses = ["pending", "in_progress", "completed", "blocked"] as const;
+export type PartnerOnboardingTaskStatus = (typeof partnerOnboardingTaskStatuses)[number];
+
+export interface PartnerListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  type?: string;
+  tier?: string;
+  status?: string;
+  onboardingStatus?: string;
+  ownerId?: string;
+  scope?: PartnerPipelineScope;
+  sortBy?: PartnerSortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface PartnerPlaceholderSurface {
+  available: false;
+  message: string;
+}
+
+export interface PartnerAiPlaceholderAction {
+  key:
+    | "partner_fit_score"
+    | "partner_performance_summary"
+    | "partner_action_plan"
+    | "partner_churn_risk"
+    | "partner_conflict_detection";
+  label: string;
+  description: string;
+}
+
+export interface PartnerAiPlaceholderSummary {
+  actions: PartnerAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface PartnerContactSummary {
+  id: string;
+  name: string;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  isPrimary: boolean;
+  contact: ContactRelationshipSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PartnerContactInput {
+  id?: string;
+  contactId?: string | null;
+  name: string;
+  title?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  isPrimary?: boolean;
+}
+
+export interface PartnerOnboardingTaskSummary {
+  id: string;
+  label: string;
+  status: PartnerOnboardingTaskStatus;
+  sortOrder: number;
+  dueDate: string | null;
+  completedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PartnerOnboardingTaskInput {
+  id?: string;
+  label: string;
+  status?: PartnerOnboardingTaskStatus;
+  sortOrder?: number;
+  dueDate?: string | null;
+  notes?: string | null;
+}
+
+export interface PartnerDealRegistrationSummary {
+  id: string;
+  partnerId: string;
+  name: string;
+  customerName: string | null;
+  stage: CrmOptionValueSummary | null;
+  amount: number | null;
+  expectedCloseDate: string | null;
+  notes: string | null;
+  opportunity: OpportunityLookupSummary | null;
+  account: AccountLookupSummary | null;
+  leadId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePartnerDealRegistrationRequestBody {
+  name: string;
+  stageKey?: string;
+  customerName?: string | null;
+  amount?: number | null;
+  expectedCloseDate?: string | null;
+  notes?: string | null;
+  opportunityId?: string | null;
+  accountId?: string | null;
+  leadId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdatePartnerDealRegistrationRequestBody {
+  name?: string;
+  stageKey?: string;
+  customerName?: string | null;
+  amount?: number | null;
+  expectedCloseDate?: string | null;
+  notes?: string | null;
+  opportunityId?: string | null;
+  accountId?: string | null;
+  leadId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PartnerPerformanceSummary {
+  onboardingTaskCount: number;
+  completedOnboardingTaskCount: number;
+  onboardingCompletionRate: number;
+  dealCount: number;
+  registeredDealValue: number;
+  wonDealCount: number;
+  contactCount: number;
+}
+
+export interface PartnerSummary {
+  id: string;
+  name: string;
+  account: AccountLookupSummary | null;
+  owner: CrmLookupUserSummary | null;
+  type: CrmOptionValueSummary | null;
+  tier: CrmOptionValueSummary | null;
+  status: CrmOptionValueSummary | null;
+  onboardingStatus: CrmOptionValueSummary | null;
+  region: string | null;
+  territory: string | null;
+  agreementReference: string | null;
+  agreementStartDate: string | null;
+  agreementEndDate: string | null;
+  agreementNotes: string | null;
+  contactCount: number;
+  dealCount: number;
+  onboardingTaskCount: number;
+  completedOnboardingTaskCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PartnerDetail extends PartnerSummary {
+  contacts: PartnerContactSummary[];
+  onboardingTasks: PartnerOnboardingTaskSummary[];
+  deals: PartnerDealRegistrationSummary[];
+  performance: PartnerPerformanceSummary;
+  enablementAssetsPlaceholder: PartnerPlaceholderSurface;
+  trainingPlaceholder: PartnerPlaceholderSurface;
+  supportTicketsPlaceholder: PartnerPlaceholderSurface;
+  aiPlaceholders: PartnerAiPlaceholderSummary;
+}
+
+export interface CreatePartnerRequestBody {
+  name: string;
+  accountId?: string | null;
+  ownerId?: string | null;
+  typeKey: string;
+  tierKey: string;
+  statusKey?: string;
+  onboardingStatusKey?: string;
+  region?: string | null;
+  territory?: string | null;
+  agreementReference?: string | null;
+  agreementStartDate?: string | null;
+  agreementEndDate?: string | null;
+  agreementNotes?: string | null;
+  contacts?: PartnerContactInput[];
+  onboardingTasks?: PartnerOnboardingTaskInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdatePartnerRequestBody {
+  name?: string;
+  accountId?: string | null;
+  ownerId?: string | null;
+  typeKey?: string;
+  tierKey?: string;
+  statusKey?: string;
+  onboardingStatusKey?: string;
+  region?: string | null;
+  territory?: string | null;
+  agreementReference?: string | null;
+  agreementStartDate?: string | null;
+  agreementEndDate?: string | null;
+  agreementNotes?: string | null;
+  contacts?: PartnerContactInput[];
+  onboardingTasks?: PartnerOnboardingTaskInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface PartnerResponse {
+  partner: PartnerDetail;
+}
+
+export interface PartnersResponse {
+  partners: PartnerSummary[];
+  pagination: CrmPagination;
+}
+
+export interface PartnerOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  accounts: AccountLookupSummary[];
+  contacts: ContactRelationshipSummary[];
+  opportunities: OpportunityLookupSummary[];
+  types: CrmOptionValueSummary[];
+  tiers: CrmOptionValueSummary[];
+  statuses: CrmOptionValueSummary[];
+  onboardingStatuses: CrmOptionValueSummary[];
+  dealStages: CrmOptionValueSummary[];
+  availableScopes: PartnerPipelineScope[];
+}
+
+export interface PartnerDealRegistrationResponse {
+  deal: PartnerDealRegistrationSummary;
+}
+
+export interface PartnerDealRegistrationsResponse {
+  deals: PartnerDealRegistrationSummary[];
+}
+
+export interface PartnerDashboardResponse {
+  scope: PartnerPipelineScope;
+  totalPartners: number;
+  activePartners: number;
+  onboardingInProgress: number;
+  registeredDealCount: number;
+  registeredDealValue: number;
+  wonDealCount: number;
+  tierDistribution: Array<{ tier: CrmOptionValueSummary | null; partnerCount: number }>;
+  performancePlaceholder: PartnerPlaceholderSurface;
+}

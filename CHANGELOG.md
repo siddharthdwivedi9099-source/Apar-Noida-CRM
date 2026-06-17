@@ -2,9 +2,30 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 12 implementation work.
+Current repository state now includes Phase 1 through Phase 13 implementation work.
 
 ### Added
+
+- Phase 13 migration `20260617050000_phase13_partner_channel_management.sql`
+- tenant-scoped `partners`, `partner_contacts`, `partner_onboarding_tasks`, and `partner_deal_registrations` tables
+- seeded partner option sets for partner type, tier, status, onboarding status, and deal stage
+- Partner channel APIs:
+  - `GET /partners/options`
+  - `GET /partners/dashboard`
+  - `GET /partners`
+  - `POST /partners`
+  - `GET /partners/:partnerId`
+  - `PATCH /partners/:partnerId`
+  - `DELETE /partners/:partnerId`
+  - `GET /partners/:partnerId/deals`
+  - `POST /partners/:partnerId/deals`
+  - `PATCH /partners/:partnerId/deals/:dealId`
+- Partner channel frontend route `/partners` with partner dashboard, list, detail, onboarding checklist, and deal registration views
+- partner AI placeholders (fit score, performance summary, action plan, churn risk, conflict detection)
+- partner enablement assets, training linkage, and support tickets placeholders
+- exhaustive Phase 13 validation script `tests/phase13-partner-channel-exhaustive.mjs`
+- new partner/reseller functional spec and partner manager user guide, plus module catalog, data model, and API documentation updates
+
 
 - Phase 12 migration `20260617030000_phase12_business_development_presales.sql`
 - tenant-scoped `bd_target_accounts`, `bd_account_stakeholders`, `presales_requests`, and `presales_requirements` tables

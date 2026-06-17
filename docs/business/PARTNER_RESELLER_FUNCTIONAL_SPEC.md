@@ -1,0 +1,56 @@
+# Partner and Reseller Functional Specification
+
+## Purpose
+
+This document describes the partner channel management capabilities delivered in Phase 13. It covers partner profiles, partner operations, deal registration, and the partner performance dashboard for channel and reseller motions.
+
+## Scope
+
+Phase 13 introduces a tenant-aware partner channel module backed by the `partners`, `partner_contacts`, `partner_onboarding_tasks`, and `partner_deal_registrations` tables. Access is governed by the existing `partners.*` permission set and tenant module switches.
+
+## Partner Profile
+
+Each partner record captures:
+- Partner name
+- Partner type (reseller, referral, system integrator, technology, distributor)
+- Partner tier (registered, silver, gold, platinum)
+- Region and territory
+- Status (prospect, active, suspended, terminated)
+- Agreement details (reference, start date, end date, notes)
+- Partner contacts (with optional links to CRM contacts and a primary flag)
+- Partner owner
+- Onboarding status (not started, in progress, completed)
+
+## Partner Operations
+
+- Partner onboarding checklist: ordered tasks with status (pending, in progress, completed, blocked), due dates, and notes.
+- Partner lead tracking: deal registrations may reference an originating lead.
+- Partner opportunity tracking: deal registrations may link to an opportunity.
+- Deal registration: partner-sourced deals with stage (registered, approved, in progress, won, lost, rejected), customer name, amount, and expected close date.
+- Partner enablement assets: placeholder for a future collateral library.
+- Partner training linkage: placeholder for a future training and certification module.
+- Partner support tickets linkage: placeholder pending the support module.
+- Partner performance dashboard: active partners, onboarding-in-progress, registered and won deals, registered deal value, and tier distribution.
+
+## AI Placeholders
+
+Permission-aware, deferred until the AI Gateway phase:
+- Partner fit score
+- Partner performance summary
+- Partner action plan
+- Partner churn risk
+- Partner conflict detection
+
+## Permissions and Visibility
+
+- All partner routes require one of the `partners.*` permissions.
+- Visibility follows owner/team/all scoping; roles without shared-scope permissions see only owned partners.
+- Ownership reassignment requires `partners.assign` or `partners.configure`.
+- Deal registration requires `partners.create`, `partners.edit`, or `partners.configure`.
+
+## Out of Scope (Phase 13)
+
+- Partner portal / external partner login
+- Automated deal-registration approval workflows
+- Live enablement asset library, training linkage, and support ticket linkage (placeholders only)
+- AI execution for the partner AI placeholders

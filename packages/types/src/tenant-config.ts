@@ -1006,6 +1006,93 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       seeded: true,
       category: "presales"
     }
+  },
+  {
+    setKey: "partner-type",
+    moduleKey: "partners",
+    kind: "dropdown",
+    name: "Partner Type",
+    description: "Partner classifications for channel partner management.",
+    values: [
+      { key: "reseller", label: "Reseller", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "referral", label: "Referral", color: "#14b8a6", sortOrder: 1 },
+      { key: "system_integrator", label: "System Integrator", color: "#8b5cf6", sortOrder: 2 },
+      { key: "technology", label: "Technology", color: "#6366f1", sortOrder: 3 },
+      { key: "distributor", label: "Distributor", color: "#f59e0b", sortOrder: 4 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "partners"
+    }
+  },
+  {
+    setKey: "partner-tier",
+    moduleKey: "partners",
+    kind: "dropdown",
+    name: "Partner Tier",
+    description: "Partner tiering for channel program levels.",
+    values: [
+      { key: "registered", label: "Registered", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "silver", label: "Silver", color: "#94a3b8", sortOrder: 1 },
+      { key: "gold", label: "Gold", color: "#f59e0b", sortOrder: 2 },
+      { key: "platinum", label: "Platinum", color: "#8b5cf6", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "partners"
+    }
+  },
+  {
+    setKey: "partner-status",
+    moduleKey: "partners",
+    kind: "dropdown",
+    name: "Partner Status",
+    description: "Lifecycle status for channel partners.",
+    values: [
+      { key: "prospect", label: "Prospect", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "active", label: "Active", color: "#22c55e", sortOrder: 1 },
+      { key: "suspended", label: "Suspended", color: "#f59e0b", sortOrder: 2 },
+      { key: "terminated", label: "Terminated", color: "#ef4444", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "partners"
+    }
+  },
+  {
+    setKey: "partner-onboarding-status",
+    moduleKey: "partners",
+    kind: "dropdown",
+    name: "Partner Onboarding Status",
+    description: "Onboarding progression states for channel partners.",
+    values: [
+      { key: "not_started", label: "Not Started", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "in_progress", label: "In Progress", color: "#0ea5e9", sortOrder: 1 },
+      { key: "completed", label: "Completed", color: "#22c55e", sortOrder: 2 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "partners"
+    }
+  },
+  {
+    setKey: "partner-deal-stage",
+    moduleKey: "partners",
+    kind: "pipeline",
+    name: "Partner Deal Stage",
+    description: "Deal registration stages for partner-sourced opportunities.",
+    values: [
+      { key: "registered", label: "Registered", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "approved", label: "Approved", color: "#06b6d4", sortOrder: 1 },
+      { key: "in_progress", label: "In Progress", color: "#8b5cf6", sortOrder: 2 },
+      { key: "won", label: "Won", color: "#22c55e", sortOrder: 3 },
+      { key: "lost", label: "Lost", color: "#ef4444", sortOrder: 4 },
+      { key: "rejected", label: "Rejected", color: "#b91c1c", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "partners"
+    }
   }
 ];
 
