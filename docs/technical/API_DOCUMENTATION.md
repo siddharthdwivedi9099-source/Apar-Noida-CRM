@@ -565,6 +565,23 @@ All routes require one of the `resellers.*` permissions and are tenant-scoped wi
 - `POST /resellers/:resellerId/deals` — register a deal (requires `name`); optional opportunity/account/lead links and per-deal margin percent
 - `PATCH /resellers/:resellerId/deals/:dealId` — update a registered deal (stage, amount, margin, links)
 
+## Support Ticketing Routes (Phase 15)
+
+All routes require one of the `support.*` permissions and are tenant-scoped with owner/team/all visibility (`mine` matches owner or assignee).
+
+- `GET /support/options` — owners, accounts, contacts, ticket status/priority/category/source option sets, knowledge categories, SLA policies, available scopes
+- `GET /support/dashboard` — total/open/resolved/unassigned/escalated/SLA-breached counts, status and priority distribution, knowledge article count
+- `GET /support/sla-policies` — configured SLA policies
+- `POST /support/sla-policies` — create an SLA policy (requires `support.configure`/`support.manage_workflow`); fields `name`, `firstResponseMinutes`, `resolutionMinutes`, optional `priorityKey`
+- `GET /support/knowledge-articles`, `POST /support/knowledge-articles` — knowledge base list and create
+- `GET /support/tickets` — paginated tickets; filters: `search`, `status`, `priority`, `category`, `source`, `assigneeId`, `accountId`, `escalationStatus`, `breachedOnly`, `scope`, `sortBy`, `sortOrder`
+- `POST /support/tickets` — create a ticket (requires `subject`); attaching an SLA policy computes first-response and resolution due dates
+- `GET /support/tickets/:ticketId` — ticket detail with SLA status, messages, linked articles, root cause, resolution notes, and placeholders (attachments, CSAT, escalation)
+- `PATCH /support/tickets/:ticketId` — partial update; assignment-only mutations allowed for assign permission; status transitions maintain `resolved_at`
+- `DELETE /support/tickets/:ticketId` — soft-delete the ticket and its child records
+- `POST /support/tickets/:ticketId/messages` — add an `internal_note` or `customer_reply`; the first customer reply records the SLA first-response time
+- `POST /support/tickets/:ticketId/articles` — link a knowledge article to the ticket
+
 ## Validation and Error Handling
 
 Common behaviors:

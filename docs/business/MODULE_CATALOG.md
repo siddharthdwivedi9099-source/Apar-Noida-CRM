@@ -183,11 +183,23 @@ This catalog records the major platform and business modules in the product and 
   - permission-aware AI placeholders (fit score, performance summary, action plan, churn risk, conflict detection)
 - Shared dependencies: RBAC, tenant option sets, audit logging, accounts, contacts, opportunities, leads, dashboards
 
-### Support
+### Support Ticketing
 
-- Status: planned
-- Purpose: issue intake, triage, and resolution
-- Expected dependencies: accounts, contacts, option sets, audit logging
+- Status: implemented in Phase 15
+- Purpose: ticket queues, SLA tracking, escalation, conversation, and knowledge base for service operations
+- Primary users: support executives and managers
+- Implemented capabilities:
+  - ticket list, detail, create, edit, assign, soft delete
+  - ticket status, priority, category, and source classification
+  - SLA policy configuration with first-response and resolution due-date calculation and breach status
+  - escalation status, root cause, and resolution notes
+  - internal notes and customer-visible replies
+  - related account, contact, and customer success account links
+  - knowledge base articles with categories and ticket linkage
+  - support dashboard (open, unassigned, escalated, SLA-breached, distributions)
+  - attachments, CSAT, and escalation workflow placeholders
+  - permission-aware AI placeholders (classification, suggested response, similar tickets, knowledge recommendation, summary, escalation recommendation)
+- Shared dependencies: RBAC, tenant option sets, audit logging, accounts, contacts, dashboards
 
 ### Customer Success
 

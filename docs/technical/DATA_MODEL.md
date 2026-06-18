@@ -320,6 +320,34 @@ Reseller deal registration and reseller opportunity/lead tracking. Key columns:
 - `name`, `customer_name`, `stage_option_id` (`reseller-deal-stage`)
 - `amount`, `margin_percent`, `expected_close_date`, `notes`, `metadata`.
 
+## Support Ticketing Tables (Phase 15)
+
+### `support_sla_policies`
+
+SLA policy configuration. Key columns: `name`, optional `priority_option_id` (`support-ticket-priority`), `first_response_minutes`, `resolution_minutes`, `is_active`.
+
+### `support_tickets`
+
+Support tickets. Key columns:
+- `account_id`, `contact_id`, `customer_success_account_id` (optional links), `owner_id`, `assignee_id`, `sla_policy_id`
+- `subject`, `description`
+- `status_option_id` (`support-ticket-status`), `priority_option_id` (`support-ticket-priority`), `category_option_id` (`support-ticket-category`), `source_option_id` (`support-ticket-source`)
+- `escalation_status` (`none|pending|escalated|resolved`), `root_cause`, `resolution_notes`
+- SLA tracking: `first_response_due_at`, `resolution_due_at`, `first_response_at`, `resolved_at` (breach is computed from these at read time)
+- `metadata`; tenant-scoped composite FKs; soft-deleted via `deleted_at`.
+
+### `support_ticket_messages`
+
+Internal notes and customer-visible replies. Key columns: `ticket_id`, `author_id`, `message_type` (`internal_note|customer_reply`), `body`.
+
+### `support_knowledge_articles`
+
+Knowledge base articles. Key columns: `title`, optional `category_option_id` (`support-knowledge-category`), `summary`, `body`, `status` (`draft|published|archived`).
+
+### `support_ticket_articles`
+
+Junction linking knowledge articles to tickets. Key columns: `ticket_id`, `article_id` (unique active per ticket/article pair).
+
 ## Shared Productivity Tables
 
 ### `crm_notes`

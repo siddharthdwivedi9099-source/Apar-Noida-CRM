@@ -2000,3 +2000,253 @@ export interface ResellerDashboardResponse {
   pricingTierDistribution: Array<{ pricingTier: CrmOptionValueSummary | null; resellerCount: number }>;
   performancePlaceholder: ResellerPlaceholderSurface;
 }
+
+// ============================================================================
+// Phase 15: Support Ticketing Management
+// ============================================================================
+
+export const supportTicketScopes = ["mine", "team", "all"] as const;
+export type SupportTicketScope = (typeof supportTicketScopes)[number];
+
+export const supportTicketSortFields = ["subject", "priority", "status", "createdAt", "updatedAt", "resolutionDueAt"] as const;
+export type SupportTicketSortField = (typeof supportTicketSortFields)[number];
+
+export const supportEscalationStatuses = ["none", "pending", "escalated", "resolved"] as const;
+export type SupportEscalationStatus = (typeof supportEscalationStatuses)[number];
+
+export const supportTicketMessageTypes = ["internal_note", "customer_reply"] as const;
+export type SupportTicketMessageType = (typeof supportTicketMessageTypes)[number];
+
+export const supportKnowledgeArticleStatuses = ["draft", "published", "archived"] as const;
+export type SupportKnowledgeArticleStatus = (typeof supportKnowledgeArticleStatuses)[number];
+
+export interface SupportPlaceholderSurface {
+  available: false;
+  message: string;
+}
+
+export interface SupportAiPlaceholderAction {
+  key:
+    | "ticket_classification"
+    | "suggested_response"
+    | "similar_tickets"
+    | "knowledge_recommendation"
+    | "ticket_summary"
+    | "escalation_recommendation";
+  label: string;
+  description: string;
+}
+
+export interface SupportAiPlaceholderSummary {
+  actions: SupportAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface SupportSlaPolicySummary {
+  id: string;
+  name: string;
+  priority: CrmOptionValueSummary | null;
+  firstResponseMinutes: number;
+  resolutionMinutes: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSupportSlaPolicyRequestBody {
+  name: string;
+  priorityKey?: string | null;
+  firstResponseMinutes: number;
+  resolutionMinutes: number;
+  isActive?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SupportSlaPoliciesResponse {
+  policies: SupportSlaPolicySummary[];
+}
+
+export interface SupportSlaPolicyResponse {
+  policy: SupportSlaPolicySummary;
+}
+
+export interface SupportSlaStatus {
+  policy: SupportSlaPolicySummary | null;
+  firstResponseDueAt: string | null;
+  resolutionDueAt: string | null;
+  firstResponseAt: string | null;
+  resolvedAt: string | null;
+  firstResponseBreached: boolean;
+  resolutionBreached: boolean;
+}
+
+export interface SupportTicketMessageSummary {
+  id: string;
+  messageType: SupportTicketMessageType;
+  body: string;
+  author: CrmLookupUserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSupportTicketMessageRequestBody {
+  messageType: SupportTicketMessageType;
+  body: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SupportKnowledgeArticleSummary {
+  id: string;
+  title: string;
+  category: CrmOptionValueSummary | null;
+  summary: string | null;
+  body: string | null;
+  status: SupportKnowledgeArticleStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSupportKnowledgeArticleRequestBody {
+  title: string;
+  categoryKey?: string | null;
+  summary?: string | null;
+  body?: string | null;
+  status?: SupportKnowledgeArticleStatus;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SupportKnowledgeArticlesResponse {
+  articles: SupportKnowledgeArticleSummary[];
+}
+
+export interface SupportKnowledgeArticleResponse {
+  article: SupportKnowledgeArticleSummary;
+}
+
+export interface LinkSupportArticleRequestBody {
+  articleId: string;
+}
+
+export interface SupportTicketListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  priority?: string;
+  category?: string;
+  source?: string;
+  assigneeId?: string;
+  accountId?: string;
+  escalationStatus?: SupportEscalationStatus;
+  breachedOnly?: boolean;
+  scope?: SupportTicketScope;
+  sortBy?: SupportTicketSortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface SupportTicketSummary {
+  id: string;
+  subject: string;
+  status: CrmOptionValueSummary | null;
+  priority: CrmOptionValueSummary | null;
+  category: CrmOptionValueSummary | null;
+  source: CrmOptionValueSummary | null;
+  account: AccountLookupSummary | null;
+  contact: ContactRelationshipSummary | null;
+  customerSuccessAccount: AccountLookupSummary | null;
+  owner: CrmLookupUserSummary | null;
+  assignee: CrmLookupUserSummary | null;
+  escalationStatus: SupportEscalationStatus;
+  sla: SupportSlaStatus;
+  messageCount: number;
+  articleCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupportTicketDetail extends SupportTicketSummary {
+  description: string | null;
+  rootCause: string | null;
+  resolutionNotes: string | null;
+  messages: SupportTicketMessageSummary[];
+  articles: SupportKnowledgeArticleSummary[];
+  attachmentsPlaceholder: SupportPlaceholderSurface;
+  csatPlaceholder: SupportPlaceholderSurface;
+  escalationPlaceholder: SupportPlaceholderSurface;
+  aiPlaceholders: SupportAiPlaceholderSummary;
+}
+
+export interface CreateSupportTicketRequestBody {
+  subject: string;
+  description?: string | null;
+  statusKey?: string;
+  priorityKey?: string;
+  categoryKey?: string;
+  sourceKey?: string;
+  accountId?: string | null;
+  contactId?: string | null;
+  customerSuccessAccountId?: string | null;
+  ownerId?: string | null;
+  assigneeId?: string | null;
+  slaPolicyId?: string | null;
+  escalationStatus?: SupportEscalationStatus;
+  rootCause?: string | null;
+  resolutionNotes?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateSupportTicketRequestBody {
+  subject?: string;
+  description?: string | null;
+  statusKey?: string;
+  priorityKey?: string;
+  categoryKey?: string;
+  sourceKey?: string;
+  accountId?: string | null;
+  contactId?: string | null;
+  customerSuccessAccountId?: string | null;
+  ownerId?: string | null;
+  assigneeId?: string | null;
+  slaPolicyId?: string | null;
+  escalationStatus?: SupportEscalationStatus;
+  rootCause?: string | null;
+  resolutionNotes?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SupportTicketResponse {
+  ticket: SupportTicketDetail;
+}
+
+export interface SupportTicketsResponse {
+  tickets: SupportTicketSummary[];
+  pagination: CrmPagination;
+}
+
+export interface SupportTicketOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  accounts: AccountLookupSummary[];
+  contacts: ContactRelationshipSummary[];
+  statuses: CrmOptionValueSummary[];
+  priorities: CrmOptionValueSummary[];
+  categories: CrmOptionValueSummary[];
+  sources: CrmOptionValueSummary[];
+  knowledgeCategories: CrmOptionValueSummary[];
+  slaPolicies: SupportSlaPolicySummary[];
+  availableScopes: SupportTicketScope[];
+}
+
+export interface SupportDashboardResponse {
+  scope: SupportTicketScope;
+  totalTickets: number;
+  openTickets: number;
+  resolvedTickets: number;
+  unassignedTickets: number;
+  escalatedTickets: number;
+  slaBreachedTickets: number;
+  statusDistribution: Array<{ status: CrmOptionValueSummary | null; ticketCount: number }>;
+  priorityDistribution: Array<{ priority: CrmOptionValueSummary | null; ticketCount: number }>;
+  knowledgeArticleCount: number;
+  csatPlaceholder: SupportPlaceholderSurface;
+}

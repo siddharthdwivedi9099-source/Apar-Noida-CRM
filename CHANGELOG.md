@@ -2,9 +2,29 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 14 implementation work.
+Current repository state now includes Phase 1 through Phase 15 implementation work.
 
 ### Added
+
+- Phase 15 migration `20260617090000_phase15_support_ticketing.sql`
+- tenant-scoped `support_sla_policies`, `support_tickets`, `support_ticket_messages`, `support_knowledge_articles`, and `support_ticket_articles` tables
+- seeded support option sets for ticket priority, category, source, and knowledge category (reusing the existing ticket status set)
+- Support ticketing APIs:
+  - `GET /support/options`
+  - `GET /support/dashboard`
+  - `GET /support/sla-policies`, `POST /support/sla-policies`
+  - `GET /support/knowledge-articles`, `POST /support/knowledge-articles`
+  - `GET /support/tickets`, `POST /support/tickets`
+  - `GET /support/tickets/:ticketId`, `PATCH /support/tickets/:ticketId`, `DELETE /support/tickets/:ticketId`
+  - `POST /support/tickets/:ticketId/messages` (internal notes and customer replies)
+  - `POST /support/tickets/:ticketId/articles` (link knowledge article)
+- support frontend at `/support` replacing the placeholder with a ticket dashboard, queue, ticket detail, SLA tracking, conversation, and knowledge base
+- SLA policy configuration with first-response and resolution due-date calculation and breach status
+- support AI placeholders (ticket classification, suggested response, similar tickets, knowledge recommendation, ticket summary, escalation recommendation)
+- attachments, CSAT, and escalation workflow placeholders
+- exhaustive Phase 15 validation script `tests/phase15-support-ticketing-exhaustive.mjs`
+- new support ticketing functional spec and support user guide, plus data model, API documentation, and module catalog updates
+
 
 - Phase 14 migration `20260617070000_phase14_reseller_management.sql`
 - tenant-scoped `resellers`, `reseller_contacts`, `reseller_onboarding_tasks`, and `reseller_deal_registrations` tables

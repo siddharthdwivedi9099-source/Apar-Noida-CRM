@@ -897,6 +897,78 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "support-ticket-priority",
+    moduleKey: "support",
+    kind: "dropdown",
+    name: "Support Ticket Priority",
+    description: "Priority levels for support tickets and SLA targeting.",
+    values: [
+      { key: "low", label: "Low", color: "#64748b", sortOrder: 0 },
+      { key: "medium", label: "Medium", color: "#0ea5e9", sortOrder: 1, isDefault: true },
+      { key: "high", label: "High", color: "#f59e0b", sortOrder: 2 },
+      { key: "urgent", label: "Urgent", color: "#ef4444", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "support"
+    }
+  },
+  {
+    setKey: "support-ticket-category",
+    moduleKey: "support",
+    kind: "dropdown",
+    name: "Support Ticket Category",
+    description: "Categories for triaging support tickets.",
+    values: [
+      { key: "technical", label: "Technical", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "billing", label: "Billing", color: "#8b5cf6", sortOrder: 1 },
+      { key: "how_to", label: "How To", color: "#14b8a6", sortOrder: 2 },
+      { key: "bug", label: "Bug", color: "#ef4444", sortOrder: 3 },
+      { key: "feature_request", label: "Feature Request", color: "#f59e0b", sortOrder: 4 },
+      { key: "other", label: "Other", color: "#64748b", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "support"
+    }
+  },
+  {
+    setKey: "support-ticket-source",
+    moduleKey: "support",
+    kind: "dropdown",
+    name: "Support Ticket Source",
+    description: "Intake channels for support tickets.",
+    values: [
+      { key: "email", label: "Email", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "portal", label: "Portal", color: "#14b8a6", sortOrder: 1 },
+      { key: "phone", label: "Phone", color: "#f59e0b", sortOrder: 2 },
+      { key: "chat", label: "Chat", color: "#8b5cf6", sortOrder: 3 },
+      { key: "api", label: "API", color: "#64748b", sortOrder: 4 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "support"
+    }
+  },
+  {
+    setKey: "support-knowledge-category",
+    moduleKey: "support",
+    kind: "dropdown",
+    name: "Support Knowledge Category",
+    description: "Categories for knowledge base articles.",
+    values: [
+      { key: "getting_started", label: "Getting Started", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "troubleshooting", label: "Troubleshooting", color: "#ef4444", sortOrder: 1 },
+      { key: "billing", label: "Billing", color: "#8b5cf6", sortOrder: 2 },
+      { key: "integrations", label: "Integrations", color: "#14b8a6", sortOrder: 3 },
+      { key: "faq", label: "FAQ", color: "#64748b", sortOrder: 4 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "support"
+    }
+  },
+  {
     setKey: "customer-success-stage",
     moduleKey: "customer_success",
     kind: "customer_success_stage",
