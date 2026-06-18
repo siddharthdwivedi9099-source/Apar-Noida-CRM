@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { apiConfig } from "@crm/config";
+import { createAiGatewayRouter } from "../modules/ai/ai-gateway.router.js";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
 import {
   createBusinessDevelopmentRouter,
@@ -36,7 +37,7 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-17-operational"
+      status: "phase-18-operational"
     });
   });
 
@@ -55,6 +56,7 @@ export function createV1Router({
   router.use("/support", createSupportRouter({ databaseService }));
   router.use("/customer-success", createCustomerSuccessRouter({ databaseService }));
   router.use("/training", createTrainingRouter({ databaseService }));
+  router.use("/ai", createAiGatewayRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;

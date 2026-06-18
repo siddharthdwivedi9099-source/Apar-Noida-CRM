@@ -87,6 +87,19 @@ Still future work:
 - domain-specific approval policies
 - richer user lifecycle administration beyond seeded users
 
+## AI Access Control (Phase 18)
+
+The AI Gateway enforces access control on every AI surface:
+
+- **Execution** — `POST /ai/gateway/execute` requires `ai.use_ai` (or `ai.manage_ai`/`ai.configure`). Requests are denied and logged when AI is disabled for the tenant.
+- **Configuration** — `PATCH /ai/settings` requires `ai.configure` or `ai.manage_ai`. Read access to settings, providers, and templates requires any `ai.*` permission.
+- **Logs and usage** — `GET /ai/logs` and `GET /ai/usage` require `ai.view`, `ai.view_dashboard`, `ai.manage_ai`, or `ai.configure`.
+- **Provider/model overrides** — rejected unless the tenant enables `allow_user_overrides`.
+- **Tenant isolation** — AI settings and `ai_usage_logs` are tenant-scoped; cross-tenant access is not possible.
+- **Auditability** — gateway executions and settings changes are written to the audit log; all requests are written to `ai_usage_logs`.
+
+See [../ai/AI_GOVERNANCE.md](../ai/AI_GOVERNANCE.md) for the full governance model.
+
 ## Relationship to the RBAC Matrix
 
 [RBAC_MATRIX.md](./RBAC_MATRIX.md) now reflects the actual seeded modules, action categories, and role templates rather than a planning-only access sketch.

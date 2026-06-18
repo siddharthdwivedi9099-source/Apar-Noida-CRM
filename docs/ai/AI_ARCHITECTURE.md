@@ -142,6 +142,15 @@ When implementation begins:
 - avoid hard-coding retrieval logic into business modules
 - require evaluation coverage for any materially changed AI workflow
 
-## Phase 0 Note
+## Phase 18 Implementation
 
-This architecture is a design baseline only. No AI runtime, provider integrations, or evaluation pipelines are implemented yet.
+The AI Gateway foundation is implemented in Phase 18.
+
+- **Single entry point** — every AI call routes through `POST /ai/gateway/execute`. Business logic never calls providers directly and never embeds prompt text.
+- **Provider abstraction** — `@crm/ai` defines an `AiProvider` interface and placeholder implementations for OpenAI, Anthropic, Azure OpenAI, and a local model. `createAiProviderRegistry` builds the set from environment configuration.
+- **Environment-based configuration** — `AI_DEFAULT_PROVIDER`, `AI_DEFAULT_MODEL`, `AI_RATE_LIMIT_PER_MINUTE`, and per-provider keys/endpoints are read from the API environment; per-tenant overrides live in `ai_settings`.
+- **Prompt registry** — `defaultAiPromptTemplates` in `@crm/types` is the managed prompt source; callers pass a `templateKey` plus variables.
+- **Tenant-aware** — settings and usage logs are keyed by tenant; the gateway resolves the tenant's settings on every call.
+- **Permissioned** — gateway execution requires `ai.use_ai` (or higher); settings require `ai.configure`/`ai.manage_ai`; logs require view/dashboard/manage permissions.
+- **Logged** — every request is written to `ai_usage_logs` (provider, model, template, status, tokens, latency, errors) and to the audit log.
+- **Deferred execution** — providers return governed placeholder responses (status `placeholder`) until credentials and a later execution phase are enabled. A rate-limit placeholder is reported but not enforced.

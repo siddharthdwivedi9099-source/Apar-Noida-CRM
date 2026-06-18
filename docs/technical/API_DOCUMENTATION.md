@@ -626,6 +626,18 @@ All routes require one of the `training.*` permissions and are tenant-scoped.
 - `POST /training/assignments/:assignmentId/progress` — mark lesson progress; recomputes assignment completion and status
 - `POST /training/assignments/:assignmentId/feedback` — submit a rating (1–5) and comments
 
+## AI Gateway Routes (Phase 18)
+
+All routes require one of the `ai.*` permissions and are tenant-scoped. Every AI call routes through the gateway; prompts come from the managed template registry.
+
+- `GET /ai/settings` — tenant AI settings (auto-created with environment defaults on first access)
+- `PATCH /ai/settings` — update settings (requires `ai.configure`/`ai.manage_ai`): `isEnabled`, `defaultProvider`, `defaultModel`, `rateLimitPerMinute`, `allowUserOverrides`, `redactionEnabled`, `loggingEnabled`
+- `GET /ai/providers` — abstracted providers (openai, anthropic, azure_openai, local) with configured status, default flag, and gateway-enabled state
+- `GET /ai/templates` — the managed prompt template registry (key, name, capability, category, requestType, variables)
+- `POST /ai/gateway/execute` — single execution entry point (requires `ai.use_ai`); body: `templateKey`, optional `variables`, `providerKey`, `model`, `requestType`. Returns provider, model, status, output, resolved prompt, usage, latency, rate-limit and governance info. Errors: `AI_DISABLED`, `AI_TEMPLATE_NOT_FOUND`, `AI_OVERRIDE_NOT_ALLOWED`.
+- `GET /ai/logs` — paginated AI usage logs (filters: `provider`, `status`, `templateKey`)
+- `GET /ai/usage` — usage summary (totals, token sum, provider/status distributions)
+
 ## Validation and Error Handling
 
 Common behaviors:

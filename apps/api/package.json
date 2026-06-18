@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@crm/ai": "file:../../packages/ai",
     "@crm/config": "file:../../packages/config",
     "@crm/database": "file:../../packages/database",
     "@crm/types": "file:../../packages/types",

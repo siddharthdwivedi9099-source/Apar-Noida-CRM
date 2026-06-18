@@ -9,7 +9,7 @@
   "scripts": {
     "build:packages": "npm run build --workspace @crm/types && npm run build --workspace @crm/config && npm run build --workspace @crm/ui && npm run build --workspace @crm/auth && npm run build --workspace @crm/ai && npm run build --workspace @crm/database",
     "build:web-deps": "npm run build --workspace @crm/types && npm run build --workspace @crm/config && npm run build --workspace @crm/ui && npm run build --workspace @crm/auth && npm run build --workspace @crm/ai",
-    "build:api-deps": "npm run build --workspace @crm/types && npm run build --workspace @crm/config && npm run build --workspace @crm/database",
+    "build:api-deps": "npm run build --workspace @crm/types && npm run build --workspace @crm/config && npm run build --workspace @crm/ai && npm run build --workspace @crm/database",
     "dev": "npm run build:packages && concurrently -n web,api -c cyan,green \"npm run dev --workspace @crm/web\" \"npm run dev --workspace @crm/api\"",
     "dev:web": "npm run build:web-deps && npm run dev --workspace @crm/web",
     "dev:api": "npm run build:api-deps && npm run dev --workspace @crm/api",

@@ -52,7 +52,16 @@ const envSchema = z.object({
   AUTH_COOKIE_SECURE: booleanish.default(false),
   AUTH_COOKIE_SAME_SITE: z.enum(["lax", "strict", "none"]).default("lax"),
   REDIS_ENABLED: booleanish.default(false),
-  REDIS_URL: z.string().default("redis://localhost:6380")
+  REDIS_URL: z.string().default("redis://localhost:6380"),
+  AI_GATEWAY_ENABLED: booleanish.default(true),
+  AI_DEFAULT_PROVIDER: z.enum(["openai", "anthropic", "azure_openai", "local"]).default("anthropic"),
+  AI_DEFAULT_MODEL: z.string().default("claude-opus-4-8"),
+  AI_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
+  AI_OPENAI_API_KEY: z.string().default(""),
+  AI_ANTHROPIC_API_KEY: z.string().default(""),
+  AI_AZURE_OPENAI_API_KEY: z.string().default(""),
+  AI_AZURE_OPENAI_ENDPOINT: z.string().default(""),
+  AI_LOCAL_ENDPOINT: z.string().default("")
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

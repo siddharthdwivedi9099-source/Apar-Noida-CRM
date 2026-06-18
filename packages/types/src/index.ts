@@ -4,6 +4,7 @@ import type { TenantSummary } from "./tenant-config.js";
 export * from "./rbac.js";
 export * from "./crm.js";
 export * from "./tenant-config.js";
+export * from "./ai.js";
 
 export type EnvironmentName = "development" | "test" | "production";
 

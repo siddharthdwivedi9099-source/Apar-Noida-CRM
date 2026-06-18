@@ -2,9 +2,23 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 17 implementation work.
+Current repository state now includes Phase 1 through Phase 18 implementation work.
 
 ### Added
+
+- Phase 18 migration `20260618050000_phase18_ai_gateway.sql` with tenant-scoped `ai_settings` and append-only `ai_usage_logs`
+- AI Gateway as the single entry point for all AI calls, with a provider abstraction in `@crm/ai` and placeholder providers for OpenAI, Anthropic, Azure OpenAI, and a local model
+- environment-based AI configuration (`AI_GATEWAY_ENABLED`, `AI_DEFAULT_PROVIDER`, `AI_DEFAULT_MODEL`, `AI_RATE_LIMIT_PER_MINUTE`, and per-provider keys/endpoints)
+- managed prompt template registry (`defaultAiPromptTemplates`) so prompts are never hardcoded in business logic
+- AI Gateway APIs under `/ai`:
+  - `GET/PATCH /ai/settings`, `GET /ai/providers`, `GET /ai/templates`
+  - `POST /ai/gateway/execute` (permissioned, tenant-aware, logged, with rate-limit placeholder)
+  - `GET /ai/logs`, `GET /ai/usage`
+- AI usage logging, AI permission checks, tenant-aware AI usage, and an AI error model (`AI_DISABLED`, `AI_TEMPLATE_NOT_FOUND`, `AI_OVERRIDE_NOT_ALLOWED`)
+- AI workspace frontend at `/ai-assistant` with Assistant (gateway execution panel), Settings (admin), and Logs tabs replacing the placeholder
+- exhaustive Phase 18 validation script `tests/phase18-ai-gateway-exhaustive.mjs`
+- AI architecture, AI gateway design, AI governance, access control guide, and API documentation updates
+
 
 - Phase 17 migration `20260618030000_phase17_customer_training.sql`
 - nine tenant-scoped training tables: `training_programs`, `training_modules`, `training_lessons`, `training_assets`, `training_assignments`, `customer_learners`, `training_progress`, `training_feedback`, and `training_certifications`
