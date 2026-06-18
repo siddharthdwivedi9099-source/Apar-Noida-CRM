@@ -11,6 +11,10 @@ import { AdminPage } from "./pages/admin-page";
 import { AiAssistantPage } from "./pages/ai-assistant-page";
 import { AgentRegistryPage } from "./pages/agent-registry-page";
 import { PromptRegistryPage } from "./pages/prompt-registry-page";
+import { KnowledgeManagerPage } from "./pages/knowledge-manager-page";
+import { DocumentUploadPage } from "./pages/document-upload-page";
+import { KnowledgeArticleEditorPage } from "./pages/knowledge-article-editor-page";
+import { RagConsolePage } from "./pages/rag-console-page";
 import { CampaignDetailPage } from "./pages/campaign-detail-page";
 import { CampaignFormPage } from "./pages/campaign-form-page";
 import { CampaignsPage } from "./pages/campaigns-page";
@@ -727,6 +731,58 @@ export const router = createBrowserRouter([
                 moduleKey="ai"
               >
                 <AgentRegistryPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "knowledge",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.aiAssistant}
+                title="Knowledge base access is limited by role."
+                description="Open the knowledge base with a role that includes AI access for the tenant."
+                moduleKey="ai"
+              >
+                <KnowledgeManagerPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "knowledge/upload",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.aiAssistant}
+                title="Document upload access is limited by role."
+                description="Open document ingestion with a role that includes AI access for the tenant."
+                moduleKey="ai"
+              >
+                <DocumentUploadPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "knowledge/articles",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.aiAssistant}
+                title="Knowledge article access is limited by role."
+                description="Open the article editor with a role that includes AI access for the tenant."
+                moduleKey="ai"
+              >
+                <KnowledgeArticleEditorPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "knowledge/rag-console",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.aiAssistant}
+                title="RAG console access is limited by role."
+                description="Open the RAG test console with a role that includes AI access for the tenant."
+                moduleKey="ai"
+              >
+                <RagConsolePage />
               </PermissionRoute>
             )
           }

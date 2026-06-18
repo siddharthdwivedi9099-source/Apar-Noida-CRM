@@ -661,6 +661,44 @@ All routes require an `ai.*` permission and are tenant-scoped. Sixteen baseline 
 - `POST /ai/agents` — create a custom agent (requires `ai.create`/`ai.configure`/`ai.manage_ai`); body: `agentKey`, `name`, optional `purpose`, `module`, `allowedTools`, `allowedRoles`, `dataAccessScope` (`own`/`team`/`module`/`tenant`), `requiresHumanApproval`, `status`, `loggingEnabled`, `escalationRules`. Error: `AI_AGENT_KEY_EXISTS` (409).
 - `PATCH /ai/agents/:agentId` — configure an agent (requires `ai.edit`/`ai.configure`/`ai.manage_ai`): any of the create fields.
 
+## RAG Knowledge System Routes (Phase 20)
+
+All routes require an `ai.*` permission and are tenant-scoped. Knowledge sources, documents, chunks, articles, and gaps are isolated per tenant; retrieval is permission-aware.
+
+### Knowledge sources
+
+- `GET /ai/knowledge/sources` — list sources (filters: `sourceType`, `isEnabled`, `search`); seeds nine baseline sources on first read.
+- `POST /ai/knowledge/sources` — create a source (requires `ai.create`/`ai.configure`/`ai.manage_ai`): `sourceKey`, `name`, `sourceType`, optional `accessScope` (`tenant`/`restricted`), `requiredPermission`, `isEnabled`. Error: `KNOWLEDGE_SOURCE_KEY_EXISTS` (409).
+- `GET /ai/knowledge/sources/:sourceId` — source detail with document count. Error: `KNOWLEDGE_SOURCE_NOT_FOUND` (404).
+- `PATCH /ai/knowledge/sources/:sourceId` — update a source (requires `ai.edit`/...).
+
+### Documents and chunks
+
+- `GET /ai/knowledge/documents` — paginated document list (filters: `sourceId`, `status`, `search`).
+- `POST /ai/knowledge/sources/:sourceId/documents` — text ingestion (requires `ai.create`/...): `title`, `content`, optional `summary`, `contentFormat`, `sourceUri`. Content is chunked immediately; status becomes `chunked`.
+- `GET /ai/knowledge/documents/:documentId` — document detail with chunks. Error: `KNOWLEDGE_DOCUMENT_NOT_FOUND` (404).
+- `GET /ai/knowledge/documents/:documentId/chunks` — list chunks.
+- `POST /ai/knowledge/documents/:documentId/process` — run the embedding placeholder (requires `ai.edit`/...): marks chunks `placeholder`-embedded with a vector reference; status becomes `embedded`.
+
+### Knowledge articles
+
+- `GET /ai/knowledge/articles` — paginated article list (filters: `status`, `category`, `search`).
+- `POST /ai/knowledge/articles` — create an article + version 1 (requires `ai.create`/...): `articleKey`, `title`, `body`, optional `summary`, `category`, `sourceId`. Error: `KNOWLEDGE_ARTICLE_KEY_EXISTS` (409).
+- `GET /ai/knowledge/articles/:articleId` — article detail with version history.
+- `PATCH /ai/knowledge/articles/:articleId` — edit metadata (requires `ai.edit`/...).
+- `POST /ai/knowledge/articles/:articleId/versions` — add a version (requires `ai.edit`/...): `body`, optional `title`, `summary`, `changeSummary`, `activate`.
+- `POST /ai/knowledge/articles/:articleId/status` — set status/publish (requires `ai.approve`/`ai.configure`/`ai.manage_ai`): `status`, optional `isPublished`. Publishing requires `status = approved`, else `KNOWLEDGE_ARTICLE_NOT_APPROVED` (400).
+
+### Knowledge gaps
+
+- `GET /ai/knowledge/gaps` — list gaps (filters: `status`, `search`).
+- `POST /ai/knowledge/gaps` — record a gap (requires `ai.edit`/...): `queryText`, optional `detectedSource`, `relatedArticleId`.
+- `PATCH /ai/knowledge/gaps/:gapId` — update a gap (requires `ai.edit`/...): `status`, `resolutionNote`, `relatedArticleId`. Error: `KNOWLEDGE_GAP_NOT_FOUND` (404).
+
+### Retrieval
+
+- `POST /ai/rag/retrieve` — permission-aware, tenant-scoped retrieval (requires `ai.use_ai`/`ai.view`/`ai.view_dashboard`/`ai.manage_ai`/`ai.configure`): `query`, optional `topK`, `sourceTypes`, `includeArticles`. Returns `citations` (each with source, document/chunk or article, snippet, score), `accessibleSourceCount`, `restrictedSourceCount`, `gapLogged`, and retrieval metadata (`vectorBackend`, `embeddingModel`, `strategy`, `deferred`). Only `approved` + `published` articles and accessible sources are returned; an empty result logs a knowledge gap.
+
 ## Validation and Error Handling
 
 Common behaviors:

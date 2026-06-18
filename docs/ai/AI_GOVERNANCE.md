@@ -48,3 +48,17 @@ The Prompt Registry and AI Agent Registry extend governance from runtime calls t
 - **Permissions.** `ai.create`/`ai.configure`/`ai.manage_ai` to create, `ai.edit`/`ai.configure`/`ai.manage_ai` to configure, any `ai.*` permission to read.
 
 See [PROMPT_REGISTRY.md](./PROMPT_REGISTRY.md) and [AI_AGENT_REGISTRY.md](./AI_AGENT_REGISTRY.md) for the full data model and API surface.
+
+## Knowledge and Retrieval Governance (Phase 20)
+
+The RAG Knowledge System extends governance to the corpus AI retrieves from.
+
+- **Permission-aware retrieval.** Knowledge sources declare an `access_scope` and an optional `required_permission`. Retrieval (`POST /ai/rag/retrieve`) only draws from sources the actor may access; restricted sources (e.g. customer-specific documents, resolved tickets, admin guides) are excluded for users without the gating permission and reported as a restricted count.
+- **Tenant isolation.** Sources, documents, chunks, articles, and gaps are tenant-scoped; retrieval never crosses tenants.
+- **Approved knowledge only.** Knowledge articles are versioned and approval-gated (`draft`/`pending_review`/`approved`/`archived`) and must be `approved` and `published` before retrieval can return them (`KNOWLEDGE_ARTICLE_NOT_APPROVED` guards premature publishing).
+- **Citations.** Every retrieval result is attributable to a source plus a document/chunk or article, so answers can be traced to their origin.
+- **Deferred embeddings.** Embedding generation (through the AI Gateway) and vector storage are placeholders; chunks carry an embedding status and a vector reference, and retrieval advertises `deferred: true`. This exercises governance end-to-end before any external model or vector store is wired in.
+- **Knowledge gaps.** Queries that retrieve nothing are logged to `knowledge_gaps` for review.
+- **Permissions.** Read uses any `ai.*`; create/edit/approve reuse `ai.create`/`ai.edit`/`ai.approve`/`ai.configure`/`ai.manage_ai`; retrieval requires `ai.use_ai`/`ai.view`/`ai.view_dashboard`/`ai.manage_ai`/`ai.configure`. All knowledge mutations and retrieval are audited.
+
+See [RAG_ARCHITECTURE.md](./RAG_ARCHITECTURE.md) for the data model and pipeline.

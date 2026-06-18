@@ -61,7 +61,9 @@ const envSchema = z.object({
   AI_ANTHROPIC_API_KEY: z.string().default(""),
   AI_AZURE_OPENAI_API_KEY: z.string().default(""),
   AI_AZURE_OPENAI_ENDPOINT: z.string().default(""),
-  AI_LOCAL_ENDPOINT: z.string().default("")
+  AI_LOCAL_ENDPOINT: z.string().default(""),
+  AI_EMBEDDING_MODEL: z.string().default("text-embedding-3-large"),
+  AI_VECTOR_BACKEND: z.string().default("placeholder")
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

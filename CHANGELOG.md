@@ -2,9 +2,22 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 19 implementation work.
+Current repository state now includes Phase 1 through Phase 20 implementation work.
 
 ### Added
+
+- Phase 20 migration `20260620050000_phase20_rag_knowledge_system.sql` with tenant-scoped `knowledge_sources`, `knowledge_documents`, append-only `knowledge_chunks`, `knowledge_articles`, immutable `knowledge_article_versions`, and `knowledge_gaps`
+- permission-aware, tenant-aware RAG foundation: knowledge source management with nine seeded baseline sources (product documentation, user guide, admin guide, training content, FAQs, release notes, support articles, past resolved tickets, customer-specific documents)
+- text ingestion with immediate document chunking (boundary-aware, overlapping) and per-chunk token estimates
+- embedding generation through an AI Gateway placeholder and a vector-storage reference placeholder (`embedding_status`, `embedding_model`, `embedding_ref`)
+- versioned, approval-gated knowledge articles (`draft`/`pending_review`/`approved`/`archived`, `is_published`) with an approval-gated publish guard (`KNOWLEDGE_ARTICLE_NOT_APPROVED`)
+- knowledge gap tracking placeholder (queries that retrieve nothing are logged)
+- retrieval API `POST /ai/rag/retrieve` returning ranked source citations, tenant-scoped and permission-aware (restricted sources gated by a required permission), with retrieval metadata and gap logging
+- RAG/knowledge types in `@crm/types` (`defaultKnowledgeSources`, source/document/chunk/article/gap and retrieval schemas) and `AI_EMBEDDING_MODEL`/`AI_VECTOR_BACKEND` environment configuration
+- Knowledge + RAG APIs under `/ai/knowledge` and `/ai/rag` with per-surface RBAC, tenant isolation, and audit logging
+- frontend: Knowledge Manager (`/knowledge`), Document Upload (`/knowledge/upload`), Knowledge Article editor (`/knowledge/articles`), and an admin RAG test console (`/knowledge/rag-console`), plus navigation entries
+- exhaustive Phase 20 validation script `tests/phase20-rag-knowledge-exhaustive.mjs`
+- RAG architecture, customer query AI design, AI governance, data model, and API documentation updates
 
 - Phase 19 migration `20260619050000_phase19_prompt_agent_registry.sql` with tenant-scoped `ai_prompts`, immutable `ai_prompt_versions`, and `ai_agents`
 - Prompt Registry: create, edit, version (immutable history), activate/deactivate, approval workflow (`draft`/`pending_review`/`approved`/`rejected`), prompt module, prompt role, input/output schemas, guardrails, and created-by/updated-by authorship

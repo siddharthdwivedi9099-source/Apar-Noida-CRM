@@ -6,6 +6,7 @@ export * from "./crm.js";
 export * from "./tenant-config.js";
 export * from "./ai.js";
 export * from "./ai-registry.js";
+export * from "./rag.js";
 
 export type EnvironmentName = "development" | "test" | "production";
 

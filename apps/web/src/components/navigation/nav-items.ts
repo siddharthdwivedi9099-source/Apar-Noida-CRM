@@ -2,6 +2,7 @@ import type { NavItem, PermissionModuleKey, TenantTerminologyEntry } from "@crm/
 import {
   BarChart3,
   Bot,
+  BookOpen,
   BriefcaseBusiness,
   Building2,
   CalendarRange,
@@ -14,6 +15,7 @@ import {
   Handshake,
   Megaphone,
   Presentation,
+  Search,
   ScrollText,
   ShieldCheck,
   ShoppingBag,
@@ -188,6 +190,22 @@ export const appNavItems: AppNavItem[] = [
     href: "/ai-agents",
     description: "Governed AI agents, tools, roles, scope, and escalation.",
     icon: Bot,
+    moduleKey: "ai",
+    requiredPermissionCodes: routePermissionRequirements.aiAssistant
+  },
+  {
+    title: "Knowledge Base",
+    href: "/knowledge",
+    description: "RAG knowledge sources, documents, and articles.",
+    icon: BookOpen,
+    moduleKey: "ai",
+    requiredPermissionCodes: routePermissionRequirements.aiAssistant
+  },
+  {
+    title: "RAG Console",
+    href: "/knowledge/rag-console",
+    description: "Permission-aware retrieval test console with citations.",
+    icon: Search,
     moduleKey: "ai",
     requiredPermissionCodes: routePermissionRequirements.aiAssistant
   }

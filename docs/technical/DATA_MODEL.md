@@ -570,6 +570,18 @@ The seed now creates or updates:
   - customer-success stage
 - seeded lead, account, contact, campaign, and social form-layout metadata
 
+## RAG Knowledge System (Phase 20)
+
+The RAG foundation adds six tenant-scoped tables:
+
+- `knowledge_sources` — corpus categories with `source_type`, `access_scope` (`tenant`/`restricted`), an optional `required_permission` retrieval gate, `is_enabled`, and `is_system`. Unique per `(tenant_id, source_key)`; nine baseline sources are seeded per tenant.
+- `knowledge_documents` — ingested text under a source (composite FK `(source_id, tenant_id)`), with `content`, `content_format`, `source_uri`, `status` (`pending`/`chunked`/`embedded`), and chunk/token counts.
+- `knowledge_chunks` — chunked content (composite FK to documents), with `chunk_index`, `embedding_status` (`pending`/`placeholder`/`embedded`), `embedding_model`, and an `embedding_ref` vector-storage placeholder. A GIN `to_tsvector` index supports text retrieval.
+- `knowledge_articles` + `knowledge_article_versions` — versioned, approval-gated articles mirroring the prompt/article versioning pattern (`status`, `is_published`, `current_version`/`latest_version`; immutable version snapshots).
+- `knowledge_gaps` — queries that returned no retrieval results (`detected_source`, `status`, `occurrence_count`).
+
+All knowledge tables follow the standard `created_at`/`updated_at`/`deleted_at` and `created_by`/`updated_by` conventions (versions and chunks are append-only) and use composite `(id, tenant_id)` uniqueness for tenant-safe foreign keys.
+
 ## Current Limits
 
 - dedicated `tickets` and `customer_success_accounts` primary tables are still a later phase

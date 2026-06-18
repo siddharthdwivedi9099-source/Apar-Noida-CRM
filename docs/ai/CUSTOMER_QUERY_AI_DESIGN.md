@@ -97,6 +97,13 @@ When implementation begins:
 - ensure every response path can explain whether it used retrieval, direct prompting, or agent logic
 - validate the design with realistic high-risk scenarios before broad rollout
 
-## Phase 0 Note
+## Phase 20 Foundation
 
-This is a design specification only. No customer query AI runtime exists yet.
+The retrieval foundation that customer-query AI will build on is implemented as of Phase 20.
+
+- **Grounded retrieval** — the Customer Query Resolution agent (Phase 19) will answer from the RAG knowledge base via `POST /ai/rag/retrieve`, which returns cited sources rather than free-form text.
+- **Permission-aware answers** — retrieval already filters by knowledge-source permissions, so an answer can only cite content the requester is allowed to see. Customer-specific documents are a `restricted` source gated by `customer_success.view`.
+- **Approved knowledge only** — only `approved` and `published` knowledge articles are retrievable, keeping unreviewed content out of customer-facing answers.
+- **Knowledge gaps** — queries that retrieve nothing are logged to `knowledge_gaps`, seeding the gap-analysis loop that flags missing customer-facing content.
+
+The runtime that classifies queries, chooses retrieval vs. direct prompting, drafts responses, and enforces escalation remains future work; Phase 20 delivers the grounded, governed retrieval substrate it depends on. See [RAG_ARCHITECTURE.md](./RAG_ARCHITECTURE.md).
