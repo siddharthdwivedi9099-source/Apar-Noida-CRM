@@ -5,6 +5,7 @@ import {
   Building2,
   CalendarRange,
   ContactRound,
+  GraduationCap,
   PhoneCall,
   PhoneForwarded,
   LayoutDashboard,
@@ -155,6 +156,14 @@ export const appNavItems: AppNavItem[] = [
     icon: BarChart3,
     moduleKey: "customer_success",
     requiredPermissionCodes: routePermissionRequirements.customerSuccess
+  },
+  {
+    title: "Training",
+    href: "/training",
+    description: "Training programs, lessons, assignments, and the learner portal.",
+    icon: GraduationCap,
+    moduleKey: "training",
+    requiredPermissionCodes: routePermissionRequirements.training
   },
   {
     title: "AI Assistant",

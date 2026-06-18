@@ -604,6 +604,28 @@ All routes require one of the `customer_success.*` permissions and are tenant-sc
 - `POST /customer-success/accounts/:csAccountId/renewals`, `PATCH .../renewals/:renewalId` — renewal tracking
 - `POST /customer-success/accounts/:csAccountId/escalations`, `PATCH .../escalations/:escalationId` — escalation register (status transitions maintain `resolved_at`)
 
+## Customer Training Routes (Phase 17)
+
+All routes require one of the `training.*` permissions and are tenant-scoped.
+
+- `GET /training/options` — owners, accounts, contacts, category/level option sets, customer success accounts, and programs
+- `GET /training/dashboard` — program and assignment totals, completion average, average rating, and category/status distributions
+- `GET /training/portal/my-training` — the current user's assignments with assigned/in-progress/completed counts and a recommended-training placeholder
+- `GET/POST /training/learners` — customer learner records
+- `GET /training/programs` — paginated programs; filters: `search`, `status`, `category`, `ownerId`, `sortBy`, `sortOrder`
+- `POST /training/programs` — create a program (requires `title`)
+- `GET /training/programs/:programId` — program detail with modules, lessons, assets, average rating, and placeholders
+- `PATCH /training/programs/:programId`, `DELETE /training/programs/:programId`
+- `POST /training/programs/:programId/modules`, `PATCH .../modules/:moduleId` — module authoring
+- `POST .../modules/:moduleId/lessons`, `PATCH .../lessons/:lessonId` — lesson authoring
+- `POST .../lessons/:lessonId/assets` — link/upload asset (placeholder)
+- `GET /training/assignments` — paginated assignments; filters: `status`, `programId`, `userId`, `accountId`, `csAccountId`
+- `POST /training/assignments` — assign a program to a user/contact/account, optionally linking a CS account and onboarding plan
+- `GET /training/assignments/:assignmentId` — assignment detail with per-lesson progress
+- `PATCH /training/assignments/:assignmentId` — update status, due date, and links
+- `POST /training/assignments/:assignmentId/progress` — mark lesson progress; recomputes assignment completion and status
+- `POST /training/assignments/:assignmentId/feedback` — submit a rating (1–5) and comments
+
 ## Validation and Error Handling
 
 Common behaviors:

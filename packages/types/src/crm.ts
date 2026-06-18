@@ -2736,3 +2736,357 @@ export interface RenewalDashboardResponse {
   churnedCount: number;
   statusDistribution: Array<{ status: CrmOptionValueSummary | null; renewalCount: number; forecastValue: number }>;
 }
+
+// ============================================================================
+// Phase 17: Customer Training Module
+// ============================================================================
+
+export const trainingProgramStatuses = ["draft", "published", "archived"] as const;
+export type TrainingProgramStatus = (typeof trainingProgramStatuses)[number];
+
+export const trainingLessonTypes = ["article", "video", "quiz", "interactive"] as const;
+export type TrainingLessonType = (typeof trainingLessonTypes)[number];
+
+export const trainingAssetTypes = ["link", "video", "document", "scorm"] as const;
+export type TrainingAssetType = (typeof trainingAssetTypes)[number];
+
+export const trainingAssigneeTypes = ["user", "contact", "account"] as const;
+export type TrainingAssigneeType = (typeof trainingAssigneeTypes)[number];
+
+export const trainingAssignmentStatuses = ["assigned", "in_progress", "completed", "expired"] as const;
+export type TrainingAssignmentStatus = (typeof trainingAssignmentStatuses)[number];
+
+export const trainingProgressStatuses = ["not_started", "in_progress", "completed"] as const;
+export type TrainingProgressStatus = (typeof trainingProgressStatuses)[number];
+
+export const trainingLearnerTypes = ["user", "contact"] as const;
+export type TrainingLearnerType = (typeof trainingLearnerTypes)[number];
+
+export const trainingProgramSortFields = ["title", "status", "category", "updatedAt", "createdAt"] as const;
+export type TrainingProgramSortField = (typeof trainingProgramSortFields)[number];
+
+export interface TrainingPlaceholderSurface {
+  available: false;
+  message: string;
+}
+
+export interface TrainingAiPlaceholderAction {
+  key: "ai_product_trainer" | "learning_path_recommender" | "lesson_summarizer" | "quiz_generator" | "knowledge_gap_detection";
+  label: string;
+  description: string;
+}
+
+export interface TrainingAiPlaceholderSummary {
+  actions: TrainingAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface TrainingAssetSummary {
+  id: string;
+  name: string;
+  assetType: TrainingAssetType;
+  url: string | null;
+  externalReference: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTrainingAssetRequestBody {
+  name: string;
+  assetType?: TrainingAssetType;
+  url?: string | null;
+  externalReference?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TrainingLessonSummary {
+  id: string;
+  moduleId: string;
+  title: string;
+  content: string | null;
+  lessonType: TrainingLessonType;
+  durationMinutes: number | null;
+  sortOrder: number;
+  assets: TrainingAssetSummary[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTrainingLessonRequestBody {
+  title: string;
+  content?: string | null;
+  lessonType?: TrainingLessonType;
+  durationMinutes?: number | null;
+  sortOrder?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateTrainingLessonRequestBody {
+  title?: string;
+  content?: string | null;
+  lessonType?: TrainingLessonType;
+  durationMinutes?: number | null;
+  sortOrder?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TrainingModuleSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  sortOrder: number;
+  lessons: TrainingLessonSummary[];
+  lessonCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTrainingModuleRequestBody {
+  title: string;
+  description?: string | null;
+  sortOrder?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateTrainingModuleRequestBody {
+  title?: string;
+  description?: string | null;
+  sortOrder?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TrainingProgramSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TrainingProgramStatus;
+  category: CrmOptionValueSummary | null;
+  level: CrmOptionValueSummary | null;
+  owner: CrmLookupUserSummary | null;
+  estimatedMinutes: number | null;
+  isRoleBased: boolean;
+  targetRole: string | null;
+  moduleCount: number;
+  lessonCount: number;
+  assignmentCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrainingProgramDetail extends TrainingProgramSummary {
+  modules: TrainingModuleSummary[];
+  averageRating: number | null;
+  feedbackCount: number;
+  roleBasedPathPlaceholder: TrainingPlaceholderSurface;
+  certificationPlaceholder: TrainingPlaceholderSurface;
+  aiPlaceholders: TrainingAiPlaceholderSummary;
+}
+
+export interface CreateTrainingProgramRequestBody {
+  title: string;
+  description?: string | null;
+  status?: TrainingProgramStatus;
+  categoryKey?: string;
+  levelKey?: string;
+  ownerId?: string | null;
+  estimatedMinutes?: number | null;
+  isRoleBased?: boolean;
+  targetRole?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateTrainingProgramRequestBody {
+  title?: string;
+  description?: string | null;
+  status?: TrainingProgramStatus;
+  categoryKey?: string;
+  levelKey?: string;
+  ownerId?: string | null;
+  estimatedMinutes?: number | null;
+  isRoleBased?: boolean;
+  targetRole?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TrainingProgramListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  category?: string;
+  ownerId?: string;
+  sortBy?: TrainingProgramSortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface TrainingProgramResponse {
+  program: TrainingProgramDetail;
+}
+
+export interface TrainingProgramsResponse {
+  programs: TrainingProgramSummary[];
+  pagination: CrmPagination;
+}
+
+export interface CustomerLearnerSummary {
+  id: string;
+  learnerType: TrainingLearnerType;
+  displayName: string;
+  email: string | null;
+  user: CrmLookupUserSummary | null;
+  contact: ContactRelationshipSummary | null;
+  account: AccountLookupSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCustomerLearnerRequestBody {
+  learnerType?: TrainingLearnerType;
+  userId?: string | null;
+  contactId?: string | null;
+  accountId?: string | null;
+  displayName: string;
+  email?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CustomerLearnersResponse {
+  learners: CustomerLearnerSummary[];
+}
+
+export interface TrainingProgressItem {
+  id: string;
+  lessonId: string;
+  lessonTitle: string;
+  status: TrainingProgressStatus;
+  progressPercent: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+}
+
+export interface TrainingAssignmentSummary {
+  id: string;
+  program: { id: string; title: string; status: TrainingProgramStatus } | null;
+  assigneeType: TrainingAssigneeType;
+  user: CrmLookupUserSummary | null;
+  contact: ContactRelationshipSummary | null;
+  account: AccountLookupSummary | null;
+  learner: CustomerLearnerSummary | null;
+  csAccountId: string | null;
+  onboardingPlanId: string | null;
+  status: TrainingAssignmentStatus;
+  completionPercent: number;
+  dueDate: string | null;
+  completedAt: string | null;
+  lessonCount: number;
+  completedLessonCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrainingAssignmentDetail extends TrainingAssignmentSummary {
+  progress: TrainingProgressItem[];
+  aiPlaceholders: TrainingAiPlaceholderSummary;
+}
+
+export interface CreateTrainingAssignmentRequestBody {
+  programId: string;
+  assigneeType?: TrainingAssigneeType;
+  userId?: string | null;
+  contactId?: string | null;
+  accountId?: string | null;
+  csAccountId?: string | null;
+  onboardingPlanId?: string | null;
+  learnerId?: string | null;
+  dueDate?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateTrainingAssignmentRequestBody {
+  status?: TrainingAssignmentStatus;
+  dueDate?: string | null;
+  csAccountId?: string | null;
+  onboardingPlanId?: string | null;
+  learnerId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateTrainingProgressRequestBody {
+  lessonId: string;
+  status?: TrainingProgressStatus;
+  progressPercent?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateTrainingFeedbackRequestBody {
+  rating: number;
+  comments?: string | null;
+  lessonId?: string | null;
+  learnerId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TrainingFeedbackSummary {
+  id: string;
+  rating: number;
+  comments: string | null;
+  programId: string | null;
+  lessonId: string | null;
+  assignmentId: string | null;
+  createdAt: string;
+}
+
+export interface TrainingAssignmentListQuery {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  programId?: string;
+  userId?: string;
+  accountId?: string;
+  csAccountId?: string;
+  sortBy?: "status" | "dueDate" | "updatedAt" | "createdAt";
+  sortOrder?: CrmSortOrder;
+}
+
+export interface TrainingAssignmentResponse {
+  assignment: TrainingAssignmentDetail;
+}
+
+export interface TrainingAssignmentsResponse {
+  assignments: TrainingAssignmentSummary[];
+  pagination: CrmPagination;
+}
+
+export interface TrainingOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  accounts: AccountLookupSummary[];
+  contacts: ContactRelationshipSummary[];
+  categories: CrmOptionValueSummary[];
+  levels: CrmOptionValueSummary[];
+  customerSuccessAccounts: Array<{ id: string; accountName: string }>;
+  programs: Array<{ id: string; title: string; status: TrainingProgramStatus }>;
+}
+
+export interface MyTrainingResponse {
+  assignedCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  assignments: TrainingAssignmentSummary[];
+  recommendedTrainingPlaceholder: TrainingPlaceholderSurface;
+  aiPlaceholders: TrainingAiPlaceholderSummary;
+}
+
+export interface TrainingDashboardResponse {
+  totalPrograms: number;
+  publishedPrograms: number;
+  totalAssignments: number;
+  completedAssignments: number;
+  inProgressAssignments: number;
+  averageCompletionPercent: number | null;
+  averageRating: number | null;
+  categoryDistribution: Array<{ category: CrmOptionValueSummary | null; programCount: number }>;
+  statusDistribution: Array<{ status: TrainingAssignmentStatus; assignmentCount: number }>;
+}

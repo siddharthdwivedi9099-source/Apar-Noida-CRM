@@ -17,6 +17,7 @@ import { ContactFormPage } from "./pages/contact-form-page";
 import { ContactsPage } from "./pages/contacts-page";
 import { CustomFieldsPage } from "./pages/custom-fields-page";
 import { CustomerSuccessPage } from "./pages/customer-success-page";
+import { TrainingPage } from "./pages/training-page";
 import { DashboardPage } from "./pages/dashboard-page";
 import { BusinessDevelopmentPage } from "./pages/business-development-page";
 import { InsideSalesWorkspacePage } from "./pages/inside-sales-workspace-page";
@@ -672,6 +673,19 @@ export const router = createBrowserRouter([
                 moduleKey="customer_success"
               >
                 <CustomerSuccessPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "training",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.training}
+                title="Training access is limited by role."
+                description="Open this module with a role that includes Training access."
+                moduleKey="training"
+              >
+                <TrainingPage />
               </PermissionRoute>
             )
           },

@@ -92,6 +92,31 @@ When implementation begins:
 - preserve content lineage so approved assets can later feed knowledge systems
 - keep reporting dimensions in mind when modeling sessions and enrollments
 
-## Phase 0 Note
+## Phase 17 Implementation
 
-This document defines the future training capability only. No customer training module exists yet.
+The customer training module is implemented in Phase 17, backed by nine tenant-scoped tables (`training_programs`, `training_modules`, `training_lessons`, `training_assets`, `training_assignments`, `customer_learners`, `training_progress`, `training_feedback`, `training_certifications`) and governed by the `training.*` permission set.
+
+### Content authoring
+
+- Create training programs with a category, level, status, estimated duration, and an optional role-based flag.
+- Add modules to a program and lessons to a module (article, video, quiz, or interactive).
+- Link assets to lessons (upload/link placeholder).
+
+### Assignment and tracking
+
+- Assign a program to a user, contact, or account, optionally linking a customer success account and an onboarding plan.
+- Track progress per lesson; the assignment's completion percent and status (assigned → in progress → completed) are recomputed automatically.
+- Capture feedback (1–5 rating and comments).
+- A training dashboard reports program and assignment totals, completion average, average rating, and category/status distributions.
+
+### Customer portal
+
+The learner portal (`GET /training/portal/my-training`) returns the current user's assignments with assigned, in-progress, and completed counts plus a recommended-training placeholder.
+
+### Placeholders
+
+Role-based learning paths, training certifications, and recommended training are exposed as placeholders for later phases.
+
+### AI placeholders
+
+AI product trainer, learning path recommender, lesson summarizer, quiz generator, and knowledge gap detection — all permission-aware and deferred until the AI Gateway phase.

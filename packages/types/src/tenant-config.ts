@@ -1056,6 +1056,40 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "training-category",
+    moduleKey: "training",
+    kind: "dropdown",
+    name: "Training Category",
+    description: "Categories for training programs.",
+    values: [
+      { key: "product", label: "Product", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "onboarding", label: "Onboarding", color: "#14b8a6", sortOrder: 1 },
+      { key: "certification", label: "Certification", color: "#8b5cf6", sortOrder: 2 },
+      { key: "compliance", label: "Compliance", color: "#f59e0b", sortOrder: 3 },
+      { key: "role_based", label: "Role Based", color: "#6366f1", sortOrder: 4 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "training"
+    }
+  },
+  {
+    setKey: "training-level",
+    moduleKey: "training",
+    kind: "dropdown",
+    name: "Training Level",
+    description: "Difficulty levels for training programs.",
+    values: [
+      { key: "beginner", label: "Beginner", color: "#22c55e", sortOrder: 0, isDefault: true },
+      { key: "intermediate", label: "Intermediate", color: "#f59e0b", sortOrder: 1 },
+      { key: "advanced", label: "Advanced", color: "#ef4444", sortOrder: 2 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "training"
+    }
+  },
+  {
     setKey: "bd-account-tier",
     moduleKey: "business_development",
     kind: "dropdown",

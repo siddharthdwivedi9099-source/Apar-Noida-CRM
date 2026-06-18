@@ -2,9 +2,28 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 16 implementation work.
+Current repository state now includes Phase 1 through Phase 17 implementation work.
 
 ### Added
+
+- Phase 17 migration `20260618030000_phase17_customer_training.sql`
+- nine tenant-scoped training tables: `training_programs`, `training_modules`, `training_lessons`, `training_assets`, `training_assignments`, `customer_learners`, `training_progress`, `training_feedback`, and `training_certifications`
+- seeded training option sets for category and level
+- Training APIs under `/training`:
+  - `GET /options`, `GET /dashboard`, `GET /portal/my-training`
+  - `GET/POST /learners`
+  - `GET/POST /programs`, `GET/PATCH/DELETE /programs/:programId`
+  - `POST /programs/:programId/modules`, `PATCH .../modules/:moduleId`
+  - `POST .../modules/:moduleId/lessons`, `PATCH .../lessons/:lessonId`, `POST .../lessons/:lessonId/assets`
+  - `GET/POST /assignments`, `GET/PATCH /assignments/:assignmentId`
+  - `POST /assignments/:assignmentId/progress`, `POST /assignments/:assignmentId/feedback`
+- training frontend at `/training` with a program catalog, module/lesson authoring, assignment management, and a learner portal (My Training)
+- progress and completion tracking that recomputes assignment completion from lesson progress, plus feedback capture and a training dashboard
+- training links to onboarding plans and customer success accounts
+- training AI placeholders (AI product trainer, learning path recommender, lesson summarizer, quiz generator, knowledge gap detection) plus role-based path, certification, and recommended-training placeholders
+- exhaustive Phase 17 validation script `tests/phase17-customer-training-exhaustive.mjs`
+- customer training functional spec, training portal user guide, customer portal user guide, data model, and API documentation updates
+
 
 - Phase 16 migration `20260618010000_phase16_customer_success.sql`
 - nine tenant-scoped customer success tables: `customer_success_accounts`, `onboarding_plans`, `onboarding_milestones`, `success_plans`, `customer_health_scores`, `adoption_metrics`, `qbrs`, `renewals`, and `escalations`

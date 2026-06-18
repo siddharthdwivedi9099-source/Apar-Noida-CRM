@@ -42,6 +42,7 @@ export const routePermissionRequirements = {
   social: getModuleAccessPermissionCodes("social"),
   support: getModuleAccessPermissionCodes("support"),
   customerSuccess: getModuleAccessPermissionCodes("customer_success"),
+  training: getModuleAccessPermissionCodes("training"),
   aiAssistant: getModuleAccessPermissionCodes("ai")
 } as const;
 

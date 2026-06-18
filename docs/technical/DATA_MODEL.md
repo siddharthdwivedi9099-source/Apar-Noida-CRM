@@ -387,6 +387,36 @@ Renewal tracking: `renewal_date`, `status_option_id` (`cs-renewal-status`), `con
 
 Risk register: `title`, `severity` (`low|medium|high|critical`), `status` (`open|in_progress|resolved|closed`), `description`, `resolution`, `opened_at`, `resolved_at`, `owner_id`.
 
+## Customer Training Tables (Phase 17)
+
+### `training_programs`
+
+Top-level training programs: `title`, `description`, `status` (`draft|published|archived`), `category_option_id` (`training-category`), `level_option_id` (`training-level`), `owner_id`, `estimated_minutes`, `is_role_based`, `target_role`.
+
+### `training_modules` / `training_lessons` / `training_assets`
+
+Modules group lessons within a program (`title`, `sort_order`). Lessons (`title`, `content`, `lesson_type` `article|video|quiz|interactive`, `duration_minutes`, `sort_order`) belong to a module and carry a denormalized `program_id`. Assets (`name`, `asset_type` `link|video|document|scorm`, `url`, `external_reference`) attach to a lesson (upload/link placeholder).
+
+### `customer_learners`
+
+Learner records: `learner_type` (`user|contact`), optional `user_id`/`contact_id`/`account_id`, `display_name`, `email`.
+
+### `training_assignments`
+
+Assigns a program to a `user`, `contact`, or `account`, optionally linked to a `cs_account_id` (customer success account) and `onboarding_plan_id`. Tracks `status` (`assigned|in_progress|completed|expired`), `completion_percent`, `due_date`, `completed_at`.
+
+### `training_progress`
+
+Per-assignment, per-lesson progress: `status` (`not_started|in_progress|completed`), `progress_percent`, `started_at`, `completed_at` (unique active per assignment/lesson). Updating progress recomputes the assignment's completion and status.
+
+### `training_feedback`
+
+Feedback on a program/lesson/assignment: `rating` (1–5), `comments`.
+
+### `training_certifications`
+
+Certification placeholder: `program_id`, `learner_id`, `status` (`not_started|in_progress|earned|expired`), `earned_at`, `expires_at`, `certificate_reference`.
+
 ## Shared Productivity Tables
 
 ### `crm_notes`

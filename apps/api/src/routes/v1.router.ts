@@ -16,6 +16,7 @@ import { createResellersRouter } from "../modules/resellers/resellers.router.js"
 import { createSalesWorkspacesRouter } from "../modules/sales-workspaces/sales-workspaces.router.js";
 import { createSocialRouter } from "../modules/social/social.router.js";
 import { createSupportRouter } from "../modules/support/support.router.js";
+import { createTrainingRouter } from "../modules/training/training.router.js";
 import { createTenantConfigRouter } from "../modules/tenant-config/tenant-config.router.js";
 import { DatabaseService } from "../platform/database/database.service.js";
 import { RedisService } from "../platform/redis/redis.service.js";
@@ -35,7 +36,7 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-16-operational"
+      status: "phase-17-operational"
     });
   });
 
@@ -53,6 +54,7 @@ export function createV1Router({
   router.use("/social", createSocialRouter({ databaseService }));
   router.use("/support", createSupportRouter({ databaseService }));
   router.use("/customer-success", createCustomerSuccessRouter({ databaseService }));
+  router.use("/training", createTrainingRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;
