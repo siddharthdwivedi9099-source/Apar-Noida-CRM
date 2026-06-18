@@ -2,9 +2,23 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 20 implementation work.
+Current repository state now includes Phase 1 through Phase 21 implementation work.
 
 ### Added
+
+- Phase 21 migration `20260621050000_phase21_customer_query_ai.sql` with tenant-scoped `customer_query_sessions`, append-only `customer_query_messages`, and `customer_query_escalations`
+- Customer AI Query Bot that answers only from approved knowledge sources: retrieves before answering, composes grounded answers from citations, and never invents answers
+- query-level classification (Level 1 how-to, Level 2 troubleshooting, Level 3 critical), with Level 3, low-confidence, and no-answer queries escalated
+- confidence scoring, escalation records, and automatic support-ticket creation (reusing the Phase 15 `support_tickets` schema) for Level 3 and unanswered queries
+- helpful/not-helpful feedback capture, knowledge-gap logging for unanswered queries, and a query dashboard for support and customer success
+- tenant-aware and permission-aware retrieval (reusing the Phase 20 RAG foundation) with full query/answer logging and audit entries
+- customer-query types in `@crm/types` and APIs under `/customer-query`:
+  - `POST /customer-query/ask`, `GET /customer-query/sessions`, `GET /customer-query/sessions/:id`
+  - `POST /customer-query/sessions/:id/feedback`, `/ticket`, `/escalate`, `/resolve`
+  - `GET /customer-query/dashboard`, `GET /customer-query/knowledge-gaps`
+- frontend: customer-portal Ask AI page (`/ask-ai`), in-app AI help panel (`/ai-help`), support-agent query review page (`/customer-query`), and knowledge gap dashboard (`/customer-query/gaps`), plus navigation
+- exhaustive Phase 21 validation script `tests/phase21-customer-query-ai-exhaustive.mjs`
+- customer query AI design, AI governance, customer portal user guide, support user guide, and customer training functional spec documentation updates
 
 - Phase 20 migration `20260620050000_phase20_rag_knowledge_system.sql` with tenant-scoped `knowledge_sources`, `knowledge_documents`, append-only `knowledge_chunks`, `knowledge_articles`, immutable `knowledge_article_versions`, and `knowledge_gaps`
 - permission-aware, tenant-aware RAG foundation: knowledge source management with nine seeded baseline sources (product documentation, user guide, admin guide, training content, FAQs, release notes, support articles, past resolved tickets, customer-specific documents)

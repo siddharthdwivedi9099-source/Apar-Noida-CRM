@@ -107,3 +107,35 @@ The retrieval foundation that customer-query AI will build on is implemented as 
 - **Knowledge gaps** — queries that retrieve nothing are logged to `knowledge_gaps`, seeding the gap-analysis loop that flags missing customer-facing content.
 
 The runtime that classifies queries, chooses retrieval vs. direct prompting, drafts responses, and enforces escalation remains future work; Phase 20 delivers the grounded, governed retrieval substrate it depends on. See [RAG_ARCHITECTURE.md](./RAG_ARCHITECTURE.md).
+
+## Phase 21 Implementation — Customer AI Query Bot
+
+The customer query bot is implemented as of Phase 21, built on the Phase 20 RAG foundation.
+
+### Rules enforced
+
+- **Approved knowledge only / retrieve-before-answer** — every question runs `RagService.retrieve` first; answers are composed solely from the returned citations. No retrieval, no answer.
+- **Grounded, no hallucination** — the answer text is built from retrieved snippets; with zero citations the bot says it has no approved answer rather than inventing one.
+- **Escalate on low confidence / Level 3** — a confidence score is computed from retrieval; queries below the threshold, Level 3 queries, and no-answer queries are escalated.
+- **Tenant + permission aware** — retrieval is tenant-scoped and gated by knowledge-source permissions, so an answer only cites content the requester may access.
+- **Logged** — every question and answer is written to `customer_query_messages`; sessions, escalations, and audit logs capture the rest.
+
+### Query levels
+
+Queries are classified by keyword heuristics into Level 1 (simple how-to, password reset, navigation, basic config), Level 2 (workflow/permission/dashboard/assignment/configuration troubleshooting), and Level 3 (outage, data corruption, security, billing, contract, integration failure, critical, custom development). **Level 3 always escalates.**
+
+### Data model
+
+- `customer_query_sessions` — a conversation (subject, channel, status, escalation level, last confidence, related ticket).
+- `customer_query_messages` — append-only customer/assistant turns with `query_level`, `confidence_score`, `is_grounded`, `escalated`, `citations`, and `feedback` (`pending`/`helpful`/`not_helpful`).
+- `customer_query_escalations` — escalation records (`low_confidence`/`level_3`/`no_answer`/`customer_request`) linked to a support ticket when one is created.
+
+### Flow
+
+1. `POST /customer-query/ask` — create/continue a session, classify level, retrieve approved sources, compute confidence, compose a grounded answer, log both turns.
+2. **Escalation** — Level 3 and no-answer queries create an escalation and a support ticket (reusing the Phase 15 `support_tickets` schema); low-confidence queries create an escalation for human review.
+3. **Feedback** — `POST /customer-query/sessions/:id/feedback` records helpful/not helpful.
+4. **Knowledge gaps** — no-result queries are logged to `knowledge_gaps` (via retrieval) for the gap dashboard.
+5. **Review** — support/customer success use `GET /customer-query/sessions`, `/dashboard`, and `/knowledge-gaps`.
+
+Live LLM generation is still deferred; the bot composes deterministic grounded answers from retrieved snippets so the governance, escalation, ticketing, and logging mechanisms run end-to-end. See [AI_GOVERNANCE.md](./AI_GOVERNANCE.md).

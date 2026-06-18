@@ -120,3 +120,7 @@ Role-based learning paths, training certifications, and recommended training are
 ### AI placeholders
 
 AI product trainer, learning path recommender, lesson summarizer, quiz generator, and knowledge gap detection — all permission-aware and deferred until the AI Gateway phase.
+
+### Customer AI Query Bot (Phase 21)
+
+Training content is one of the approved knowledge sources the Customer AI Query Bot retrieves from. Learner questions asked through Ask AI are answered from approved training and product knowledge, cited, and escalated when needed; questions the knowledge base cannot answer are recorded as knowledge gaps, which informs which training content and lessons to create or improve. See [../ai/CUSTOMER_QUERY_AI_DESIGN.md](../ai/CUSTOMER_QUERY_AI_DESIGN.md).

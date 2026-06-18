@@ -3,6 +3,7 @@ import { apiConfig } from "@crm/config";
 import { createAiGatewayRouter } from "../modules/ai/ai-gateway.router.js";
 import { createAiRegistryRouter } from "../modules/ai/ai-registry.router.js";
 import { createRagRouter } from "../modules/rag/rag.router.js";
+import { createCustomerQueryRouter } from "../modules/customer-query/customer-query.router.js";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
 import {
   createBusinessDevelopmentRouter,
@@ -39,7 +40,7 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-20-operational"
+      status: "phase-21-operational"
     });
   });
 
@@ -61,6 +62,7 @@ export function createV1Router({
   router.use("/ai", createAiGatewayRouter({ databaseService }));
   router.use("/ai", createAiRegistryRouter({ databaseService }));
   router.use("/ai", createRagRouter({ databaseService }));
+  router.use("/customer-query", createCustomerQueryRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;

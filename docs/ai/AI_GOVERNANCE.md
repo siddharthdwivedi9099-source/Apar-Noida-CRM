@@ -62,3 +62,16 @@ The RAG Knowledge System extends governance to the corpus AI retrieves from.
 - **Permissions.** Read uses any `ai.*`; create/edit/approve reuse `ai.create`/`ai.edit`/`ai.approve`/`ai.configure`/`ai.manage_ai`; retrieval requires `ai.use_ai`/`ai.view`/`ai.view_dashboard`/`ai.manage_ai`/`ai.configure`. All knowledge mutations and retrieval are audited.
 
 See [RAG_ARCHITECTURE.md](./RAG_ARCHITECTURE.md) for the data model and pipeline.
+
+## Customer Query AI Governance (Phase 21)
+
+The Customer AI Query Bot answers customer-facing questions under strict guardrails.
+
+- **Grounded answers only.** The bot retrieves approved knowledge (via the Phase 20 RAG retrieval) before answering and composes answers solely from the returned citations. With no citations it declines and escalates rather than hallucinating.
+- **Permission- and tenant-aware.** Retrieval respects knowledge-source permissions and tenant isolation, so an answer can only cite content the requester is allowed to see.
+- **Confidence and escalation.** A confidence score is computed per answer. Low-confidence answers, Level 3 questions (outage, data corruption, security, billing, contract, integration failure, critical, custom development), and no-answer cases are escalated; Level 3 and no-answer cases also open a support ticket.
+- **Full logging.** Every question and answer is logged to `customer_query_messages`, with sessions, escalations, audit-log entries, and knowledge-gap records.
+- **Feedback loop.** Customers mark answers helpful/not helpful, and unanswered queries become tracked knowledge gaps for review.
+- **Permissions.** Asking requires `customer_query.use_ai`/`create`/`manage_ai`/`configure`; review/dashboard requires `customer_query.view`/`view_dashboard`/`manage_ai`/`assign`/`configure`/`edit`.
+
+See [CUSTOMER_QUERY_AI_DESIGN.md](./CUSTOMER_QUERY_AI_DESIGN.md) for the full design.

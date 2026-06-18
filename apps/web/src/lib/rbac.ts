@@ -43,7 +43,8 @@ export const routePermissionRequirements = {
   support: getModuleAccessPermissionCodes("support"),
   customerSuccess: getModuleAccessPermissionCodes("customer_success"),
   training: getModuleAccessPermissionCodes("training"),
-  aiAssistant: getModuleAccessPermissionCodes("ai")
+  aiAssistant: getModuleAccessPermissionCodes("ai"),
+  customerQuery: getModuleAccessPermissionCodes("customer_query")
 } as const;
 
 export const adminMutationPermissions = {

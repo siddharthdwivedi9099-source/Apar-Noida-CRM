@@ -15,6 +15,10 @@ import { KnowledgeManagerPage } from "./pages/knowledge-manager-page";
 import { DocumentUploadPage } from "./pages/document-upload-page";
 import { KnowledgeArticleEditorPage } from "./pages/knowledge-article-editor-page";
 import { RagConsolePage } from "./pages/rag-console-page";
+import { AskAiPage } from "./pages/ask-ai-page";
+import { AiHelpPanelPage } from "./pages/ai-help-panel-page";
+import { CustomerQueryReviewPage } from "./pages/customer-query-review-page";
+import { KnowledgeGapDashboardPage } from "./pages/knowledge-gap-dashboard-page";
 import { CampaignDetailPage } from "./pages/campaign-detail-page";
 import { CampaignFormPage } from "./pages/campaign-form-page";
 import { CampaignsPage } from "./pages/campaigns-page";
@@ -783,6 +787,58 @@ export const router = createBrowserRouter([
                 moduleKey="ai"
               >
                 <RagConsolePage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "ask-ai",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerQuery}
+                title="Ask AI access is limited by role."
+                description="Open Ask AI with a role that includes customer query access for the tenant."
+                moduleKey="customer_query"
+              >
+                <AskAiPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "ai-help",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerQuery}
+                title="AI help access is limited by role."
+                description="Open in-app AI help with a role that includes customer query access for the tenant."
+                moduleKey="customer_query"
+              >
+                <AiHelpPanelPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "customer-query",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerQuery}
+                title="Query review access is limited by role."
+                description="Open customer query review with a role that includes customer query access for the tenant."
+                moduleKey="customer_query"
+              >
+                <CustomerQueryReviewPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "customer-query/gaps",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerQuery}
+                title="Knowledge gap dashboard access is limited by role."
+                description="Open the knowledge gap dashboard with a role that includes customer query access for the tenant."
+                moduleKey="customer_query"
+              >
+                <KnowledgeGapDashboardPage />
               </PermissionRoute>
             )
           }

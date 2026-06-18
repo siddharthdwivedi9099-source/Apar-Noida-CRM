@@ -8,6 +8,7 @@ import {
   CalendarRange,
   ContactRound,
   GraduationCap,
+  MessagesSquare,
   PhoneCall,
   PhoneForwarded,
   LayoutDashboard,
@@ -208,6 +209,22 @@ export const appNavItems: AppNavItem[] = [
     icon: Search,
     moduleKey: "ai",
     requiredPermissionCodes: routePermissionRequirements.aiAssistant
+  },
+  {
+    title: "Ask AI",
+    href: "/ask-ai",
+    description: "Customer AI query bot — grounded, cited answers with escalation.",
+    icon: MessagesSquare,
+    moduleKey: "customer_query",
+    requiredPermissionCodes: routePermissionRequirements.customerQuery
+  },
+  {
+    title: "Query Review",
+    href: "/customer-query",
+    description: "Support and customer success review of AI queries and escalations.",
+    icon: LifeBuoy,
+    moduleKey: "customer_query",
+    requiredPermissionCodes: routePermissionRequirements.customerQuery
   }
 ];
 
