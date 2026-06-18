@@ -86,6 +86,34 @@ When implementation begins:
 - support future validation of prompt variables and expected output structure
 - treat prompt changes as production-affecting changes when they alter behavior materially
 
-## Phase 0 Note
+## Phase 19 Implementation
 
-The registry is not yet implemented. This document establishes how it should behave when introduced.
+The prompt registry is implemented as of Phase 19.
+
+### Data model
+
+- **`ai_prompts`** — one row per prompt per tenant (unique on `(tenant_id, prompt_key)` where not deleted). Columns: `prompt_key`, `name`, `description`, `module`, `prompt_role` (`system`/`user`/`assistant`/`tool`), `input_schema`, `output_schema`, `guardrails`, `approval_status` (`draft`/`pending_review`/`approved`/`rejected`), `is_active`, `current_version`, `latest_version`, `created_by`, `updated_by`, audit/soft-delete columns.
+- **`ai_prompt_versions`** — immutable version snapshots (unique on `(tenant_id, prompt_id, version)`). Columns: `version`, `content`, `input_schema`, `output_schema`, `guardrails`, `change_summary`, `approval_status`, `is_active`, `created_by`.
+
+### Lifecycle (implemented)
+
+1. **Create** (`POST /ai/prompts`) — creates the prompt plus version 1 in `draft`, inactive.
+2. **Edit metadata** (`PATCH /ai/prompts/:promptId`) — name, description, module, role.
+3. **Version** (`POST /ai/prompts/:promptId/versions`) — adds a new immutable version; optional `activate: true` repoints `current_version` and resets approval to `draft`.
+4. **Activate a version** (`POST /ai/prompts/:promptId/versions/:version/activate`).
+5. **Approve** (`POST /ai/prompts/:promptId/approval`).
+6. **Activate / deactivate the prompt** (`POST /ai/prompts/:promptId/active`) — activation requires `approval_status = approved`, else `AI_PROMPT_NOT_APPROVED` (400).
+
+### Permissions
+
+| Action | Permissions (any of) |
+| --- | --- |
+| Read | any `ai.*` |
+| Create | `ai.create`, `ai.configure`, `ai.manage_ai` |
+| Edit / version | `ai.edit`, `ai.configure`, `ai.manage_ai` |
+| Activate version / prompt | `ai.configure`, `ai.manage_ai` |
+| Approve | `ai.approve`, `ai.configure`, `ai.manage_ai` |
+
+### Frontend
+
+The **Prompt Registry** admin screen (`/ai-prompts`) lists prompts and provides a prompt detail and version view: active content, guardrails, approval controls, activation, new-version authoring, and the full version history with per-version activation. See [../technical/API_DOCUMENTATION.md](../technical/API_DOCUMENTATION.md) for request/response shapes.

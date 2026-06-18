@@ -638,6 +638,29 @@ All routes require one of the `ai.*` permissions and are tenant-scoped. Every AI
 - `GET /ai/logs` — paginated AI usage logs (filters: `provider`, `status`, `templateKey`)
 - `GET /ai/usage` — usage summary (totals, token sum, provider/status distributions)
 
+## AI Prompt Registry Routes (Phase 19)
+
+All routes require an `ai.*` permission and are tenant-scoped. Prompts are versioned, approval-gated managed assets.
+
+- `GET /ai/prompts` — paginated prompt list (filters: `module`, `approvalStatus`, `isActive`, `search`)
+- `POST /ai/prompts` — create a prompt (requires `ai.create`/`ai.configure`/`ai.manage_ai`); body: `promptKey`, `name`, `content`, optional `description`, `module`, `promptRole`, `inputSchema`, `outputSchema`, `guardrails`, `changeSummary`. Creates version 1 in `draft`, inactive. Error: `AI_PROMPT_KEY_EXISTS` (409).
+- `GET /ai/prompts/:promptId` — prompt detail with full version history. Error: `AI_PROMPT_NOT_FOUND` (404).
+- `PATCH /ai/prompts/:promptId` — edit metadata (requires `ai.edit`/`ai.configure`/`ai.manage_ai`): `name`, `description`, `module`, `promptRole`.
+- `GET /ai/prompts/:promptId/versions` — list immutable versions.
+- `POST /ai/prompts/:promptId/versions` — add a version (requires `ai.edit`/...): `content`, optional `inputSchema`, `outputSchema`, `guardrails`, `changeSummary`, `activate`.
+- `POST /ai/prompts/:promptId/versions/:version/activate` — set a version as current (requires `ai.configure`/`ai.manage_ai`). Error: `AI_PROMPT_VERSION_NOT_FOUND` (404).
+- `POST /ai/prompts/:promptId/approval` — set approval status (requires `ai.approve`/`ai.configure`/`ai.manage_ai`): `approvalStatus` (`draft`/`pending_review`/`approved`/`rejected`).
+- `POST /ai/prompts/:promptId/active` — activate/deactivate (requires `ai.configure`/`ai.manage_ai`): `isActive`. Activation requires `approval_status = approved`, else `AI_PROMPT_NOT_APPROVED` (400).
+
+## AI Agent Registry Routes (Phase 19)
+
+All routes require an `ai.*` permission and are tenant-scoped. Sixteen baseline system agents are provisioned per tenant on first read.
+
+- `GET /ai/agents` — list agents (filters: `module`, `status`, `search`); seeds the baseline agents on first access.
+- `GET /ai/agents/:agentId` — agent detail. Error: `AI_AGENT_NOT_FOUND` (404).
+- `POST /ai/agents` — create a custom agent (requires `ai.create`/`ai.configure`/`ai.manage_ai`); body: `agentKey`, `name`, optional `purpose`, `module`, `allowedTools`, `allowedRoles`, `dataAccessScope` (`own`/`team`/`module`/`tenant`), `requiresHumanApproval`, `status`, `loggingEnabled`, `escalationRules`. Error: `AI_AGENT_KEY_EXISTS` (409).
+- `PATCH /ai/agents/:agentId` — configure an agent (requires `ai.edit`/`ai.configure`/`ai.manage_ai`): any of the create fields.
+
 ## Validation and Error Handling
 
 Common behaviors:

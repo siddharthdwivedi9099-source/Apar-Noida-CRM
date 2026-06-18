@@ -26,3 +26,25 @@ This document describes how AI use is governed in the platform following the Pha
 ## Deferred execution
 
 Providers are placeholders in this phase and return governed deferred responses (status `placeholder`). Live model execution requires provider credentials and a later execution phase. This lets the governance, permissioning, tenant-awareness, and logging mechanisms be exercised end-to-end before any external model is called.
+
+## Prompt and Agent Governance (Phase 19)
+
+The Prompt Registry and AI Agent Registry extend governance from runtime calls to the managed assets themselves.
+
+### Prompt Registry
+
+- **Versioned prompts.** Every prompt has an immutable version history (`ai_prompt_versions`). Editing content creates a new version; older versions are never mutated.
+- **Approval workflow.** Prompts carry an `approval_status` (`draft` → `pending_review` → `approved`/`rejected`). A prompt cannot be activated (`is_active = true`) until its current version is `approved` — activation of an unapproved prompt is rejected (`AI_PROMPT_NOT_APPROVED`).
+- **Schemas and guardrails.** Each prompt declares an input schema, an output schema, and a list of guardrails so prompt contracts are explicit and reviewable.
+- **Permissions.** `ai.create`/`ai.configure`/`ai.manage_ai` to create, `ai.edit`/`ai.configure`/`ai.manage_ai` to edit and version, `ai.configure`/`ai.manage_ai` to activate versions or the prompt, `ai.approve`/`ai.configure`/`ai.manage_ai` to change approval status. Any `ai.*` permission can read.
+- **Audit and authorship.** `created_by`/`updated_by` are tracked on prompts and versions, and every create/edit/version/activate/approval action writes an audit-log entry.
+
+### AI Agent Registry
+
+- **Sixteen baseline agents.** A governed baseline (Sales Copilot, Marketing Copilot, Social Media, SDR Assistant, Presales Proposal, Support Resolution, three Customer Success agents, Customer Training, Customer Query Resolution, Partner Manager, Reseller Growth, Executive Insight, Data Quality, Workflow Automation) is provisioned per tenant on first access and marked as system agents.
+- **Bounded authority.** Each agent declares `allowed_tools`, `allowed_roles`, a `data_access_scope` (`own`/`team`/`module`/`tenant`), a `requires_human_approval` flag, and `escalation_rules`. Agents are configuration, not autonomous executors.
+- **Status and logging.** Agents have a `status` (`draft`/`active`/`inactive`) and a `logging_enabled` flag.
+- **Tenant isolation.** Agents and prompts are tenant-scoped; one tenant cannot read or configure another tenant's registry entries.
+- **Permissions.** `ai.create`/`ai.configure`/`ai.manage_ai` to create, `ai.edit`/`ai.configure`/`ai.manage_ai` to configure, any `ai.*` permission to read.
+
+See [PROMPT_REGISTRY.md](./PROMPT_REGISTRY.md) and [AI_AGENT_REGISTRY.md](./AI_AGENT_REGISTRY.md) for the full data model and API surface.

@@ -100,6 +100,59 @@ When implementation begins:
 - support staged rollout and rollback of agent versions
 - store evaluation lineage alongside the registry metadata
 
-## Phase 0 Note
+## Phase 19 Implementation
 
-This document describes governance and design only. No agent registry exists in code yet.
+The agent registry is implemented as of Phase 19.
+
+### Data model — `ai_agents`
+
+One row per agent per tenant (unique on `(tenant_id, agent_key)` where not deleted):
+
+| Column | Notes |
+| --- | --- |
+| `agent_key` | Stable slug (lowercased). |
+| `name`, `purpose` | Human-facing metadata. |
+| `module` | Owning CRM module. |
+| `allowed_tools` | JSON array of tool identifiers the agent may use. |
+| `allowed_roles` | JSON array of user roles the agent serves. |
+| `data_access_scope` | `own` \| `team` \| `module` \| `tenant`. |
+| `requires_human_approval` | Whether actions need human approval. |
+| `status` | `draft` \| `active` \| `inactive`. |
+| `logging_enabled` | Whether agent activity is logged. |
+| `escalation_rules` | JSON array of `{ trigger, action, escalateTo }`. |
+| `is_system` | True for the seeded baseline agents. |
+| `created_by`, `updated_by` | Authorship for audit. |
+
+### Baseline agents
+
+Sixteen baseline agents are provisioned per tenant on first read of the registry and flagged `is_system = true` (operator reconfiguration is preserved; they are never overwritten):
+
+1. Sales Copilot Agent
+2. Marketing Copilot Agent
+3. Social Media Agent
+4. SDR Assistant Agent
+5. Presales Proposal Agent
+6. Support Resolution Agent
+7. Customer Success Onboarding Agent
+8. Customer Success Scaled Agent
+9. Customer Success Enterprise Agent
+10. Customer Training Agent
+11. Customer Query Resolution Agent
+12. Partner Manager Agent
+13. Reseller Growth Agent
+14. Executive Insight Agent
+15. Data Quality Agent
+16. Workflow Automation Agent
+
+### API and permissions
+
+- `GET /ai/agents` (read; seeds baseline) — any `ai.*`.
+- `GET /ai/agents/:agentId` (read) — any `ai.*`.
+- `POST /ai/agents` (create custom agent) — `ai.create`/`ai.configure`/`ai.manage_ai`.
+- `PATCH /ai/agents/:agentId` (configure) — `ai.edit`/`ai.configure`/`ai.manage_ai`.
+
+Agents and prompts are tenant-scoped; cross-tenant access is not possible.
+
+### Frontend
+
+The **Agent Registry** admin screen (`/ai-agents`) lists agents and provides an agent detail view: purpose, allowed tools and roles, data-access scope, approval and logging flags, escalation rules, and inline configuration (status, scope, approval, logging). See [../technical/API_DOCUMENTATION.md](../technical/API_DOCUMENTATION.md) for request/response shapes.

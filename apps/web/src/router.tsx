@@ -9,6 +9,8 @@ import { AccountsPage } from "./pages/accounts-page";
 import { AdminSettingsPage } from "./pages/admin-settings-page";
 import { AdminPage } from "./pages/admin-page";
 import { AiAssistantPage } from "./pages/ai-assistant-page";
+import { AgentRegistryPage } from "./pages/agent-registry-page";
+import { PromptRegistryPage } from "./pages/prompt-registry-page";
 import { CampaignDetailPage } from "./pages/campaign-detail-page";
 import { CampaignFormPage } from "./pages/campaign-form-page";
 import { CampaignsPage } from "./pages/campaigns-page";
@@ -699,6 +701,32 @@ export const router = createBrowserRouter([
                 moduleKey="ai"
               >
                 <AiAssistantPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "ai-prompts",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.aiAssistant}
+                title="Prompt registry access is limited by role."
+                description="Open the prompt registry with a role that includes AI access for the tenant."
+                moduleKey="ai"
+              >
+                <PromptRegistryPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "ai-agents",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.aiAssistant}
+                title="Agent registry access is limited by role."
+                description="Open the agent registry with a role that includes AI access for the tenant."
+                moduleKey="ai"
+              >
+                <AgentRegistryPage />
               </PermissionRoute>
             )
           }

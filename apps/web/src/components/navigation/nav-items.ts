@@ -1,6 +1,7 @@
 import type { NavItem, PermissionModuleKey, TenantTerminologyEntry } from "@crm/types";
 import {
   BarChart3,
+  Bot,
   BriefcaseBusiness,
   Building2,
   CalendarRange,
@@ -13,6 +14,7 @@ import {
   Handshake,
   Megaphone,
   Presentation,
+  ScrollText,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
@@ -170,6 +172,22 @@ export const appNavItems: AppNavItem[] = [
     href: "/ai-assistant",
     description: "Gateway, prompts, agents, and RAG readiness.",
     icon: Sparkles,
+    moduleKey: "ai",
+    requiredPermissionCodes: routePermissionRequirements.aiAssistant
+  },
+  {
+    title: "Prompt Registry",
+    href: "/ai-prompts",
+    description: "Versioned, approval-gated prompt registry with guardrails.",
+    icon: ScrollText,
+    moduleKey: "ai",
+    requiredPermissionCodes: routePermissionRequirements.aiAssistant
+  },
+  {
+    title: "Agent Registry",
+    href: "/ai-agents",
+    description: "Governed AI agents, tools, roles, scope, and escalation.",
+    icon: Bot,
     moduleKey: "ai",
     requiredPermissionCodes: routePermissionRequirements.aiAssistant
   }

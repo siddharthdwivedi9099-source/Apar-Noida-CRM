@@ -2,9 +2,23 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 18 implementation work.
+Current repository state now includes Phase 1 through Phase 19 implementation work.
 
 ### Added
+
+- Phase 19 migration `20260619050000_phase19_prompt_agent_registry.sql` with tenant-scoped `ai_prompts`, immutable `ai_prompt_versions`, and `ai_agents`
+- Prompt Registry: create, edit, version (immutable history), activate/deactivate, approval workflow (`draft`/`pending_review`/`approved`/`rejected`), prompt module, prompt role, input/output schemas, guardrails, and created-by/updated-by authorship
+- governance guard: a prompt can only be activated once its current version is `approved` (`AI_PROMPT_NOT_APPROVED`)
+- AI Agent Registry with sixteen baseline system agents provisioned per tenant (Sales Copilot, Marketing Copilot, Social Media, SDR Assistant, Presales Proposal, Support Resolution, three Customer Success agents, Customer Training, Customer Query Resolution, Partner Manager, Reseller Growth, Executive Insight, Data Quality, Workflow Automation)
+- agent fields: name, purpose, module, allowed tools, allowed roles, data-access scope (`own`/`team`/`module`/`tenant`), human-approval requirement, status, logging-enabled, and escalation rules
+- registry types and defaults in `@crm/types` (`defaultAiAgents`, prompt/agent schemas)
+- Prompt + Agent Registry APIs under `/ai`:
+  - `GET/POST /ai/prompts`, `GET/PATCH /ai/prompts/:promptId`, `GET/POST /ai/prompts/:promptId/versions`, `POST /ai/prompts/:promptId/versions/:version/activate`, `POST /ai/prompts/:promptId/approval`, `POST /ai/prompts/:promptId/active`
+  - `GET/POST /ai/agents`, `GET/PATCH /ai/agents/:agentId`
+- prompt/agent permission enforcement reusing `ai.*` (create/edit/configure/approve/manage_ai) with tenant isolation and audit logging
+- frontend Prompt Registry screen (`/ai-prompts`, with prompt version view) and Agent Registry screen (`/ai-agents`, with agent detail view), plus navigation entries
+- exhaustive Phase 19 validation script `tests/phase19-prompt-agent-registry-exhaustive.mjs`
+- prompt registry, AI agent registry, AI governance, and API documentation updates
 
 - Phase 18 migration `20260618050000_phase18_ai_gateway.sql` with tenant-scoped `ai_settings` and append-only `ai_usage_logs`
 - AI Gateway as the single entry point for all AI calls, with a provider abstraction in `@crm/ai` and placeholder providers for OpenAI, Anthropic, Azure OpenAI, and a local model
