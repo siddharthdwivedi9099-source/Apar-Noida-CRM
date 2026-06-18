@@ -348,6 +348,45 @@ Knowledge base articles. Key columns: `title`, optional `category_option_id` (`s
 
 Junction linking knowledge articles to tickets. Key columns: `ticket_id`, `article_id` (unique active per ticket/article pair).
 
+## Customer Success Tables (Phase 16)
+
+### `customer_success_accounts`
+
+Central customer success record per account. Key columns:
+- `account_id` (link to `accounts`), `csm_owner_id`
+- `segment_option_id` (`cs-segment`), `lifecycle_stage_option_id` (`customer-success-stage`), `risk_status_option_id` (`cs-risk-status`), `expansion_potential_option_id` (`cs-expansion-potential`)
+- `health_score`, `adoption_score` (0–100), `renewal_date`, `contract_value`
+- `support_trend` (`improving|stable|declining`), `training_status` (`not_started|in_progress|completed`)
+- `last_touchpoint_at`, `next_action`; tenant-scoped composite FKs; soft-deleted.
+
+### `onboarding_plans` / `onboarding_milestones`
+
+Onboarding plan per CS account (`status`, `start_date`, `target_go_live_date`, `product_activation_status`, `first_value_at`, `training_completion`, `risk_notes`, `handover_notes`) and its ordered milestones (`label`, `status`, `sort_order`, `due_date`, `completed_at`, `notes`).
+
+### `success_plans`
+
+Strategic/enterprise plans: `name`, `status`, `objective`, `value_realization`, `executive_sponsor`, `stakeholders` (JSONB stakeholder map), `expansion_opportunities`, `renewal_strategy`.
+
+### `customer_health_scores`
+
+Health score history: `score` (0–100), optional `risk_status_option_id`, `drivers`, `notes`, `recorded_at`.
+
+### `adoption_metrics`
+
+Adoption tracking: `metric_key`, `label`, `value`, `target`, `unit`, `trend` (`up|flat|down`), `period_start`, `period_end`.
+
+### `qbrs`
+
+QBR/EBR records: `title`, `qbr_type` (`qbr|ebr`), `status` (`scheduled|completed|cancelled`), `scheduled_at`, `summary`, `outcomes`, `next_steps`, `owner_id`.
+
+### `renewals`
+
+Renewal tracking: `renewal_date`, `status_option_id` (`cs-renewal-status`), `contract_value`, `forecast_value`, `probability`, `risk_notes`, `strategy`, `owner_id`.
+
+### `escalations`
+
+Risk register: `title`, `severity` (`low|medium|high|critical`), `status` (`open|in_progress|resolved|closed`), `description`, `resolution`, `opened_at`, `resolved_at`, `owner_id`.
+
 ## Shared Productivity Tables
 
 ### `crm_notes`

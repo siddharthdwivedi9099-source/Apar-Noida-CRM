@@ -2,9 +2,26 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 15 implementation work.
+Current repository state now includes Phase 1 through Phase 16 implementation work.
 
 ### Added
+
+- Phase 16 migration `20260618010000_phase16_customer_success.sql`
+- nine tenant-scoped customer success tables: `customer_success_accounts`, `onboarding_plans`, `onboarding_milestones`, `success_plans`, `customer_health_scores`, `adoption_metrics`, `qbrs`, `renewals`, and `escalations`
+- seeded customer success option sets for segment, risk status, expansion potential, and renewal status (reusing the customer-success-stage set for lifecycle)
+- Customer success APIs under `/customer-success`:
+  - `GET /options`, `GET /dashboard`, `GET /dashboards/health`, `GET /dashboards/renewal`
+  - `GET /workspaces/onboarding`, `GET /workspaces/scaled`, `GET /workspaces/enterprise`
+  - `GET /accounts`, `POST /accounts`, `GET/PATCH/DELETE /accounts/:csAccountId`
+  - `PUT /accounts/:csAccountId/onboarding-plan`, `PUT /accounts/:csAccountId/success-plan`
+  - `POST /accounts/:csAccountId/health-scores`, `POST /accounts/:csAccountId/adoption-metrics`
+  - `POST/PATCH /accounts/:csAccountId/qbrs`, `POST/PATCH /accounts/:csAccountId/renewals`, `POST/PATCH /accounts/:csAccountId/escalations`
+- customer success frontend at `/customer-success` replacing the placeholder with onboarding, scaled, and enterprise workspaces plus health and renewal dashboards
+- health score, adoption score, renewal, QBR/EBR, escalation, and success plan tracking with low-touch and automated check-in placeholders
+- customer success AI placeholders (onboarding plan generator, health summary, churn risk, adoption recommendation, QBR/EBR summary, executive account brief, renewal strategy, email draft)
+- exhaustive Phase 16 validation script `tests/phase16-customer-success-exhaustive.mjs`
+- customer success functional spec, health score design, onboarding/scaled/enterprise playbooks, user guide, data model, and API documentation updates
+
 
 - Phase 15 migration `20260617090000_phase15_support_ticketing.sql`
 - tenant-scoped `support_sla_policies`, `support_tickets`, `support_ticket_messages`, `support_knowledge_articles`, and `support_ticket_articles` tables

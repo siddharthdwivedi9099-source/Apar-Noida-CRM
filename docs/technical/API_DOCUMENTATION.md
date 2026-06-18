@@ -582,6 +582,28 @@ All routes require one of the `support.*` permissions and are tenant-scoped with
 - `POST /support/tickets/:ticketId/messages` — add an `internal_note` or `customer_reply`; the first customer reply records the SLA first-response time
 - `POST /support/tickets/:ticketId/articles` — link a knowledge article to the ticket
 
+## Customer Success Routes (Phase 16)
+
+All routes require one of the `customer_success.*` permissions and are tenant-scoped with owner/team/all visibility (`mine` matches the CSM owner).
+
+- `GET /customer-success/options` — owners, accounts, segment/lifecycle/risk/expansion/renewal option sets, available scopes
+- `GET /customer-success/dashboard` — totals, average health/adoption, at-risk, open escalations, renewals due, contract value, and segment/risk/lifecycle distributions
+- `GET /customer-success/dashboards/health` — health averages and risk distribution
+- `GET /customer-success/dashboards/renewal` — renewal totals, due-soon, contract/forecast value, renewed/churned, and status distribution
+- `GET /customer-success/workspaces/onboarding|scaled|enterprise` — segment-specific workspace metrics and accounts
+- `GET /customer-success/accounts` — paginated CS accounts; filters: `search`, `segment`, `lifecycleStage`, `riskStatus`, `csmOwnerId`, `scope`, `sortBy`, `sortOrder`
+- `POST /customer-success/accounts` — create a CS account (requires `accountId`); profile fields, health/adoption scores, renewal date, contract value
+- `GET /customer-success/accounts/:csAccountId` — detail with onboarding/success plans, health scores, adoption metrics, QBRs, renewals, escalations, and placeholders
+- `PATCH /customer-success/accounts/:csAccountId` — partial update; owner-only mutations allowed for assign permission
+- `DELETE /customer-success/accounts/:csAccountId` — soft-delete the account and child records
+- `PUT /customer-success/accounts/:csAccountId/onboarding-plan` — upsert the onboarding plan and milestone checklist
+- `PUT /customer-success/accounts/:csAccountId/success-plan` — upsert the strategic success plan and stakeholder map
+- `POST /customer-success/accounts/:csAccountId/health-scores` — record a health score (updates the account's denormalized score)
+- `POST /customer-success/accounts/:csAccountId/adoption-metrics` — add an adoption metric
+- `POST /customer-success/accounts/:csAccountId/qbrs`, `PATCH .../qbrs/:qbrId` — QBR/EBR tracking
+- `POST /customer-success/accounts/:csAccountId/renewals`, `PATCH .../renewals/:renewalId` — renewal tracking
+- `POST /customer-success/accounts/:csAccountId/escalations`, `PATCH .../escalations/:escalationId` — escalation register (status transitions maintain `resolved_at`)
+
 ## Validation and Error Handling
 
 Common behaviors:

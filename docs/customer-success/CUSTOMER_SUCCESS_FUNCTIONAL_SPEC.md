@@ -94,6 +94,31 @@ When implementation begins:
 - support executive read visibility without broad edit rights
 - connect success outputs to dashboards and future workflow automation
 
-## Phase 0 Note
+## Phase 16 Implementation
 
-This is a functional design baseline only. No customer success module is implemented yet.
+The customer success core module is implemented in Phase 16, backed by nine tenant-scoped tables (`customer_success_accounts`, `onboarding_plans`, `onboarding_milestones`, `success_plans`, `customer_health_scores`, `adoption_metrics`, `qbrs`, `renewals`, `escalations`) and governed by the `customer_success.*` permission set.
+
+### Roles supported
+
+- Customer Success Manager – Onboarding
+- Customer Success Manager – Scaled
+- Customer Success Manager – Enterprise
+- Customer Success Head
+
+### Customer success account
+
+Each account carries an account link, CSM owner, segment, lifecycle stage, health score, adoption score, renewal date, contract value, risk status, expansion potential, support trend, training status, last touchpoint, and next action.
+
+### Workspaces
+
+- **Onboarding** — new customers, onboarding plan and milestone checklist, training and product activation status, first-value tracking, risk capture, and handover notes.
+- **Scaled** — portfolio view, health and adoption trends, at-risk customers, renewal readiness, customer segments, plus low-touch campaign and automated check-in placeholders.
+- **Enterprise** — strategic success plan, stakeholder map, QBR/EBR tracker, executive relationship tracking, value realization, enterprise risk register (escalations), expansion opportunities, and renewal strategy.
+
+### Dashboards
+
+Customer success, onboarding, scaled portfolio, enterprise account, customer health, and renewal dashboards are exposed via the dashboard and workspace endpoints.
+
+### AI placeholders
+
+Onboarding plan generator, customer health summary, churn risk prediction, adoption recommendation, QBR/EBR summary, executive account brief, renewal strategy recommendation, and customer success email draft — all permission-aware and deferred until the AI Gateway phase.

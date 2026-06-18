@@ -2250,3 +2250,489 @@ export interface SupportDashboardResponse {
   knowledgeArticleCount: number;
   csatPlaceholder: SupportPlaceholderSurface;
 }
+
+// ============================================================================
+// Phase 16: Customer Success Core Module
+// ============================================================================
+
+export const customerSuccessScopes = ["mine", "team", "all"] as const;
+export type CustomerSuccessScope = (typeof customerSuccessScopes)[number];
+
+export const customerSuccessAccountSortFields = ["account", "healthScore", "adoptionScore", "renewalDate", "updatedAt", "createdAt"] as const;
+export type CustomerSuccessAccountSortField = (typeof customerSuccessAccountSortFields)[number];
+
+export const csSupportTrends = ["improving", "stable", "declining"] as const;
+export type CsSupportTrend = (typeof csSupportTrends)[number];
+
+export const csTrainingStatuses = ["not_started", "in_progress", "completed"] as const;
+export type CsTrainingStatus = (typeof csTrainingStatuses)[number];
+
+export const onboardingPlanStatuses = ["not_started", "in_progress", "completed", "blocked"] as const;
+export type OnboardingPlanStatus = (typeof onboardingPlanStatuses)[number];
+
+export const productActivationStatuses = ["not_started", "in_progress", "activated"] as const;
+export type ProductActivationStatus = (typeof productActivationStatuses)[number];
+
+export const onboardingMilestoneStatuses = ["pending", "in_progress", "completed", "blocked"] as const;
+export type OnboardingMilestoneStatus = (typeof onboardingMilestoneStatuses)[number];
+
+export const successPlanStatuses = ["draft", "active", "completed"] as const;
+export type SuccessPlanStatus = (typeof successPlanStatuses)[number];
+
+export const adoptionMetricTrends = ["up", "flat", "down"] as const;
+export type AdoptionMetricTrend = (typeof adoptionMetricTrends)[number];
+
+export const qbrTypes = ["qbr", "ebr"] as const;
+export type QbrType = (typeof qbrTypes)[number];
+
+export const qbrStatuses = ["scheduled", "completed", "cancelled"] as const;
+export type QbrStatus = (typeof qbrStatuses)[number];
+
+export const escalationSeverities = ["low", "medium", "high", "critical"] as const;
+export type EscalationSeverity = (typeof escalationSeverities)[number];
+
+export const escalationStatuses = ["open", "in_progress", "resolved", "closed"] as const;
+export type EscalationStatus = (typeof escalationStatuses)[number];
+
+export interface CsPlaceholderSurface {
+  available: false;
+  message: string;
+}
+
+export interface CsAiPlaceholderAction {
+  key:
+    | "onboarding_plan_generator"
+    | "customer_health_summary"
+    | "churn_risk_prediction"
+    | "adoption_recommendation"
+    | "qbr_ebr_summary"
+    | "executive_account_brief"
+    | "renewal_strategy_recommendation"
+    | "customer_success_email_draft";
+  label: string;
+  description: string;
+}
+
+export interface CsAiPlaceholderSummary {
+  actions: CsAiPlaceholderAction[];
+  governanceHint: string;
+}
+
+export interface OnboardingMilestoneSummary {
+  id: string;
+  label: string;
+  status: OnboardingMilestoneStatus;
+  sortOrder: number;
+  dueDate: string | null;
+  completedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OnboardingMilestoneInput {
+  id?: string;
+  label: string;
+  status?: OnboardingMilestoneStatus;
+  sortOrder?: number;
+  dueDate?: string | null;
+  notes?: string | null;
+}
+
+export interface OnboardingPlanSummary {
+  id: string;
+  name: string;
+  status: OnboardingPlanStatus;
+  startDate: string | null;
+  targetGoLiveDate: string | null;
+  productActivationStatus: ProductActivationStatus;
+  firstValueAt: string | null;
+  trainingCompletion: number | null;
+  riskNotes: string | null;
+  handoverNotes: string | null;
+  milestones: OnboardingMilestoneSummary[];
+  milestoneCount: number;
+  completedMilestoneCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertOnboardingPlanRequestBody {
+  name: string;
+  status?: OnboardingPlanStatus;
+  startDate?: string | null;
+  targetGoLiveDate?: string | null;
+  productActivationStatus?: ProductActivationStatus;
+  firstValueAt?: string | null;
+  trainingCompletion?: number | null;
+  riskNotes?: string | null;
+  handoverNotes?: string | null;
+  milestones?: OnboardingMilestoneInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface CsStakeholder {
+  name: string;
+  title?: string | null;
+  role?: string | null;
+  sentiment?: string | null;
+}
+
+export interface SuccessPlanSummary {
+  id: string;
+  name: string;
+  status: SuccessPlanStatus;
+  objective: string | null;
+  valueRealization: string | null;
+  executiveSponsor: string | null;
+  stakeholders: CsStakeholder[];
+  expansionOpportunities: string | null;
+  renewalStrategy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertSuccessPlanRequestBody {
+  name: string;
+  status?: SuccessPlanStatus;
+  objective?: string | null;
+  valueRealization?: string | null;
+  executiveSponsor?: string | null;
+  stakeholders?: CsStakeholder[];
+  expansionOpportunities?: string | null;
+  renewalStrategy?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CustomerHealthScoreSummary {
+  id: string;
+  score: number;
+  riskStatus: CrmOptionValueSummary | null;
+  drivers: string | null;
+  notes: string | null;
+  recordedAt: string;
+  createdAt: string;
+}
+
+export interface RecordHealthScoreRequestBody {
+  score: number;
+  riskStatusKey?: string | null;
+  drivers?: string | null;
+  notes?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AdoptionMetricSummary {
+  id: string;
+  metricKey: string;
+  label: string;
+  value: number;
+  target: number | null;
+  unit: string | null;
+  trend: AdoptionMetricTrend;
+  periodStart: string | null;
+  periodEnd: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAdoptionMetricRequestBody {
+  metricKey: string;
+  label: string;
+  value: number;
+  target?: number | null;
+  unit?: string | null;
+  trend?: AdoptionMetricTrend;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface QbrSummary {
+  id: string;
+  title: string;
+  qbrType: QbrType;
+  status: QbrStatus;
+  scheduledAt: string | null;
+  summary: string | null;
+  outcomes: string | null;
+  nextSteps: string | null;
+  owner: CrmLookupUserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateQbrRequestBody {
+  title: string;
+  qbrType?: QbrType;
+  status?: QbrStatus;
+  scheduledAt?: string | null;
+  summary?: string | null;
+  outcomes?: string | null;
+  nextSteps?: string | null;
+  ownerId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateQbrRequestBody {
+  title?: string;
+  qbrType?: QbrType;
+  status?: QbrStatus;
+  scheduledAt?: string | null;
+  summary?: string | null;
+  outcomes?: string | null;
+  nextSteps?: string | null;
+  ownerId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RenewalSummary {
+  id: string;
+  renewalDate: string;
+  status: CrmOptionValueSummary | null;
+  contractValue: number | null;
+  forecastValue: number | null;
+  probability: number | null;
+  riskNotes: string | null;
+  strategy: string | null;
+  owner: CrmLookupUserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRenewalRequestBody {
+  renewalDate: string;
+  statusKey?: string;
+  contractValue?: number | null;
+  forecastValue?: number | null;
+  probability?: number | null;
+  riskNotes?: string | null;
+  strategy?: string | null;
+  ownerId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateRenewalRequestBody {
+  renewalDate?: string;
+  statusKey?: string;
+  contractValue?: number | null;
+  forecastValue?: number | null;
+  probability?: number | null;
+  riskNotes?: string | null;
+  strategy?: string | null;
+  ownerId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface EscalationSummary {
+  id: string;
+  title: string;
+  severity: EscalationSeverity;
+  status: EscalationStatus;
+  description: string | null;
+  resolution: string | null;
+  owner: CrmLookupUserSummary | null;
+  openedAt: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEscalationRequestBody {
+  title: string;
+  severity?: EscalationSeverity;
+  status?: EscalationStatus;
+  description?: string | null;
+  resolution?: string | null;
+  ownerId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateEscalationRequestBody {
+  title?: string;
+  severity?: EscalationSeverity;
+  status?: EscalationStatus;
+  description?: string | null;
+  resolution?: string | null;
+  ownerId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CustomerSuccessAccountSummary {
+  id: string;
+  account: AccountLookupSummary | null;
+  csmOwner: CrmLookupUserSummary | null;
+  segment: CrmOptionValueSummary | null;
+  lifecycleStage: CrmOptionValueSummary | null;
+  riskStatus: CrmOptionValueSummary | null;
+  expansionPotential: CrmOptionValueSummary | null;
+  healthScore: number | null;
+  adoptionScore: number | null;
+  renewalDate: string | null;
+  contractValue: number | null;
+  supportTrend: CsSupportTrend;
+  trainingStatus: CsTrainingStatus;
+  lastTouchpointAt: string | null;
+  nextAction: string | null;
+  onboardingPlanCount: number;
+  healthScoreCount: number;
+  qbrCount: number;
+  renewalCount: number;
+  openEscalationCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerSuccessAccountDetail extends CustomerSuccessAccountSummary {
+  onboardingPlans: OnboardingPlanSummary[];
+  successPlans: SuccessPlanSummary[];
+  healthScores: CustomerHealthScoreSummary[];
+  adoptionMetrics: AdoptionMetricSummary[];
+  qbrs: QbrSummary[];
+  renewals: RenewalSummary[];
+  escalations: EscalationSummary[];
+  lowTouchCampaignsPlaceholder: CsPlaceholderSurface;
+  automatedCheckInPlaceholder: CsPlaceholderSurface;
+  aiPlaceholders: CsAiPlaceholderSummary;
+}
+
+export interface CreateCustomerSuccessAccountRequestBody {
+  accountId: string;
+  csmOwnerId?: string | null;
+  segmentKey?: string;
+  lifecycleStageKey?: string;
+  riskStatusKey?: string;
+  expansionPotentialKey?: string;
+  healthScore?: number | null;
+  adoptionScore?: number | null;
+  renewalDate?: string | null;
+  contractValue?: number | null;
+  supportTrend?: CsSupportTrend;
+  trainingStatus?: CsTrainingStatus;
+  lastTouchpointAt?: string | null;
+  nextAction?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateCustomerSuccessAccountRequestBody {
+  csmOwnerId?: string | null;
+  segmentKey?: string;
+  lifecycleStageKey?: string;
+  riskStatusKey?: string;
+  expansionPotentialKey?: string;
+  healthScore?: number | null;
+  adoptionScore?: number | null;
+  renewalDate?: string | null;
+  contractValue?: number | null;
+  supportTrend?: CsSupportTrend;
+  trainingStatus?: CsTrainingStatus;
+  lastTouchpointAt?: string | null;
+  nextAction?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CustomerSuccessAccountListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  segment?: string;
+  lifecycleStage?: string;
+  riskStatus?: string;
+  csmOwnerId?: string;
+  scope?: CustomerSuccessScope;
+  sortBy?: CustomerSuccessAccountSortField;
+  sortOrder?: CrmSortOrder;
+}
+
+export interface CustomerSuccessAccountResponse {
+  customerSuccessAccount: CustomerSuccessAccountDetail;
+}
+
+export interface CustomerSuccessAccountsResponse {
+  customerSuccessAccounts: CustomerSuccessAccountSummary[];
+  pagination: CrmPagination;
+}
+
+export interface CustomerSuccessOptionsResponse {
+  owners: CrmLookupUserSummary[];
+  accounts: AccountLookupSummary[];
+  segments: CrmOptionValueSummary[];
+  lifecycleStages: CrmOptionValueSummary[];
+  riskStatuses: CrmOptionValueSummary[];
+  expansionPotentials: CrmOptionValueSummary[];
+  renewalStatuses: CrmOptionValueSummary[];
+  availableScopes: CustomerSuccessScope[];
+}
+
+export interface CsOnboardingWorkspaceResponse {
+  scope: CustomerSuccessScope;
+  newCustomerCount: number;
+  inOnboardingCount: number;
+  completedOnboardingCount: number;
+  atRiskCount: number;
+  accounts: CustomerSuccessAccountSummary[];
+  aiPlaceholders: CsAiPlaceholderSummary;
+}
+
+export interface CsScaledWorkspaceResponse {
+  scope: CustomerSuccessScope;
+  portfolioCount: number;
+  healthyCount: number;
+  atRiskCount: number;
+  renewalsDueCount: number;
+  averageHealthScore: number | null;
+  segmentDistribution: Array<{ segment: CrmOptionValueSummary | null; accountCount: number }>;
+  accounts: CustomerSuccessAccountSummary[];
+  lowTouchCampaignsPlaceholder: CsPlaceholderSurface;
+  automatedCheckInPlaceholder: CsPlaceholderSurface;
+  aiPlaceholders: CsAiPlaceholderSummary;
+}
+
+export interface CsEnterpriseWorkspaceResponse {
+  scope: CustomerSuccessScope;
+  accountCount: number;
+  openEscalationCount: number;
+  upcomingQbrCount: number;
+  expansionOpportunityCount: number;
+  totalContractValue: number;
+  accounts: CustomerSuccessAccountSummary[];
+  aiPlaceholders: CsAiPlaceholderSummary;
+}
+
+export interface CustomerSuccessDashboardResponse {
+  scope: CustomerSuccessScope;
+  totalAccounts: number;
+  averageHealthScore: number | null;
+  averageAdoptionScore: number | null;
+  atRiskCount: number;
+  openEscalationCount: number;
+  renewalsDueCount: number;
+  totalContractValue: number;
+  segmentDistribution: Array<{ segment: CrmOptionValueSummary | null; accountCount: number }>;
+  riskDistribution: Array<{ riskStatus: CrmOptionValueSummary | null; accountCount: number }>;
+  lifecycleDistribution: Array<{ lifecycleStage: CrmOptionValueSummary | null; accountCount: number }>;
+}
+
+export interface CustomerHealthDashboardResponse {
+  scope: CustomerSuccessScope;
+  averageHealthScore: number | null;
+  averageAdoptionScore: number | null;
+  healthyCount: number;
+  watchCount: number;
+  atRiskCount: number;
+  criticalCount: number;
+  decliningSupportCount: number;
+  riskDistribution: Array<{ riskStatus: CrmOptionValueSummary | null; accountCount: number }>;
+}
+
+export interface RenewalDashboardResponse {
+  scope: CustomerSuccessScope;
+  totalRenewals: number;
+  renewalsDueSoonCount: number;
+  totalContractValue: number;
+  forecastValue: number;
+  renewedCount: number;
+  churnedCount: number;
+  statusDistribution: Array<{ status: CrmOptionValueSummary | null; renewalCount: number; forecastValue: number }>;
+}

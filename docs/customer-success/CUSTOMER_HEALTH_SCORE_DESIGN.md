@@ -86,6 +86,12 @@ When implementation begins:
 - avoid black-box scoring that customer-facing teams cannot trust
 - connect health state changes to workflow and reporting expectations
 
-## Phase 0 Note
+## Phase 16 Implementation
 
-This is a design baseline for future health modeling. No scoring logic exists yet.
+Health scoring fields are implemented in Phase 16:
+
+- `customer_success_accounts.health_score` and `adoption_score` hold the current 0–100 scores, with `risk_status_option_id` (`cs-risk-status`: healthy, watch, at risk, critical) and `support_trend` (improving, stable, declining).
+- `customer_health_scores` stores the scoring history (`score`, optional risk status, `drivers`, `notes`, `recorded_at`). Recording a score updates the account's denormalized `health_score` (and risk status when supplied) so dashboards stay current.
+- The customer health dashboard (`GET /customer-success/dashboards/health`) reports average health and adoption, healthy/watch/at-risk/critical counts, declining-support count, and the risk distribution.
+
+Scoring weights and automated computation remain a future enhancement; Phase 16 captures explicit, explainable scores entered by CSMs and exposes the history and drivers for transparency.

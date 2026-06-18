@@ -987,6 +987,75 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "cs-segment",
+    moduleKey: "customer_success",
+    kind: "dropdown",
+    name: "Customer Success Segment",
+    description: "Customer success segmentation for onboarding, scaled, and enterprise motions.",
+    values: [
+      { key: "onboarding", label: "Onboarding", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "scaled", label: "Scaled", color: "#14b8a6", sortOrder: 1 },
+      { key: "enterprise", label: "Enterprise", color: "#8b5cf6", sortOrder: 2 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "customer-success"
+    }
+  },
+  {
+    setKey: "cs-risk-status",
+    moduleKey: "customer_success",
+    kind: "dropdown",
+    name: "Customer Success Risk Status",
+    description: "Risk classification for customer success accounts.",
+    values: [
+      { key: "healthy", label: "Healthy", color: "#22c55e", sortOrder: 0, isDefault: true },
+      { key: "watch", label: "Watch", color: "#f59e0b", sortOrder: 1 },
+      { key: "at_risk", label: "At Risk", color: "#ef4444", sortOrder: 2 },
+      { key: "critical", label: "Critical", color: "#b91c1c", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "customer-success"
+    }
+  },
+  {
+    setKey: "cs-expansion-potential",
+    moduleKey: "customer_success",
+    kind: "dropdown",
+    name: "Customer Success Expansion Potential",
+    description: "Expansion potential for customer success accounts.",
+    values: [
+      { key: "none", label: "None", color: "#64748b", sortOrder: 0 },
+      { key: "low", label: "Low", color: "#0ea5e9", sortOrder: 1, isDefault: true },
+      { key: "medium", label: "Medium", color: "#f59e0b", sortOrder: 2 },
+      { key: "high", label: "High", color: "#22c55e", sortOrder: 3 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "customer-success"
+    }
+  },
+  {
+    setKey: "cs-renewal-status",
+    moduleKey: "customer_success",
+    kind: "dropdown",
+    name: "Customer Success Renewal Status",
+    description: "Renewal lifecycle states for customer success accounts.",
+    values: [
+      { key: "not_started", label: "Not Started", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "in_progress", label: "In Progress", color: "#0ea5e9", sortOrder: 1 },
+      { key: "forecasted", label: "Forecasted", color: "#06b6d4", sortOrder: 2 },
+      { key: "committed", label: "Committed", color: "#8b5cf6", sortOrder: 3 },
+      { key: "renewed", label: "Renewed", color: "#22c55e", sortOrder: 4 },
+      { key: "churned", label: "Churned", color: "#ef4444", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "customer-success"
+    }
+  },
+  {
     setKey: "bd-account-tier",
     moduleKey: "business_development",
     kind: "dropdown",
