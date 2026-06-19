@@ -2,9 +2,19 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 23 implementation work.
+Current repository state now includes Phase 1 through Phase 24 implementation work.
 
 ### Added
+
+- Phase 24 migration `20260624050000_phase24_workflow_engine.sql` with tenant-scoped `workflows`, `workflow_actions`, `workflow_runs`, and append-only `workflow_logs`
+- configurable workflow automation engine: workflows built from a trigger, optional conditions, and ordered actions
+- 14 trigger types (record created/updated, stage changed, assignment changed, date reached, SLA breached, campaign response received, ticket escalated, AI score changed, customer health changed, onboarding delayed, training incomplete, renewal approaching, usage dropped) and 14 action types (assign owner, create task, send notification, send email, update field, change status, trigger approval, call webhook, run AI prompt, run AI agent, create support ticket, assign training, create customer success task, trigger renewal playbook) as catalogs in `@crm/types`
+- condition evaluation (`eq`/`ne`/`gt`/`lt`/`gte`/`lte`/`contains`/`exists`/`in`) with unmet conditions producing a skipped, traceable run
+- `WorkflowService` execution engine enforcing the rules: per-action permission checks (a missing permission fails the action), workflow runs and per-action logs recorded, failures traceable, and AI actions executed through the AI Gateway
+- workflow APIs under `/workflows`: catalog, list/create, detail, update, action add/update/delete, run, and run logs (`/workflows/:id/runs`, `/workflows/runs/:runId`)
+- Workflows frontend page (`/workflows`) with a workflow list, basic builder (trigger + condition), action configuration, run execution, and run logs, plus navigation
+- exhaustive Phase 24 validation script `tests/phase24-workflow-engine-exhaustive.mjs`
+- workflow engine, functional specification, admin guide, and API documentation updates
 
 - Phase 23 migration `20260623050000_phase23_dashboards.sql` with tenant-scoped `dashboard_saved_views`
 - 18 role-based dashboards (`dashboardCatalog` in `@crm/types`): executive, sales, marketing, campaign, social, SDR, inside sales, presales, partner, reseller, support, customer success, onboarding, customer health, training, revenue, forecast, and AI insights

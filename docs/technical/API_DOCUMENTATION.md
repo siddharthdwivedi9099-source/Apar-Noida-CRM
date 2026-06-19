@@ -714,6 +714,23 @@ Dashboard types: executive, sales, marketing, campaign, social, sdr, inside_sale
 
 Widget types: `metric`, `chart`, `funnel`, `series`, `table`, and `kanban` (status-column summaries, e.g. tickets and leads by status). Widget data kinds: `scalar`, `breakdown`, `funnel`, `series`, and `table`. Metrics include leads-by-status, opportunities-by-stage, pipeline/forecast value, win rate, campaign counts, lead source, open tickets, SLA breaches, ticket priority/category, health distribution, at-risk customers, adoption score, training completion, renewal timeline, onboarding progress, and AI-insight metrics (risk alerts, recommended actions, underperforming areas, customer/deal risk). Campaign conversion and CSAT are reported as deferred placeholders.
 
+## Workflow Automation Routes (Phase 24)
+
+Tenant-scoped, configurable workflow automation. Read requires any `workflows.*`; create requires `workflows.create`/`configure`/`manage_workflow`; edit requires `workflows.edit`/`configure`/`manage_workflow`; run requires `workflows.manage_workflow`/`configure`/`edit`.
+
+- `GET /workflows/catalog` — trigger and action catalogs for the builder.
+- `GET /workflows` — paginated workflow list (filters: `triggerType`, `status`, `search`).
+- `POST /workflows` — create a workflow: `name`, `triggerType`, optional `description`, `module`, `triggerConfig`, `conditions` (`{ field, operator, value }`).
+- `GET /workflows/:workflowId` — workflow detail with conditions and actions. Error: `WORKFLOW_NOT_FOUND` (404).
+- `PATCH /workflows/:workflowId` — update a workflow (name, trigger, conditions, `status`, `isEnabled`).
+- `POST /workflows/:workflowId/actions` — add an action: `actionType`, optional `actionConfig`, `requiresPermission`, `sequence`, `isEnabled`.
+- `PATCH /workflows/:workflowId/actions/:actionId` / `DELETE /workflows/:workflowId/actions/:actionId` — update/remove an action. Error: `WORKFLOW_ACTION_NOT_FOUND` (404).
+- `POST /workflows/:workflowId/run` — execute the workflow with a trigger `context`. The workflow must be active and enabled (`WORKFLOW_NOT_ACTIVE`, 400). Returns the run with per-action logs.
+- `GET /workflows/:workflowId/runs` — recent runs.
+- `GET /workflows/runs/:runId` — run detail with logs. Error: `WORKFLOW_RUN_NOT_FOUND` (404).
+
+Triggers: `record_created`, `record_updated`, `stage_changed`, `assignment_changed`, `date_reached`, `sla_breached`, `campaign_response_received`, `ticket_escalated`, `ai_score_changed`, `customer_health_changed`, `onboarding_delayed`, `training_incomplete`, `renewal_approaching`, `usage_dropped`. Actions: `assign_owner`, `create_task`, `send_notification`, `send_email`, `update_field`, `change_status`, `trigger_approval`, `call_webhook`, `run_ai_prompt`, `run_ai_agent`, `create_support_ticket`, `assign_training`, `create_customer_success_task`, `trigger_renewal_playbook`. Run statuses: `running`, `succeeded`, `failed`, `skipped`. AI actions execute through the AI Gateway; non-AI actions are governed logged effects in this phase.
+
 ## Validation and Error Handling
 
 Common behaviors:

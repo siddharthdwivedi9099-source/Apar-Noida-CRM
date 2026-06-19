@@ -179,3 +179,15 @@ Still intentionally out of scope:
 - admin-created user onboarding UI
 - business-module CRUD for leads, accounts, and contacts
 - visual form rendering from custom-field metadata
+
+## Workflow automation (Phase 24)
+
+The **Workflows** page (`/workflows`) lets administrators automate processes.
+
+- **Create a workflow** — give it a name, choose a **trigger** (for example *Record created* or *Renewal approaching*), and optionally add a **condition** (field / operator / value).
+- **Add actions** — pick from the action catalog (assign owner, create task, send notification/email, update field, change status, trigger approval, call webhook, run AI prompt, run AI agent, create support ticket, assign training, create CS task, trigger renewal playbook). Each action can declare the permission it requires.
+- **Activate** — workflows start as drafts; activate (and enable) a workflow before it can run.
+- **Run and trace** — run a workflow with a trigger context (JSON) and review the result. Every run is logged with a per-action log, including failures: an action whose required permission the runner lacks is recorded as failed, and AI actions run through the AI Gateway.
+- **Run logs** — the detail view lists recent runs and their step-level logs for traceability.
+
+Governance rules enforced: workflow actions respect permissions, runs are logged, failed workflows are traceable, and AI actions go through the AI Gateway.

@@ -6,6 +6,7 @@ import { createAiActionsRouter } from "../modules/ai-actions/ai-actions.router.j
 import { createRagRouter } from "../modules/rag/rag.router.js";
 import { createCustomerQueryRouter } from "../modules/customer-query/customer-query.router.js";
 import { createDashboardsRouter } from "../modules/dashboards/dashboards.router.js";
+import { createWorkflowsRouter } from "../modules/workflows/workflows.router.js";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
 import {
   createBusinessDevelopmentRouter,
@@ -42,7 +43,7 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-23-operational"
+      status: "phase-24-operational"
     });
   });
 
@@ -67,6 +68,7 @@ export function createV1Router({
   router.use("/ai", createRagRouter({ databaseService }));
   router.use("/customer-query", createCustomerQueryRouter({ databaseService }));
   router.use("/dashboards", createDashboardsRouter({ databaseService }));
+  router.use("/workflows", createWorkflowsRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;

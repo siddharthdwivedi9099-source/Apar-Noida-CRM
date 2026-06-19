@@ -31,6 +31,7 @@ import { CustomerSuccessPage } from "./pages/customer-success-page";
 import { TrainingPage } from "./pages/training-page";
 import { DashboardPage } from "./pages/dashboard-page";
 import { AnalyticsDashboardsPage } from "./pages/analytics-dashboards-page";
+import { WorkflowsPage } from "./pages/workflows-page";
 import { BusinessDevelopmentPage } from "./pages/business-development-page";
 import { InsideSalesWorkspacePage } from "./pages/inside-sales-workspace-page";
 import { PartnersPage } from "./pages/partners-page";
@@ -198,6 +199,19 @@ export const router = createBrowserRouter([
                 moduleKey="dashboards"
               >
                 <AnalyticsDashboardsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "workflows",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.workflows}
+                title="Workflow automation is limited by role."
+                description="Your current role set does not include workflow access for this tenant."
+                moduleKey="workflows"
+              >
+                <WorkflowsPage />
               </PermissionRoute>
             )
           },

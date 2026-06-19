@@ -23,7 +23,8 @@ import {
   ShoppingBag,
   Sparkles,
   Target,
-  Users
+  Users,
+  Workflow
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { routePermissionRequirements } from "@/lib/rbac";
@@ -210,6 +211,14 @@ export const appNavItems: AppNavItem[] = [
     icon: BrainCircuit,
     moduleKey: "ai",
     requiredPermissionCodes: routePermissionRequirements.aiAssistant
+  },
+  {
+    title: "Workflows",
+    href: "/workflows",
+    description: "Configurable triggers, conditions, actions, and run logs.",
+    icon: Workflow,
+    moduleKey: "workflows",
+    requiredPermissionCodes: routePermissionRequirements.workflows
   },
   {
     title: "Knowledge Base",

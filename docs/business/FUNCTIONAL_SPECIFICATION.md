@@ -361,3 +361,15 @@ The platform provides eighteen role-based dashboards: executive, sales, marketin
 - **Export** — dashboards can be exported subject to an export permission check; exports are audited.
 
 The customer success and AI insights dashboards are first-class members of this set.
+
+## Workflow Automation (Phase 24)
+
+Administrators automate business processes with configurable workflows built from a trigger, optional conditions, and ordered actions.
+
+- **Triggers** (14) — record created/updated, stage changed, assignment changed, date reached, SLA breached, campaign response received, ticket escalated, AI score changed, customer health changed, onboarding delayed, training incomplete, renewal approaching, and usage dropped.
+- **Conditions** — field/operator/value tests evaluated against the trigger context; an unmet condition produces a skipped, traceable run.
+- **Actions** (14) — assign owner, create task, send notification, send email, update field, change status, trigger approval, call webhook, run AI prompt, run AI agent, create support ticket, assign training, create customer success task, and trigger renewal playbook.
+- **Governance** — workflow actions respect permissions (an action the runner lacks permission for fails and is logged), every run is logged with per-action records, failures are traceable, and AI actions execute through the AI Gateway. Non-AI actions are governed, logged effects in this phase; `send_email` and `call_webhook` are deferred placeholders.
+- **Run logs** — each execution records its status (running/succeeded/failed/skipped), action counts, and a per-action log for traceability.
+
+See [../technical/WORKFLOW_ENGINE.md](../technical/WORKFLOW_ENGINE.md).

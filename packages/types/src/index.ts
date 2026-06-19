@@ -10,6 +10,7 @@ export * from "./ai-actions.js";
 export * from "./rag.js";
 export * from "./customer-query.js";
 export * from "./dashboards.js";
+export * from "./workflows.js";
 
 export type EnvironmentName = "development" | "test" | "production";
 
