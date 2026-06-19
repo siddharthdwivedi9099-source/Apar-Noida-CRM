@@ -100,6 +100,18 @@ The AI Gateway enforces access control on every AI surface:
 
 See [../ai/AI_GOVERNANCE.md](../ai/AI_GOVERNANCE.md) for the full governance model.
 
+## Customer Portal Access Control (Phase 26)
+
+Phase 26 adds a dedicated `customer_portal` RBAC module and seeded **Customer Portal User** role.
+
+- **Profile gate** — a user must have an active `customer_portal_profiles` row linked to one tenant account before any `/customer-portal/*` API returns data.
+- **Tenant boundary** — every portal query filters by `tenant_id`.
+- **Account boundary** — tickets are filtered by the portal profile's `account_id`; portal ticket creation ignores caller-supplied account IDs and uses the profile account.
+- **Contact/user boundary** — training is visible when assigned to the current user, profile contact, profile account, or a matching customer learner.
+- **Internal data redaction** — customer ticket responses omit owner, assignee, root cause, internal notes, and internal resolution fields.
+- **Customer-safe AI** — portal Ask AI only retrieves approved/published articles from enabled tenant-scoped knowledge sources with no internal `required_permission`.
+- **Frontend separation** — `/portal/*` uses a separate customer portal shell; customer-only users do not see the internal CRM sidebar.
+
 ## Relationship to the RBAC Matrix
 
 [RBAC_MATRIX.md](./RBAC_MATRIX.md) now reflects the actual seeded modules, action categories, and role templates rather than a planning-only access sketch.

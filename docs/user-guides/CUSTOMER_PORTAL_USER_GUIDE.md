@@ -2,44 +2,35 @@
 
 ## Purpose
 
-This guide explains the learner-facing customer portal for training, delivered as the **My Training** experience in Phase 17.
+Phase 26 adds a customer-facing portal at `/portal`. It gives external customer users a safe view of their own account data without exposing the internal CRM workspace.
 
-## Accessing My Training
+## Access
 
-Open **Training** from the navigation and select the **My Training** tab. This view shows the training assigned to you.
+Customer portal users sign in through the normal login page with a customer portal role and an active `customer_portal_profiles` record. Customer-only users are routed to `/portal/dashboard` after login.
 
-## What you see
+## Portal Areas
 
-- **Assigned** — training assigned to you that you have not started.
-- **In progress** — training you are currently working through.
-- **Completed** — training you have finished.
-- A list of your assignments, each showing the program, status, completion percent, lesson count, and due date.
-- A recommended-training placeholder for future personalized recommendations.
+- **Dashboard** — account summary, ticket counts, training counts, knowledge count, active AI sessions, product announcement placeholder, and CSAT prompt.
+- **Tickets** — view customer-visible tickets for your account, create a support ticket, track status, and add customer replies.
+- **Knowledge** — search approved customer-visible knowledge articles.
+- **Ask AI** — ask questions answered only from approved customer-visible knowledge.
+- **Training** — view assigned published training and mark lessons complete.
+- **Profile** — view linked account/contact details, update phone/job title, and submit feedback or CSAT.
 
-## Working through training
+## Ticket Rules
 
-1. Select an assignment to open it.
-2. Review the lessons and their progress status.
-3. Use **Complete** on a lesson to mark it done. Your overall progress and status update automatically.
-4. When all lessons are complete, the assignment is marked completed.
+- Tickets are automatically linked to the customer user's account.
+- Portal users cannot choose another account or internal assignee.
+- Internal notes, root-cause fields, owner fields, and internal resolution notes are not shown in the portal.
+- Customer replies are stored as `customer_reply` messages.
 
-## Feedback
+## AI Rules
 
-You can submit a rating (1–5) and comments on your training so the team can improve programs.
+Ask AI uses only approved, published knowledge articles from enabled tenant-scoped sources with no required internal permission. Restricted sources and internal CRM records are excluded. If no approved answer is found, the portal returns a no-answer response and logs the interaction for review rather than guessing.
 
-## Ask AI (Phase 21)
+## Security Expectations
 
-The **Ask AI** page (`/ask-ai`) and the in-app **AI Help** panel (`/ai-help`) answer your questions from the approved knowledge base.
-
-- **Ask a question** — type a question and the assistant retrieves approved knowledge sources, then answers with the sources it used. Each answer shows a query level, a confidence score, and the sources cited.
-- **Grounded answers** — the assistant only answers from approved knowledge. If it can't find an approved answer, it says so and routes your question to the team instead of guessing.
-- **Escalation** — complex or critical questions (for example outages, security, or billing) are automatically routed to a person, and a support ticket is created.
-- **Talk to a person** — use this button at any time to create a support ticket from your conversation.
-- **Feedback** — mark each answer **Yes** (helpful) or **No** (not helpful). Your feedback and any unanswered questions help us improve the knowledge base.
-
-## Notes
-
-- The portal currently shows training assigned to your user account.
-- Certifications and recommended training are placeholders pending later phases.
-- An external, customer-facing portal (outside the CRM app) is out of scope for this phase.
-- Live AI text generation is deferred; Ask AI returns grounded answers composed from approved knowledge sources.
+- Customer users must have `customer_portal.*` permissions.
+- Every portal API request is tenant-scoped.
+- Every ticket and training query is constrained by the active portal profile's account/contact/user boundary.
+- Customer portal pages use a separate shell from the internal CRM navigation.

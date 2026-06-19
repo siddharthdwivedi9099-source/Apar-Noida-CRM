@@ -33,6 +33,7 @@ export const permissionModuleKeys = [
   "customer_success",
   "training",
   "customer_query",
+  "customer_portal",
   "dashboards",
   "notifications",
   "approvals",
@@ -60,6 +61,7 @@ export const permissionModuleLabels: Record<PermissionModuleKey, string> = {
   customer_success: "Customer Success",
   training: "Training",
   customer_query: "Customer Query",
+  customer_portal: "Customer Portal",
   dashboards: "Dashboards",
   notifications: "Notifications",
   approvals: "Approvals",
@@ -232,6 +234,12 @@ const approvalLeaderPermissions = permissionsForModules(
   ["view", "approve", "export", "configure"]
 );
 const aiUserPermissions = [buildPermissionCode("ai", "view"), buildPermissionCode("ai", "use_ai")];
+const customerPortalUserPermissions = [
+  buildPermissionCode("customer_portal", "view"),
+  buildPermissionCode("customer_portal", "create"),
+  buildPermissionCode("customer_portal", "edit"),
+  buildPermissionCode("customer_portal", "use_ai")
+];
 const aiManagerPermissions = [
   buildPermissionCode("ai", "view"),
   buildPermissionCode("ai", "use_ai"),
@@ -266,6 +274,15 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     ]),
     metadata: {
       profile: "tenant-admin"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Customer Portal User",
+    description: "External customer access to their own account tickets, training, approved knowledge, and portal AI.",
+    permissionCodes: customerPortalUserPermissions,
+    metadata: {
+      profile: "customer-portal-user",
+      audience: "customer"
     }
   }),
   createRoleTemplateDefinition({

@@ -139,3 +139,19 @@ Queries are classified by keyword heuristics into Level 1 (simple how-to, passwo
 5. **Review** — support/customer success use `GET /customer-query/sessions`, `/dashboard`, and `/knowledge-gaps`.
 
 Live LLM generation is still deferred; the bot composes deterministic grounded answers from retrieved snippets so the governance, escalation, ticketing, and logging mechanisms run end-to-end. See [AI_GOVERNANCE.md](./AI_GOVERNANCE.md).
+
+## Phase 26 Customer Portal Ask AI
+
+Phase 26 exposes a customer-facing Ask AI surface at `/portal/ask-ai` backed by `/customer-portal/ask-ai`.
+
+Customer portal AI is stricter than the internal customer-query console:
+
+- It requires `customer_portal.use_ai`.
+- It requires an active `customer_portal_profiles` row for the requester.
+- It retrieves only `knowledge_articles` where `status = approved` and `is_published = true`.
+- It requires the article source to be enabled, tenant-scoped (`access_scope = tenant`), and free of an internal `required_permission`.
+- It never retrieves restricted sources, customer-specific internal documents, support ticket internals, CRM account fields, or cross-account data.
+- It logs the customer question and deterministic answer to `customer_query_sessions` and `customer_query_messages`.
+- If no approved customer-visible citation is found, it returns a safe no-answer response and creates an open `customer_query_escalations` record instead of inventing an answer.
+
+This preserves the Phase 21 retrieve-before-answer model while making the external customer channel narrower than the internal support/customer-success review tools.

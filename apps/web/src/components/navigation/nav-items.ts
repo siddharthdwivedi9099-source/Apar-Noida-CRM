@@ -55,6 +55,14 @@ export const appNavItems: AppNavItem[] = [
     requiredPermissionCodes: routePermissionRequirements.dashboard
   },
   {
+    title: "Customer Portal",
+    href: "/portal/dashboard",
+    description: "External customer tickets, training, approved knowledge, and customer-safe AI.",
+    icon: LayoutDashboard,
+    moduleKey: "customer_portal",
+    requiredPermissionCodes: routePermissionRequirements.customerPortal
+  },
+  {
     title: "Notifications",
     href: "/notifications",
     description: "In-app alerts, read state, preferences, and linked record visibility.",

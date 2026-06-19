@@ -2,6 +2,7 @@ import { Navigate, Outlet, createBrowserRouter, useLocation } from "react-router
 import { authRouting } from "@crm/auth";
 import type { PermissionModuleKey } from "@crm/types";
 import { AuthSplash } from "./components/auth/auth-splash";
+import { CustomerPortalShell } from "./components/customer-portal/customer-portal-shell";
 import { AppShell } from "./components/layout/app-shell";
 import { AccountDetailPage } from "./pages/account-detail-page";
 import { AccountFormPage } from "./pages/account-form-page";
@@ -20,6 +21,12 @@ import { AskAiPage } from "./pages/ask-ai-page";
 import { AiHelpPanelPage } from "./pages/ai-help-panel-page";
 import { CustomerQueryReviewPage } from "./pages/customer-query-review-page";
 import { KnowledgeGapDashboardPage } from "./pages/knowledge-gap-dashboard-page";
+import { CustomerPortalAskAiPage } from "./pages/customer-portal-ask-ai-page";
+import { CustomerPortalDashboardPage } from "./pages/customer-portal-dashboard-page";
+import { CustomerPortalKnowledgePage } from "./pages/customer-portal-knowledge-page";
+import { CustomerPortalProfilePage } from "./pages/customer-portal-profile-page";
+import { CustomerPortalTicketsPage } from "./pages/customer-portal-tickets-page";
+import { CustomerPortalTrainingPage } from "./pages/customer-portal-training-page";
 import { CampaignDetailPage } from "./pages/campaign-detail-page";
 import { CampaignFormPage } from "./pages/campaign-form-page";
 import { CampaignsPage } from "./pages/campaigns-page";
@@ -59,8 +66,23 @@ import { routePermissionRequirements } from "./lib/rbac";
 import { useAuth } from "./providers/auth-provider";
 import { useTenantConfig } from "./providers/tenant-config-provider";
 
+function getDefaultAuthenticatedRoute(permissionCodes: string[]) {
+  const hasDashboardAccess = routePermissionRequirements.dashboard.some((permissionCode) =>
+    permissionCodes.includes(permissionCode)
+  );
+  const hasCustomerPortalAccess = routePermissionRequirements.customerPortal.some((permissionCode) =>
+    permissionCodes.includes(permissionCode)
+  );
+
+  if (!hasDashboardAccess && hasCustomerPortalAccess) {
+    return "/portal/dashboard";
+  }
+
+  return authRouting.defaultAuthenticatedRoute;
+}
+
 function RootRedirect() {
-  const { status, isAuthenticated } = useAuth();
+  const { status, isAuthenticated, user } = useAuth();
 
   if (status === "loading") {
     return (
@@ -71,11 +93,11 @@ function RootRedirect() {
     );
   }
 
-  return <Navigate to={isAuthenticated ? authRouting.defaultAuthenticatedRoute : authRouting.login} replace />;
+  return <Navigate to={isAuthenticated ? getDefaultAuthenticatedRoute(user?.permissionCodes ?? []) : authRouting.login} replace />;
 }
 
 function LoginRoute() {
-  const { status, isAuthenticated } = useAuth();
+  const { status, isAuthenticated, user } = useAuth();
   const location = useLocation();
 
   if (status === "loading") {
@@ -89,7 +111,7 @@ function LoginRoute() {
 
   if (isAuthenticated) {
     const redirectTarget =
-      ((location.state as { from?: string } | null)?.from ?? authRouting.defaultAuthenticatedRoute);
+      ((location.state as { from?: string } | null)?.from ?? getDefaultAuthenticatedRoute(user?.permissionCodes ?? []));
 
     return <Navigate to={redirectTarget} replace />;
   }
@@ -175,6 +197,94 @@ export const router = createBrowserRouter([
     path: "/",
     element: <ProtectedRoute />,
     children: [
+      {
+        path: "portal",
+        element: <CustomerPortalShell />,
+        children: [
+          {
+            index: true,
+            element: <Navigate to="/portal/dashboard" replace />
+          },
+          {
+            path: "dashboard",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerPortal}
+                title="Customer portal access is limited by role."
+                description="Open this portal with a role that includes customer portal access."
+                moduleKey="customer_portal"
+              >
+                <CustomerPortalDashboardPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "tickets",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerPortal}
+                title="Customer ticket access is limited by role."
+                description="Open customer tickets with a role that includes customer portal access."
+                moduleKey="customer_portal"
+              >
+                <CustomerPortalTicketsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "knowledge",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerPortal}
+                title="Customer knowledge access is limited by role."
+                description="Open customer knowledge with a role that includes customer portal access."
+                moduleKey="customer_portal"
+              >
+                <CustomerPortalKnowledgePage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "ask-ai",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["customer_portal.use_ai"]}
+                title="Customer portal AI is limited by role."
+                description="Ask AI from the portal with a role that includes customer portal AI access."
+                moduleKey="customer_portal"
+              >
+                <CustomerPortalAskAiPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "training",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerPortal}
+                title="Customer training access is limited by role."
+                description="Open customer training with a role that includes customer portal access."
+                moduleKey="customer_portal"
+              >
+                <CustomerPortalTrainingPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "profile",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerPortal}
+                title="Customer profile access is limited by role."
+                description="Open the customer profile with a role that includes customer portal access."
+                moduleKey="customer_portal"
+              >
+                <CustomerPortalProfilePage />
+              </PermissionRoute>
+            )
+          }
+        ]
+      },
       {
         element: <AppShell />,
         children: [

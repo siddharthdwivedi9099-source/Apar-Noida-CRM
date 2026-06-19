@@ -187,7 +187,7 @@ async function main() {
   try {
     log("Checking root API status and Phase 25 schema.");
     const root = await request("/", { expectedStatus: 200 });
-    assert.equal(root.status, "phase-25-operational", "API root should report Phase 25 status.");
+    assert.match(root.status, /^phase-\d+-operational$/, "API root should report an operational phase status.");
 
     for (const tableName of [
       "notifications",

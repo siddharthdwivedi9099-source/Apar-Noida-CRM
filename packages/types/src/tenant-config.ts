@@ -405,6 +405,13 @@ export const tenantModuleDefinitions: TenantModuleDefinition[] = [
     locked: false
   },
   {
+    moduleKey: "customer_portal",
+    label: permissionModuleLabels.customer_portal,
+    description: "External customer dashboard, tickets, training, approved knowledge, and customer-safe AI.",
+    defaultEnabled: true,
+    locked: false
+  },
+  {
     moduleKey: "notifications",
     label: permissionModuleLabels.notifications,
     description: "In-app alerts, notification preferences, and role-aware delivery routing.",
@@ -482,6 +489,12 @@ export const defaultTenantTerminologyEntries: TenantTerminologyEntry[] = [
     singular: "Success Stage",
     plural: "Customer Success",
     description: "Post-sales lifecycle programs and retention work."
+  },
+  {
+    moduleKey: "customer_portal",
+    singular: "Customer Portal",
+    plural: "Customer Portal",
+    description: "External customer dashboard, tickets, knowledge, training, and AI help."
   },
   {
     moduleKey: "dashboards",

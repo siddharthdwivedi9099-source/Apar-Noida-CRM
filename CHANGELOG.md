@@ -2,9 +2,18 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 24 implementation work.
+Current repository state now includes Phase 1 through Phase 26 implementation work.
 
 ### Added
+
+- Phase 26 migration `20260626050000_phase26_customer_portal.sql` with tenant-scoped `customer_portal_profiles` and `customer_feedback`
+- dedicated `customer_portal` RBAC module and seeded **Customer Portal User** role template
+- customer portal APIs under `/customer-portal` for profile, dashboard, tickets, customer-visible ticket replies, knowledge, Ask AI, training, training progress, and feedback/CSAT
+- customer-safe AI retrieval that only uses approved/published articles from enabled tenant-scoped knowledge sources without internal permission requirements
+- customer account/profile isolation for tickets and training, plus redaction of internal support fields and internal notes
+- frontend customer portal shell and routes under `/portal` for dashboard, tickets, knowledge base, Ask AI, training, and profile/feedback
+- customer-only login/root redirect to `/portal/dashboard`
+- customer portal user guide, access-control guide, customer-query AI design, and API documentation updates
 
 - Phase 25 migration `20260625050000_phase25_notifications_approval_workflows.sql` with tenant-scoped `notifications`, `notification_deliveries`, `notification_preferences`, `approval_requests`, and append-only `approval_history`
 - notification center APIs under `/notifications` for list, read/read-all, direct creation, and per-user preference replacement

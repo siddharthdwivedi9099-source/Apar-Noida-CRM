@@ -731,6 +731,27 @@ Tenant-scoped, configurable workflow automation. Read requires any `workflows.*`
 
 Triggers: `record_created`, `record_updated`, `stage_changed`, `assignment_changed`, `date_reached`, `sla_breached`, `campaign_response_received`, `ticket_escalated`, `ai_score_changed`, `customer_health_changed`, `onboarding_delayed`, `training_incomplete`, `renewal_approaching`, `usage_dropped`. Actions: `assign_owner`, `create_task`, `send_notification`, `send_email`, `update_field`, `change_status`, `trigger_approval`, `call_webhook`, `run_ai_prompt`, `run_ai_agent`, `create_support_ticket`, `assign_training`, `create_customer_success_task`, `trigger_renewal_playbook`. Run statuses: `running`, `succeeded`, `failed`, `skipped`. AI actions execute through the AI Gateway; non-AI actions are governed logged effects in this phase.
 
+## Customer Portal Routes (Phase 26)
+
+Customer-facing routes are mounted under `/customer-portal` and require a valid access token plus an active `customer_portal_profiles` row. Read routes accept any `customer_portal.*` permission; mutations require `customer_portal.create` or `customer_portal.edit`; Ask AI requires `customer_portal.use_ai`.
+
+- `GET /customer-portal/profile` — current portal profile, linked account, optional contact, preferences, and portal role.
+- `PATCH /customer-portal/profile` — update customer profile fields: `jobTitle`, `phone`, optional `preferences`.
+- `GET /customer-portal/dashboard` — account-scoped ticket/training/knowledge/AI metrics plus product-announcement and CSAT placeholders.
+- `GET /customer-portal/tickets` — list tickets for the profile account only.
+- `POST /customer-portal/tickets` — create an account-linked support ticket: `subject`, optional `description`, `priorityKey`, `categoryKey`, `metadata`.
+- `GET /customer-portal/tickets/:ticketId` — customer-safe ticket detail with customer-visible messages only.
+- `POST /customer-portal/tickets/:ticketId/messages` — add a `customer_reply` message.
+- `GET /customer-portal/knowledge?search=` — list approved/published customer-visible knowledge articles.
+- `GET /customer-portal/knowledge/:articleId` — approved customer-visible article detail.
+- `POST /customer-portal/ask-ai` — ask a customer-safe AI question: `question`. Returns deterministic answer text, citations, escalation flag, and session ID.
+- `GET /customer-portal/training` — published training assigned to the current portal user/contact/account/customer learner.
+- `GET /customer-portal/training/:assignmentId` — training detail with lessons and progress.
+- `POST /customer-portal/training/:assignmentId/progress` — update one lesson: `lessonId`, optional `status`, `progressPercent`, `metadata`.
+- `POST /customer-portal/feedback` — create CSAT or portal feedback: `feedbackType`, optional `rating`, `comment`, related entity fields, and metadata.
+
+Security behavior: customer portal APIs do not expose internal CRM navigation data, ticket owners/assignees, root-cause fields, internal notes, restricted knowledge sources, or cross-account records.
+
 ## Validation and Error Handling
 
 Common behaviors:
