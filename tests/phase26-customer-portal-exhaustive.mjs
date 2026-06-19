@@ -278,6 +278,16 @@ async function main() {
       [tenantId, customerAId, accountAId, contactAId, customerBId, runToken, accountBId, contactBId]
     );
 
+    // Strict retest: a portal-permissioned user with no profile, and a view-only user with a profile on account A.
+    const noProfileEmail = `phase26-noprofile-${runToken}@example.test`;
+    const noProfileUserId = await createUser(client, { tenantId, email: noProfileEmail, password: customerPassword, firstName: "No", lastName: "Profile", roleId });
+    assert.ok(noProfileUserId, "No-profile user should be created.");
+    const viewOnlyRoleId = await createRole(client, { tenantId, roleSlug: `phase26-viewonly-${runToken}`, roleName: `Phase 26 View Only ${runToken}`, permissionCodes: ["customer_portal.view"] });
+    const viewOnlyEmail = `phase26-viewonly-${runToken}@example.test`;
+    const viewOnlyUserId = await createUser(client, { tenantId, email: viewOnlyEmail, password: customerPassword, firstName: "View", lastName: "Only", roleId: viewOnlyRoleId });
+    const viewOnlyContactId = (await client.query(`INSERT INTO contacts (tenant_id, account_id, first_name, last_name, email, metadata) VALUES ($1, $2, 'View', 'Only', $3, jsonb_build_object('testRun', $4::text)) RETURNING id`, [tenantId, accountAId, viewOnlyEmail, runToken])).rows[0].id;
+    await client.query(`INSERT INTO customer_portal_profiles (tenant_id, user_id, account_id, contact_id, portal_role, metadata, created_by, updated_by) VALUES ($1, $2, $3, $4, 'customer_user', jsonb_build_object('testRun', $5::text), $2, $2)`, [tenantId, viewOnlyUserId, accountAId, viewOnlyContactId, runToken]);
+
     const statusNewId = await optionId(client, tenantId, "support-ticket-status", "new");
     const statusResolvedId = await optionId(client, tenantId, "support-ticket-status", "resolved");
     const priorityMediumId = await optionId(client, tenantId, "support-ticket-priority", "medium");
@@ -407,6 +417,19 @@ async function main() {
     assert.ok(customerASession.user.permissionCodes.includes("customer_portal.view"), "Customer A should have portal permissions.");
     assert.ok(!customerASession.user.permissionCodes.includes("support.view"), "Customer A should not have internal support permissions.");
 
+    log("Verifying the profile-required gate and granular portal permissions.");
+    const noProfileSession = await loginSession(defaultTenantSlug, noProfileEmail, customerPassword);
+    await expectError("/customer-portal/profile", { accessToken: noProfileSession.accessToken, expectedStatus: 403, expectedCode: "CUSTOMER_PORTAL_PROFILE_REQUIRED" });
+    await expectError("/customer-portal/dashboard", { accessToken: noProfileSession.accessToken, expectedStatus: 403, expectedCode: "CUSTOMER_PORTAL_PROFILE_REQUIRED" });
+
+    const viewOnlySession = await loginSession(defaultTenantSlug, viewOnlyEmail, customerPassword);
+    await request("/customer-portal/profile", { accessToken: viewOnlySession.accessToken });
+    await request("/customer-portal/tickets", { accessToken: viewOnlySession.accessToken });
+    await expectError("/customer-portal/tickets", { method: "POST", accessToken: viewOnlySession.accessToken, expectedStatus: 403, expectedCode: "FORBIDDEN", body: { subject: `Blocked ticket ${runToken}` } });
+    await expectError("/customer-portal/ask-ai", { method: "POST", accessToken: viewOnlySession.accessToken, expectedStatus: 403, expectedCode: "FORBIDDEN", body: { question: `Blocked question ${runToken}?` } });
+    await expectError("/customer-portal/feedback", { method: "POST", accessToken: viewOnlySession.accessToken, expectedStatus: 403, expectedCode: "FORBIDDEN", body: { feedbackType: "csat", rating: 4 } });
+    await expectError("/customer-portal/profile", { method: "PATCH", accessToken: viewOnlySession.accessToken, expectedStatus: 403, expectedCode: "FORBIDDEN", body: { jobTitle: "Nope" } });
+
     log("Verifying profile, dashboard, and ticket isolation.");
     const profileA = await request("/customer-portal/profile", { accessToken: customerASession.accessToken });
     assert.equal(profileA.profile.account.id, accountAId, "Customer A profile should be linked to account A.");
@@ -469,6 +492,8 @@ async function main() {
     });
     assert.ok(knowledgeA.articles.some((article) => article.id === visibleArticleId), "Customer-visible article should be listed.");
     assert.ok(!knowledgeA.articles.some((article) => article.id === restrictedArticleId), "Restricted article must not be listed.");
+    await request(`/customer-portal/knowledge/${visibleArticleId}`, { accessToken: customerASession.accessToken });
+    await expectError(`/customer-portal/knowledge/${restrictedArticleId}`, { accessToken: customerASession.accessToken, expectedStatus: 404, expectedCode: "CUSTOMER_PORTAL_KNOWLEDGE_NOT_FOUND" });
 
     const aiAnswer = await request("/customer-portal/ask-ai", {
       method: "POST",
@@ -486,6 +511,14 @@ async function main() {
     });
     assert.equal(noAnswer.escalated, true, "No-answer portal AI path should escalate for review.");
     assert.equal(noAnswer.citations.length, 0, "No-answer portal AI path should not invent citations.");
+
+    const restrictedAsk = await request("/customer-portal/ask-ai", {
+      method: "POST",
+      accessToken: customerASession.accessToken,
+      body: { question: `Tell me everything about SECRET-${runToken}` }
+    });
+    assert.ok(!restrictedAsk.citations.some((citation) => citation.articleId === restrictedArticleId), "Restricted article must never be cited by portal AI, even when asked directly.");
+    assert.ok(!JSON.stringify(restrictedAsk).includes("SECRET-"), "Restricted content must never surface in portal AI output.");
 
     log("Verifying training access and progress tracking.");
     const trainingA = await request("/customer-portal/training", { accessToken: customerASession.accessToken });
@@ -513,6 +546,22 @@ async function main() {
       accessToken: customerBSession.accessToken,
       expectedStatus: 404,
       expectedCode: "CUSTOMER_PORTAL_TRAINING_NOT_FOUND"
+    });
+
+    // Cross-account write isolation: customer B cannot act on account A records even with create/edit permissions.
+    await expectError(`/customer-portal/tickets/${ticketAId}/messages`, {
+      method: "POST",
+      accessToken: customerBSession.accessToken,
+      expectedStatus: 404,
+      expectedCode: "CUSTOMER_PORTAL_TICKET_NOT_FOUND",
+      body: { body: `Cross-account reply ${runToken}` }
+    });
+    await expectError(`/customer-portal/training/${assignmentAId}/progress`, {
+      method: "POST",
+      accessToken: customerBSession.accessToken,
+      expectedStatus: 404,
+      expectedCode: "CUSTOMER_PORTAL_TRAINING_NOT_FOUND",
+      body: { lessonId: lessonAId, status: "completed" }
     });
 
     log("Verifying profile updates, feedback, and audit logs.");
@@ -543,6 +592,7 @@ async function main() {
     assert.equal(feedbackRow.account_id, accountAId, "Feedback should be linked to profile account.");
     assert.equal(feedbackRow.comment, `CSAT ${runToken}`, "Feedback comment should persist.");
 
+    await assertAuditExists(client, { tenantId, action: "customer_portal.profile.update", resourceType: "customer_portal_profile" });
     await assertAuditExists(client, { tenantId, action: "customer_portal.ticket.create", resourceType: "support_ticket" });
     await assertAuditExists(client, { tenantId, action: "customer_portal.ticket.reply", resourceType: "support_ticket_message" });
     await assertAuditExists(client, { tenantId, action: "customer_portal.ask_ai", resourceType: "customer_query_session" });
