@@ -75,3 +75,16 @@ The Customer AI Query Bot answers customer-facing questions under strict guardra
 - **Permissions.** Asking requires `customer_query.use_ai`/`create`/`manage_ai`/`configure`; review/dashboard requires `customer_query.view`/`view_dashboard`/`manage_ai`/`assign`/`configure`/`edit`.
 
 See [CUSTOMER_QUERY_AI_DESIGN.md](./CUSTOMER_QUERY_AI_DESIGN.md) for the full design.
+
+## Module AI Action Governance (Phase 22)
+
+Module AI actions integrate AI into every CRM module under a fixed set of rules, enforced by `AiActionsService`:
+
+1. **Permission checked** — each action declares the permissions allowed to run it (a module permission or `ai.use_ai`/`ai.manage_ai`); execution is rejected otherwise.
+2. **Request and response logged** — every run writes an `ai_action_runs` row (action, module, variables, resolved prompt, output, provider/model, tokens, review state) plus the gateway's `ai_usage_logs` entry and an audit-log record.
+3. **Prompt Registry used** — every action resolves its prompt from the managed registry via a `templateKey`; prompts are never hardcoded in business logic or the UI.
+4. **AI Gateway used** — every action executes through the AI Gateway, inheriting its tenant settings, provider abstraction, and deferred-execution placeholder behavior.
+5. **Human review for sensitive actions** — drafts, recommendations, and generators are flagged `sensitive` and returned as `pending_review`; the output is not considered usable until an authorized reviewer (`<module>.approve`/`manage_ai`/`configure` or `ai.approve`/`manage_ai`) approves it.
+6. **Tenant isolation** — `ai_action_runs` are tenant-scoped; runs from one tenant are never visible to another.
+
+See [AI_USE_CASE_CATALOG.md](./AI_USE_CASE_CATALOG.md) for the catalog and [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md) for the composition.

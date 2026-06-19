@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bot,
   BookOpen,
+  BrainCircuit,
   BriefcaseBusiness,
   Building2,
   CalendarRange,
@@ -191,6 +192,14 @@ export const appNavItems: AppNavItem[] = [
     href: "/ai-agents",
     description: "Governed AI agents, tools, roles, scope, and escalation.",
     icon: Bot,
+    moduleKey: "ai",
+    requiredPermissionCodes: routePermissionRequirements.aiAssistant
+  },
+  {
+    title: "AI Actions",
+    href: "/ai-actions",
+    description: "Module AI actions through the governed gateway and prompt registry.",
+    icon: BrainCircuit,
     moduleKey: "ai",
     requiredPermissionCodes: routePermissionRequirements.aiAssistant
   },

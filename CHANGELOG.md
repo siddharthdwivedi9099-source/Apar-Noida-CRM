@@ -2,9 +2,21 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 21 implementation work.
+Current repository state now includes Phase 1 through Phase 22 implementation work.
 
 ### Added
+
+- Phase 22 migration `20260622050000_phase22_ai_actions.sql` with tenant-scoped `ai_action_runs`
+- module AI action catalog (`aiActionCatalog` in `@crm/types`) integrating the AI Gateway and Prompt Registry into 37 actions across Leads, Accounts, Opportunities, Campaigns, Social, Support, Customer Success, Training, Partners, and Resellers
+- expanded prompt template registry (`defaultAiPromptTemplates`) with the module-action templates so prompts are never hardcoded in UI or business logic
+- `AiActionsService` enforcing the action rules: permission check, request/response logging, Prompt Registry resolution, AI Gateway execution, and human review for sensitive actions (drafts, recommendations, generators)
+- AI action APIs under `/ai`:
+  - `GET /ai/actions` (catalog with per-action `permitted` flags), `POST /ai/actions/:actionKey/execute`
+  - `GET /ai/actions/runs`, `GET /ai/actions/runs/:runId`, `POST /ai/actions/runs/:runId/review`
+- exported `AiGatewayConfig` so the action layer reuses the gateway
+- AI Actions frontend page (`/ai-actions`) with module-filtered catalog, action execution, run logs, and sensitive-output review, plus navigation
+- exhaustive Phase 22 validation script `tests/phase22-ai-actions-exhaustive.mjs`
+- AI use case catalog, AI assistant user guide, AI architecture, and AI governance documentation updates
 
 - Phase 21 migration `20260621050000_phase21_customer_query_ai.sql` with tenant-scoped `customer_query_sessions`, append-only `customer_query_messages`, and `customer_query_escalations`
 - Customer AI Query Bot that answers only from approved knowledge sources: retrieves before answering, composes grounded answers from citations, and never invents answers

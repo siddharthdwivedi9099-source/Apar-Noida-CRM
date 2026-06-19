@@ -154,3 +154,16 @@ The AI Gateway foundation is implemented in Phase 18.
 - **Permissioned** — gateway execution requires `ai.use_ai` (or higher); settings require `ai.configure`/`ai.manage_ai`; logs require view/dashboard/manage permissions.
 - **Logged** — every request is written to `ai_usage_logs` (provider, model, template, status, tokens, latency, errors) and to the audit log.
 - **Deferred execution** — providers return governed placeholder responses (status `placeholder`) until credentials and a later execution phase are enabled. A rate-limit placeholder is reported but not enforced.
+
+## Phase 22 Implementation — Module AI Actions
+
+Phase 22 composes the AI Gateway and Prompt Registry into a catalog of module-specific AI actions, so every CRM module gains AI features without embedding prompts or calling providers directly.
+
+- **Action catalog** — `aiActionCatalog` in `@crm/types` defines each action: its module, label, prompt `templateKey`, capability, category, sensitivity, entity type, variables, and the permissions required to run and to review it. Actions span Leads, Accounts, Opportunities, Campaigns, Social, Support, Customer Success, Training, Partners, and Resellers.
+- **No hardcoded prompts** — each action references a template in the managed registry (`defaultAiPromptTemplates`); the UI reads the catalog and never contains prompt text.
+- **AiActionsService** — wraps `AiGatewayService`. On execute it (1) checks the action's required permission, (2) runs the prompt through the gateway, (3) writes an `ai_action_runs` log row (request variables, resolved prompt, output, provider/model, tokens), and (4) audits the run. The gateway additionally writes its own `ai_usage_logs` entry.
+- **Human review** — sensitive actions (drafts, recommendations, generators) are stored with `review_status = pending_review`; an authorized reviewer approves or rejects via `POST /ai/actions/runs/:runId/review`.
+- **APIs** — `GET /ai/actions`, `POST /ai/actions/:actionKey/execute`, `GET /ai/actions/runs`, `GET /ai/actions/runs/:runId`, `POST /ai/actions/runs/:runId/review`.
+- **Frontend** — the AI Actions page (`/ai-actions`) lists module actions, runs them, and surfaces review for sensitive output.
+
+See [AI_USE_CASE_CATALOG.md](./AI_USE_CASE_CATALOG.md) for the full action list.

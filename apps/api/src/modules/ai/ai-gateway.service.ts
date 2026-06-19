@@ -37,7 +37,7 @@ interface ActorContext {
   roles: RoleSummary[];
 }
 
-interface AiGatewayConfig {
+export interface AiGatewayConfig {
   enableAuditLogs: boolean;
   gatewayEnabled: boolean;
   defaultProvider: AiProviderKey;
