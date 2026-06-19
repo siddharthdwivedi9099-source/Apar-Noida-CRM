@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide covers the current tenant-admin workflow through Phase 5.
+This guide covers the current tenant-admin workflow and the operational controls added in later phases where relevant.
 
 ## Local Bootstrap
 
@@ -85,6 +85,8 @@ Implemented admin pages:
 - `/admin/terminology`
 - `/admin/custom-fields`
 - `/admin/rbac`
+- `/notifications`
+- `/approvals`
 
 ## Current Admin Capabilities
 
@@ -141,6 +143,15 @@ Admins can still:
 - assign roles to users
 - delete non-system roles
 
+### Notifications and approvals
+
+Tenant admins and authorized managers can now:
+- review the in-app notification center
+- manage notification preferences per user session
+- review approval inboxes and detail history
+- approve or reject requests when they are the assigned approver or hold approval/configure authority
+- rely on workflow-generated `send_notification` and `trigger_approval` actions creating real persisted records
+
 ## Recommended Admin Workflow
 
 Suggested order for a fresh tenant:
@@ -160,6 +171,7 @@ Current protections:
 - configuration writes create audit-log entries
 - disabled modules are blocked even if a user still has matching module permissions
 - custom fields use soft delete rather than destructive removal
+- notification preference changes, approval creation, approval comments, and approval decisions are audit logged
 
 ## Password Rotation for the Seeded Admin
 
@@ -191,3 +203,12 @@ The **Workflows** page (`/workflows`) lets administrators automate processes.
 - **Run logs** — the detail view lists recent runs and their step-level logs for traceability.
 
 Governance rules enforced: workflow actions respect permissions, runs are logged, failed workflows are traceable, and AI actions go through the AI Gateway.
+
+## Notifications and approvals (Phase 25)
+
+The **Notification center** (`/notifications`) and **Approval inbox** (`/approvals`) are now part of the authenticated workspace.
+
+- **Notifications** — users can review unread alerts, open linked records, and manage in-app notification preferences by type.
+- **Role-based delivery** — notifications can target a single user or fan out to every active user holding a role, while still storing read/unread state per recipient.
+- **Approvals** — approval requests store approver routing, approval comments, status transitions, and append-only approval history.
+- **Workflow integration** — `send_notification` and `trigger_approval` are no longer logged-only effects; they now persist records and surface in the corresponding inboxes.

@@ -6,6 +6,15 @@ Current repository state now includes Phase 1 through Phase 24 implementation wo
 
 ### Added
 
+- Phase 25 migration `20260625050000_phase25_notifications_approval_workflows.sql` with tenant-scoped `notifications`, `notification_deliveries`, `notification_preferences`, `approval_requests`, and append-only `approval_history`
+- notification center APIs under `/notifications` for list, read/read-all, direct creation, and per-user preference replacement
+- approval inbox APIs under `/approvals` for inbox list, detail, approval comments, and approve/reject decisions
+- workflow integration so `send_notification` now creates persisted in-app notifications and `trigger_approval` now creates persisted approval requests plus approval history
+- frontend notification center route (`/notifications`) with read/unread state, linked-record visibility, and notification preferences
+- frontend approval inbox routes (`/approvals`, `/approvals/:approvalId`) with inbox list, detail, comments, and approve/reject controls
+- new RBAC modules for `notifications` and `approvals`, plus tenant module toggles and terminology support
+- workflow engine, admin guide, user guide, and audit logging documentation updates for persisted notifications and approval workflows
+
 - Phase 24 migration `20260624050000_phase24_workflow_engine.sql` with tenant-scoped `workflows`, `workflow_actions`, `workflow_runs`, and append-only `workflow_logs`
 - configurable workflow automation engine: workflows built from a trigger, optional conditions, and ordered actions
 - 14 trigger types (record created/updated, stage changed, assignment changed, date reached, SLA breached, campaign response received, ticket escalated, AI score changed, customer health changed, onboarding delayed, training incomplete, renewal approaching, usage dropped) and 14 action types (assign owner, create task, send notification, send email, update field, change status, trigger approval, call webhook, run AI prompt, run AI agent, create support ticket, assign training, create customer success task, trigger renewal playbook) as catalogs in `@crm/types`

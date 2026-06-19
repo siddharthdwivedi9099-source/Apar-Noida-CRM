@@ -11,6 +11,7 @@ export * from "./rag.js";
 export * from "./customer-query.js";
 export * from "./dashboards.js";
 export * from "./workflows.js";
+export * from "./notifications.js";
 
 export type EnvironmentName = "development" | "test" | "production";
 

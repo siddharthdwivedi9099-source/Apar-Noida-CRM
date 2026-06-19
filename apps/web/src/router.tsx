@@ -31,6 +31,8 @@ import { CustomerSuccessPage } from "./pages/customer-success-page";
 import { TrainingPage } from "./pages/training-page";
 import { DashboardPage } from "./pages/dashboard-page";
 import { AnalyticsDashboardsPage } from "./pages/analytics-dashboards-page";
+import { ApprovalsPage } from "./pages/approvals-page";
+import { NotificationsPage } from "./pages/notifications-page";
 import { WorkflowsPage } from "./pages/workflows-page";
 import { BusinessDevelopmentPage } from "./pages/business-development-page";
 import { InsideSalesWorkspacePage } from "./pages/inside-sales-workspace-page";
@@ -199,6 +201,45 @@ export const router = createBrowserRouter([
                 moduleKey="dashboards"
               >
                 <AnalyticsDashboardsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "notifications",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.notifications}
+                title="Notification center access is limited by role."
+                description="Your current role set does not include notification-center visibility for this tenant."
+                moduleKey="notifications"
+              >
+                <NotificationsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "approvals",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.approvals}
+                title="Approval inbox access is limited by role."
+                description="Your current role set does not include approval inbox access for this tenant."
+                moduleKey="approvals"
+              >
+                <ApprovalsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "approvals/:approvalId",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.approvals}
+                title="Approval detail access is limited by role."
+                description="Your current role set does not include approval detail access for this tenant."
+                moduleKey="approvals"
+              >
+                <ApprovalsPage />
               </PermissionRoute>
             )
           },

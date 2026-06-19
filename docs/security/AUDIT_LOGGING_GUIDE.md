@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide explains the current audit logging behavior implemented in the Phase 2, Phase 3, and Phase 4 foundation.
+This guide explains the current audit logging behavior implemented across the platform foundation and the newer workflow-governance phases.
 
 ## Storage Model
 
@@ -39,6 +39,13 @@ The platform currently records:
 - role deletion
 - role-permission replacement
 - user-role replacement
+- notification creation
+- notification preference replacement
+- notification read and read-all actions
+- approval request creation
+- approval comments
+- approval approve/reject decisions
+- workflow runs that create persisted notifications or approvals
 
 ## Event Shape
 
@@ -53,6 +60,14 @@ RBAC events now also include examples such as:
 - `action = 'rbac.role.create' | 'rbac.role.update' | 'rbac.role.delete'`
 - `action = 'rbac.role.permissions.replace' | 'rbac.user.roles.replace'`
 - `resource_type = 'role' | 'user'`
+
+Notification and approval events now also include examples such as:
+- `event_type = 'notifications'`
+- `action = 'notification.create' | 'notification.preferences.replace' | 'notification.read' | 'notification.read_all'`
+- `resource_type = 'notification'`
+- `event_type = 'approvals'`
+- `action = 'approval.create' | 'approval.comment' | 'approval.decision'`
+- `resource_type = 'approval_request'`
 
 The `metadata` payload captures contextual details such as:
 - tenant slug used at login
@@ -73,6 +88,9 @@ Use audit logs to answer questions such as:
 What is covered now:
 - authentication lifecycle events
 - RBAC administration events
+- notification center mutations
+- approval workflow mutations
+- workflow-run audit entries
 - request-level identifiers for auth flows
 - tenant and actor correlation when available
 
@@ -96,4 +114,5 @@ Later phases should extend audit coverage to:
 - user creation and deactivation
 - tenant configuration changes
 - data exports
+- deeper field-level before/after diffs for approvals and business records
 - AI governance and tool execution

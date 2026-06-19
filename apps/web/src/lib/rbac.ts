@@ -45,6 +45,8 @@ export const routePermissionRequirements = {
   training: getModuleAccessPermissionCodes("training"),
   aiAssistant: getModuleAccessPermissionCodes("ai"),
   customerQuery: getModuleAccessPermissionCodes("customer_query"),
+  notifications: getModuleAccessPermissionCodes("notifications"),
+  approvals: getModuleAccessPermissionCodes("approvals"),
   workflows: getModuleAccessPermissionCodes("workflows")
 } as const;
 

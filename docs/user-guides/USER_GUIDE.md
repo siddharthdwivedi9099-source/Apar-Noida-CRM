@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide explains how end users work with the shared activities, tasks, notes, and customer timeline features introduced in Phase 7.
+This guide explains how end users work with the shared activities, tasks, notes, customer timeline, notifications, and approvals features currently available in the platform.
 
 ## Where These Features Appear
 
@@ -103,3 +103,47 @@ The **Analytics** page (`/analytics`) gives you role-based dashboards built from
 - **Drill-down** — widgets that support it have a **Drill down** button that lists the underlying records (for example the leads or tickets behind a number).
 - **Saved views** — name and **Save** the current filter as a view, then re-apply it later; shared views are visible to your team.
 - **Export** — use **Export** to download the dashboard data (requires export permission).
+
+## Notifications and Approvals (Phase 25)
+
+The platform now includes:
+- a **Notification center** at `/notifications`
+- an **Approval inbox** at `/approvals`
+
+### Notification center
+
+Use the notification center when you need a tenant-scoped view of in-app alerts.
+
+Available behavior:
+- review unread and read notifications
+- filter by notification type
+- inspect linked-record context
+- mark one notification or all visible notifications as read
+- manage in-app notification preferences by type
+
+Role-based notifications can be delivered to an individual user or fan out to everyone currently assigned to a role.
+
+### Approval inbox
+
+Use the approval inbox when you need to review governed business requests such as:
+- discount approval
+- campaign approval
+- proposal approval
+- partner approval
+- reseller approval
+- sensitive AI action approval
+- customer escalation approval
+
+Available behavior:
+- review requests assigned to you or your role
+- inspect approval history
+- add comments to the approval history
+- approve or reject pending requests when you have approval rights
+
+### Permission expectations
+
+Typical behavior:
+- `notifications.view` or `notifications.edit` opens the notification center
+- `approvals.view` opens the approval inbox
+- `approvals.approve` is required to decide a pending request
+- administrators can still override with broader configuration permissions when appropriate

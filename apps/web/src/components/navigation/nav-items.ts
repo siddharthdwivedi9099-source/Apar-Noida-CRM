@@ -1,6 +1,8 @@
 import type { NavItem, PermissionModuleKey, TenantTerminologyEntry } from "@crm/types";
 import {
   BarChart3,
+  BadgeCheck,
+  Bell,
   Bot,
   BookOpen,
   BrainCircuit,
@@ -51,6 +53,22 @@ export const appNavItems: AppNavItem[] = [
     icon: BarChart3,
     moduleKey: "dashboards",
     requiredPermissionCodes: routePermissionRequirements.dashboard
+  },
+  {
+    title: "Notifications",
+    href: "/notifications",
+    description: "In-app alerts, read state, preferences, and linked record visibility.",
+    icon: Bell,
+    moduleKey: "notifications",
+    requiredPermissionCodes: routePermissionRequirements.notifications
+  },
+  {
+    title: "Approvals",
+    href: "/approvals",
+    description: "Approval inbox, decision history, and approve or reject actions.",
+    icon: BadgeCheck,
+    moduleKey: "approvals",
+    requiredPermissionCodes: routePermissionRequirements.approvals
   },
   {
     title: "Admin",

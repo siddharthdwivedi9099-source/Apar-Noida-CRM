@@ -405,6 +405,20 @@ export const tenantModuleDefinitions: TenantModuleDefinition[] = [
     locked: false
   },
   {
+    moduleKey: "notifications",
+    label: permissionModuleLabels.notifications,
+    description: "In-app alerts, notification preferences, and role-aware delivery routing.",
+    defaultEnabled: true,
+    locked: false
+  },
+  {
+    moduleKey: "approvals",
+    label: permissionModuleLabels.approvals,
+    description: "Approval inboxes, decision history, and linked approval workflows.",
+    defaultEnabled: true,
+    locked: false
+  },
+  {
     moduleKey: "workflows",
     label: permissionModuleLabels.workflows,
     description: "Automation policies, workflow stages, and approval routing.",
@@ -474,6 +488,18 @@ export const defaultTenantTerminologyEntries: TenantTerminologyEntry[] = [
     singular: "Dashboard",
     plural: "Dashboards",
     description: "Reporting and operational scorecards."
+  },
+  {
+    moduleKey: "notifications",
+    singular: "Notification",
+    plural: "Notifications",
+    description: "In-app alerts, reminders, and approval signals."
+  },
+  {
+    moduleKey: "approvals",
+    singular: "Approval Request",
+    plural: "Approvals",
+    description: "Approval inbox records, decisions, and approval history."
   },
   {
     moduleKey: "admin",

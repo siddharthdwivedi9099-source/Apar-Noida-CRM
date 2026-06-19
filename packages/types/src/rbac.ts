@@ -34,6 +34,8 @@ export const permissionModuleKeys = [
   "training",
   "customer_query",
   "dashboards",
+  "notifications",
+  "approvals",
   "workflows",
   "ai",
   "admin"
@@ -59,6 +61,8 @@ export const permissionModuleLabels: Record<PermissionModuleKey, string> = {
   training: "Training",
   customer_query: "Customer Query",
   dashboards: "Dashboards",
+  notifications: "Notifications",
+  approvals: "Approvals",
   workflows: "Workflows",
   ai: "AI",
   admin: "Admin"
@@ -217,6 +221,16 @@ const leadershipActions: PermissionActionKey[] = ["view", "approve", "export", "
 
 const dashboardViewerPermissions = [buildPermissionCode("dashboards", "view_dashboard")];
 const workflowManagerPermissions = [buildPermissionCode("workflows", "manage_workflow")];
+const notificationParticipantPermissions = permissionsForModules(["notifications"], ["view", "edit"]);
+const approvalViewerPermissions = permissionsForModules(["approvals"], ["view"]);
+const approvalOperatorPermissions = permissionsForModules(
+  ["approvals"],
+  ["view", "create", "edit", "assign", "approve", "export"]
+);
+const approvalLeaderPermissions = permissionsForModules(
+  ["approvals"],
+  ["view", "approve", "export", "configure"]
+);
 const aiUserPermissions = [buildPermissionCode("ai", "view"), buildPermissionCode("ai", "use_ai")];
 const aiManagerPermissions = [
   buildPermissionCode("ai", "view"),
@@ -259,6 +273,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Executes social campaigns, content workflows, and campaign reporting.",
     permissionCodes: unique([
       ...permissionsForModules(["social", "campaigns", "marketing"], contributorActions),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
       ...dashboardViewerPermissions,
       ...aiUserPermissions
     ]),
@@ -271,6 +287,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Leads social campaign planning, approvals, workflow orchestration, and reporting.",
     permissionCodes: unique([
       ...permissionsForModules(["social", "campaigns", "marketing"], managerActions),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -284,6 +302,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Runs marketing execution, campaign delivery, and supporting analysis.",
     permissionCodes: unique([
       ...permissionsForModules(["marketing", "campaigns"], contributorActions),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
       ...dashboardViewerPermissions,
       ...aiUserPermissions
     ]),
@@ -296,6 +316,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Owns marketing strategy, approvals, and operational configuration.",
     permissionCodes: unique([
       ...permissionsForModules(["marketing", "campaigns"], managerActions),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -309,6 +331,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Works leads, contacts, and opportunity qualification within the sales motion.",
     permissionCodes: unique([
       ...permissionsForModules(["leads", "contacts", "opportunities", "sales"], contributorActions),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
       ...dashboardViewerPermissions,
       ...aiUserPermissions
     ]),
@@ -321,6 +345,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Manages inside-sales execution, approvals, assignments, and workflow tuning.",
     permissionCodes: unique([
       ...permissionsForModules(["leads", "contacts", "opportunities", "sales"], managerActions),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -334,6 +360,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Qualifies leads and progresses early-stage opportunities.",
     permissionCodes: unique([
       ...permissionsForModules(["leads", "contacts", "opportunities"], contributorActions),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
       ...dashboardViewerPermissions,
       ...aiUserPermissions
     ]),
@@ -346,6 +374,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Coordinates SDR teams, queue assignment, approvals, and lead workflow management.",
     permissionCodes: unique([
       ...permissionsForModules(["leads", "contacts", "opportunities"], managerActions),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -362,6 +392,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
         ["business_development", "leads", "accounts", "contacts", "opportunities", "partners", "resellers"],
         contributorActions
       ),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
       ...dashboardViewerPermissions,
       ...aiUserPermissions
     ]),
@@ -377,6 +409,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
         ["business_development", "leads", "accounts", "contacts", "opportunities", "partners", "resellers"],
         managerActions
       ),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -390,6 +424,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Runs day-to-day account, contact, opportunity, and sales execution.",
     permissionCodes: unique([
       ...permissionsForModules(["sales", "accounts", "contacts", "opportunities"], contributorActions),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
       ...dashboardViewerPermissions,
       ...aiUserPermissions
     ]),
@@ -402,6 +438,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Owns team-level revenue execution, approvals, assignments, and forecast operations.",
     permissionCodes: unique([
       ...permissionsForModules(["sales", "accounts", "contacts", "opportunities", "leads"], managerActions),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -416,6 +454,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     permissionCodes: unique([
       ...permissionsForModules(["sales", "accounts", "contacts", "opportunities", "leads"], leadershipActions),
       ...permissionsForModules(["marketing"], ["view", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalLeaderPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -430,6 +470,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     permissionCodes: unique([
       ...permissionsForModules(["sales", "accounts", "contacts", "opportunities"], leadershipActions),
       ...permissionsForModules(["leads"], ["view", "export", "approve"]),
+      ...notificationParticipantPermissions,
+      ...approvalLeaderPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -443,6 +485,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Supports opportunities with technical discovery, account context, and presales delivery.",
     permissionCodes: unique([
       ...permissionsForModules(["presales", "accounts", "contacts", "opportunities"], contributorActions),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
       ...dashboardViewerPermissions,
       ...aiUserPermissions
     ]),
@@ -455,6 +499,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Guides presales delivery, approvals, staffing, and reusable workflow setup.",
     permissionCodes: unique([
       ...permissionsForModules(["presales", "accounts", "contacts", "opportunities"], managerActions),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -468,6 +514,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Handles support requests, customer queries, and related customer context.",
     permissionCodes: unique([
       ...permissionsForModules(["support", "customer_query", "accounts", "contacts"], contributorActions),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
       ...dashboardViewerPermissions,
       ...aiUserPermissions
     ]),
@@ -481,6 +529,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     permissionCodes: unique([
       ...permissionsForModules(["support", "customer_query", "accounts", "contacts"], managerActions),
       ...permissionsForModules(["customer_success"], ["view", "assign", "approve", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -494,6 +544,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Manages partner-facing relationships, partner pipeline, and associated reporting.",
     permissionCodes: unique([
       ...permissionsForModules(["partners", "accounts", "opportunities"], managerActions),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...aiManagerPermissions
     ]),
@@ -506,6 +558,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Manages reseller operations, reseller-linked opportunities, and reporting.",
     permissionCodes: unique([
       ...permissionsForModules(["resellers", "accounts", "opportunities"], managerActions),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...aiManagerPermissions
     ]),
@@ -519,6 +573,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     permissionCodes: unique([
       ...permissionsForModules(["customer_success", "training", "accounts", "contacts"], managerActions),
       ...permissionsForModules(["support"], ["view", "assign", "approve", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -534,6 +590,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     permissionCodes: unique([
       ...permissionsForModules(["customer_success", "accounts"], managerActions),
       ...permissionsForModules(["training", "customer_query"], ["view", "edit", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -549,6 +607,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     permissionCodes: unique([
       ...permissionsForModules(["customer_success", "support", "accounts", "contacts"], managerActions),
       ...permissionsForModules(["training"], ["view", "edit", "assign", "approve", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -564,6 +624,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     permissionCodes: unique([
       ...permissionsForModules(["customer_success", "support", "training", "accounts"], leadershipActions),
       ...permissionsForModules(["contacts", "customer_query"], ["view", "approve", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalLeaderPermissions,
       ...dashboardViewerPermissions,
       ...workflowManagerPermissions,
       ...aiManagerPermissions
@@ -580,6 +642,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
         ["dashboards", "sales", "marketing", "customer_success", "support", "accounts", "opportunities"],
         ["view", "export", "view_dashboard"]
       ),
+      ...notificationParticipantPermissions,
+      ...approvalLeaderPermissions,
       ...permissionsForModules(["ai"], ["view", "use_ai"]),
       ...adminViewerPermissions
     ]),

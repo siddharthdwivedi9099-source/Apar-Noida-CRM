@@ -1,5 +1,5 @@
 import { environmentGuidance } from "@crm/config";
-import { LogOut, Menu, Palette, Search } from "lucide-react";
+import { Bell, LogOut, Menu, Palette, Search } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { getCurrentNavItem, getNavItemLabel } from "@/components/navigation/nav-items";
 import { useAuth } from "@/providers/auth-provider";
@@ -18,6 +18,7 @@ export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
   const { user, session, logout, hasAnyPermission } = useAuth();
   const { settings, theme, terminology } = useTenantConfig();
   const canConfigureAdmin = hasAnyPermission(["admin.edit", "admin.configure"]);
+  const canViewNotifications = hasAnyPermission(["notifications.view", "notifications.edit", "notifications.configure"]);
 
   return (
     <header className="workspace-topbar-panel sticky top-0 z-20 flex items-center gap-4 rounded-[1.5rem] px-4 py-4">
@@ -52,6 +53,13 @@ export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
         </div>
         <Badge variant="muted">Web {environmentGuidance.webPort}</Badge>
         <Badge variant="muted">{theme.mode === "dark" ? "Dark mode" : "Light mode"}</Badge>
+        {canViewNotifications ? (
+          <Button variant="outline" size="icon" asChild>
+            <Link to="/notifications">
+              <Bell className="h-4 w-4" />
+            </Link>
+          </Button>
+        ) : null}
         {canConfigureAdmin ? (
           <Button variant="outline" size="icon" asChild>
             <Link to="/admin/theme">

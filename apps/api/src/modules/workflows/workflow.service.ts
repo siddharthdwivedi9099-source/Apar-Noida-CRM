@@ -1,10 +1,13 @@
 import {
+  type ApprovalType,
   findWorkflowAction,
+  type NotificationType,
   workflowActionCatalog,
   workflowActionTypes,
   workflowTriggerCatalog,
   workflowTriggerTypes,
   type CreateWorkflowActionRequestBody,
+  type CreateApprovalRequestBody,
   type CreateWorkflowRequestBody,
   type RoleSummary,
   type UpdateWorkflowActionRequestBody,
@@ -29,6 +32,8 @@ import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 import { AiGatewayService, type AiGatewayConfig } from "../ai/ai-gateway.service.js";
+import { ApprovalService } from "../approvals/approvals.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -91,12 +96,20 @@ function asConditions(value: unknown): WorkflowCondition[] {
 
 export class WorkflowService {
   private readonly gateway: AiGatewayService;
+  private readonly notificationService: NotificationService;
+  private readonly approvalService: ApprovalService;
 
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly gatewayConfig: AiGatewayConfig
   ) {
     this.gateway = new AiGatewayService(databaseService, gatewayConfig);
+    this.notificationService = new NotificationService(databaseService, {
+      enableAuditLogs: gatewayConfig.enableAuditLogs
+    });
+    this.approvalService = new ApprovalService(databaseService, {
+      enableAuditLogs: gatewayConfig.enableAuditLogs
+    });
   }
 
   private assertEnabled() {
@@ -378,7 +391,44 @@ export class WorkflowService {
   // Execution engine
   // -------------------------------------------------------------------------
 
-  private async executeAction(actor: ActorContext, audit: AuditMetadata, action: Record<string, unknown>): Promise<{ message: string; detail: Record<string, unknown> }> {
+  private getStringValue(candidate: unknown) {
+    return typeof candidate === "string" && candidate.trim().length > 0 ? candidate.trim() : null;
+  }
+
+  private getLinkedRecord(
+    actionConfig: Record<string, unknown>,
+    context: Record<string, unknown>
+  ) {
+    const configLinkedRecord = asObject(actionConfig.linkedRecord);
+    const contextLinkedRecord = asObject(context.linkedRecord);
+    const entityType =
+      this.getStringValue(configLinkedRecord.entityType) ??
+      this.getStringValue(contextLinkedRecord.entityType) ??
+      this.getStringValue(context.recordType) ??
+      this.getStringValue(context.entityType);
+    const entityId =
+      this.getStringValue(configLinkedRecord.entityId) ??
+      this.getStringValue(contextLinkedRecord.entityId) ??
+      this.getStringValue(context.recordId) ??
+      this.getStringValue(context.entityId);
+
+    return entityType && entityId
+      ? {
+          entityType,
+          entityId
+        }
+      : null;
+  }
+
+  private async executeAction(
+    client: PoolClient,
+    actor: ActorContext,
+    audit: AuditMetadata,
+    action: Record<string, unknown>,
+    workflowId: string,
+    runId: string,
+    context: Record<string, unknown>
+  ): Promise<{ message: string; detail: Record<string, unknown> }> {
     const actionType = action.action_type as string;
     const config = asObject(action.action_config);
     const def = findWorkflowAction(actionType);
@@ -401,7 +451,84 @@ export class WorkflowService {
       return { message: `AI agent ${agentKey} dispatched via gateway (${result.provider}/${result.model}).`, detail: { agentKey, templateKey, provider: result.provider, status: result.status } };
     }
 
-    // Non-AI actions are governed, logged effects in this phase.
+    if (actionType === "send_notification") {
+      const notification = await this.notificationService.createNotificationWithClient(client, actor, audit, {
+        notificationType:
+          (this.getStringValue(config.notificationType) as NotificationType | null) ?? "workflow_signal",
+        title: this.getStringValue(config.title) ?? "Workflow notification",
+        message:
+          this.getStringValue(config.message) ??
+          "A workflow generated a new notification for this workspace.",
+        recipientUserId:
+          this.getStringValue(config.recipientUserId) ??
+          this.getStringValue(context.recipientUserId) ??
+          (config.deliverToActor === false ? null : actor.userId),
+        recipientRoleId: this.getStringValue(config.recipientRoleId),
+        recipientRoleSlug: this.getStringValue(config.recipientRoleSlug),
+        linkedRecord: this.getLinkedRecord(config, context),
+        metadata: {
+          workflowId,
+          runId,
+          actionId: action.id,
+          source: "workflow"
+        }
+      });
+
+      return {
+        message: "In-app notification created.",
+        detail: {
+          actionType,
+          notificationId: notification.id,
+          notificationType: notification.notificationType
+        }
+      };
+    }
+
+    if (actionType === "trigger_approval") {
+      const approvalType =
+        (this.getStringValue(config.approvalType) as ApprovalType | null) ?? null;
+
+      if (!approvalType) {
+        throw new AppError(
+          400,
+          "Approval actions require an approvalType.",
+          undefined,
+          "WORKFLOW_APPROVAL_TYPE_REQUIRED"
+        );
+      }
+
+      const approval = await this.approvalService.createApprovalWithClient(client, actor, audit, {
+        approvalType: approvalType as CreateApprovalRequestBody["approvalType"],
+        title: this.getStringValue(config.title) ?? "Workflow approval request",
+        description:
+          this.getStringValue(config.description) ??
+          "A workflow created a new approval request for review.",
+        approverUserId:
+          this.getStringValue(config.approverUserId) ??
+          this.getStringValue(context.approverUserId),
+        approverRoleId: this.getStringValue(config.approverRoleId),
+        approverRoleSlug: this.getStringValue(config.approverRoleSlug),
+        linkedRecord: this.getLinkedRecord(config, context),
+        initialComment: this.getStringValue(config.comment),
+        metadata: {
+          workflowId,
+          runId,
+          actionId: action.id,
+          source: "workflow"
+        }
+      });
+
+      return {
+        message: "Approval request created.",
+        detail: {
+          actionType,
+          approvalId: approval.id,
+          approvalType: approval.approvalType
+        }
+      };
+    }
+
+    // Remaining non-AI actions are still governed, logged effects.
     return {
       message: `${def?.label ?? actionType} executed${def?.placeholder ? " (deferred placeholder)" : ""}.`,
       detail: { actionType, config }
@@ -454,7 +581,7 @@ export class WorkflowService {
           continue;
         }
         try {
-          const outcome = await this.executeAction(actor, audit, action);
+          const outcome = await this.executeAction(client, actor, audit, action, workflowId, runId, context);
           await writeLog("succeeded", outcome.message, outcome.detail, action.id as string, action.action_type as string);
           succeeded += 1;
         } catch (error) {
