@@ -699,6 +699,21 @@ All routes require an `ai.*` permission and are tenant-scoped. Knowledge sources
 
 - `POST /ai/rag/retrieve` — permission-aware, tenant-scoped retrieval (requires `ai.use_ai`/`ai.view`/`ai.view_dashboard`/`ai.manage_ai`/`ai.configure`): `query`, optional `topK`, `sourceTypes`, `includeArticles`. Returns `citations` (each with source, document/chunk or article, snippet, score), `accessibleSourceCount`, `restrictedSourceCount`, `gapLogged`, and retrieval metadata (`vectorBackend`, `embeddingModel`, `strategy`, `deferred`). Only `approved` + `published` articles and accessible sources are returned; an empty result logs a knowledge gap.
 
+## Dashboards and Analytics Routes (Phase 23)
+
+Tenant-scoped, role-based dashboards composed of configurable widgets computed from live CRM data. Each dashboard declares the permissions allowed to view it; widget visibility follows the dashboard.
+
+- `GET /dashboards` — dashboard catalog (18 dashboards) with a per-dashboard `permitted` flag derived from the caller's permissions, plus categories.
+- `GET /dashboards/:dashboardKey` — resolved dashboard data: each widget's metric computed from real CRM tables. Optional `from`/`to` (`YYYY-MM-DD`) date filters. Requires a dashboard view permission (`dashboards.view`/`dashboards.view_dashboard` or a related module view permission). Error: `DASHBOARD_NOT_FOUND` (404).
+- `GET /dashboards/:dashboardKey/widgets/:widgetKey/drilldown` — underlying records for a drill-down-enabled widget (leads, opportunities, tickets, at-risk customers, deal risk). Errors: `DASHBOARD_WIDGET_NOT_FOUND` (404), `DASHBOARD_DRILLDOWN_UNSUPPORTED` (400).
+- `GET /dashboards/:dashboardKey/export` — export the resolved dashboard data. Requires an export permission (`dashboards.export` or a related module export permission); audited.
+- `GET /dashboards/:dashboardKey/views` / `POST /dashboards/:dashboardKey/views` — list and create saved views (per user; shared views are visible to the tenant).
+- `PATCH /dashboards/saved-views/:viewId` / `DELETE /dashboards/saved-views/:viewId` — update or delete your own saved view. Error: `DASHBOARD_VIEW_NOT_FOUND` (404).
+
+Dashboard types: executive, sales, marketing, campaign, social, sdr, inside_sales, presales, partner, reseller, support, customer_success, onboarding, customer_health, training, revenue, forecast, ai_insights.
+
+Widget types: `metric`, `chart`, `funnel`, `series`, `table`, and `kanban` (status-column summaries, e.g. tickets and leads by status). Widget data kinds: `scalar`, `breakdown`, `funnel`, `series`, and `table`. Metrics include leads-by-status, opportunities-by-stage, pipeline/forecast value, win rate, campaign counts, lead source, open tickets, SLA breaches, ticket priority/category, health distribution, at-risk customers, adoption score, training completion, renewal timeline, onboarding progress, and AI-insight metrics (risk alerts, recommended actions, underperforming areas, customer/deal risk). Campaign conversion and CSAT are reported as deferred placeholders.
+
 ## Validation and Error Handling
 
 Common behaviors:

@@ -347,3 +347,17 @@ Still out of scope:
 - dedicated ticket and customer-success operational modules
 - dynamic custom-field rendering in live CRM forms
 - record-level authorization beyond tenant boundaries
+
+## Dashboards and Analytics (Phase 23)
+
+The platform provides eighteen role-based dashboards: executive, sales, marketing, campaign, social media, SDR, inside sales, presales, partner, reseller, support, customer success, onboarding, customer health, training, revenue, forecast, and AI insights.
+
+- **Role-based visibility** — each dashboard declares the permissions allowed to view it; the catalog returns a `permitted` flag per dashboard, and opening a dashboard the user can't access is rejected.
+- **Configurable widgets** — dashboards compose widgets of several kinds: metric scalars, charts (breakdowns), funnels (pipeline stages), series (timelines), tables, and kanban summaries (status columns for tickets and leads).
+- **Real CRM data** — widgets compute from live tables: leads by status/source, opportunities by stage, pipeline and forecast value, win rate, campaigns and members, open tickets and SLA breaches, ticket priority/category, customer health distribution, at-risk customers, adoption score, training completion, renewal timeline, and onboarding progress. AI-insight widgets derive risk alerts, recommended actions, underperforming areas, and customer/deal risk. Campaign conversion and CSAT are explicit deferred placeholders.
+- **Date filters** — dashboards accept `from`/`to` date filters applied to the underlying records where applicable.
+- **Drill-down** — drill-down-enabled widgets return the underlying records (leads, opportunities, tickets, at-risk customers, deals at risk).
+- **Saved views** — users save and reuse dashboard views (date ranges and configuration), optionally shared with the tenant.
+- **Export** — dashboards can be exported subject to an export permission check; exports are audited.
+
+The customer success and AI insights dashboards are first-class members of this set.

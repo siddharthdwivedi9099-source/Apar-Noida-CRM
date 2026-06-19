@@ -44,6 +44,14 @@ export const appNavItems: AppNavItem[] = [
     requiredPermissionCodes: routePermissionRequirements.dashboard
   },
   {
+    title: "Analytics",
+    href: "/analytics",
+    description: "Role-based dashboards, widgets, filters, and drill-down.",
+    icon: BarChart3,
+    moduleKey: "dashboards",
+    requiredPermissionCodes: routePermissionRequirements.dashboard
+  },
+  {
     title: "Admin",
     href: "/admin",
     description: "Tenant, platform, and governance controls.",

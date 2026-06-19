@@ -49,3 +49,13 @@ The customer health dashboard and renewal dashboard are available through the AP
 - Low-touch campaigns and automated check-ins are placeholders.
 - AI placeholder actions are visible but deferred until the AI Gateway phase.
 - Health scores are entered by CSMs; automated scoring is a future enhancement.
+
+## Customer success dashboards (Phase 23)
+
+The **Analytics** page (`/analytics`) includes dashboards built for customer success:
+
+- **Customer success dashboard** — health distribution, at-risk customer count, average adoption score, the renewal timeline (next six months), and training completion.
+- **Customer health dashboard** — health distribution, at-risk count, adoption score, and a customer-risk table of the lowest-health accounts (with drill-down to the full list).
+- **Onboarding dashboard** — onboarding plans by status and training completion.
+
+All figures come from live customer success, renewal, onboarding, and training records, respect date filters where applicable, and can be saved as views or exported (with export permission). The AI insights dashboard additionally surfaces customer risk and recommended actions.

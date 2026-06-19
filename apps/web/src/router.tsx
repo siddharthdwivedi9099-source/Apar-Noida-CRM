@@ -30,6 +30,7 @@ import { CustomFieldsPage } from "./pages/custom-fields-page";
 import { CustomerSuccessPage } from "./pages/customer-success-page";
 import { TrainingPage } from "./pages/training-page";
 import { DashboardPage } from "./pages/dashboard-page";
+import { AnalyticsDashboardsPage } from "./pages/analytics-dashboards-page";
 import { BusinessDevelopmentPage } from "./pages/business-development-page";
 import { InsideSalesWorkspacePage } from "./pages/inside-sales-workspace-page";
 import { PartnersPage } from "./pages/partners-page";
@@ -184,6 +185,19 @@ export const router = createBrowserRouter([
                 moduleKey="dashboards"
               >
                 <DashboardPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "analytics",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.dashboard}
+                title="Analytics dashboards are limited by role."
+                description="Your current role set does not include dashboard visibility for this tenant."
+                moduleKey="dashboards"
+              >
+                <AnalyticsDashboardsPage />
               </PermissionRoute>
             )
           },

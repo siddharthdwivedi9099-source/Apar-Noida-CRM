@@ -2,9 +2,19 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 22 implementation work.
+Current repository state now includes Phase 1 through Phase 23 implementation work.
 
 ### Added
+
+- Phase 23 migration `20260623050000_phase23_dashboards.sql` with tenant-scoped `dashboard_saved_views`
+- 18 role-based dashboards (`dashboardCatalog` in `@crm/types`): executive, sales, marketing, campaign, social, SDR, inside sales, presales, partner, reseller, support, customer success, onboarding, customer health, training, revenue, forecast, and AI insights
+- configurable widgets (metric, chart, funnel, series, table) computed from live CRM data: leads by status/source, opportunities by stage, pipeline/forecast value, win rate, campaigns and members, open tickets, SLA breaches, ticket priority/category, health distribution, at-risk customers, adoption score, training completion, renewal timeline, onboarding progress, and AI-insight metrics (risk alerts, recommended actions, underperforming areas, customer/deal risk); campaign conversion and CSAT as deferred placeholders
+- role-based visibility (per-dashboard `permitted` flag and enforced view permissions), date filters, widget drill-down, saved views (per user, optionally shared), and audited export with an export permission check
+- `DashboardService` with metric computation, dashboard resolution, drill-down, saved-view CRUD, and export
+- dashboard APIs under `/dashboards`: catalog, dashboard data, widget drill-down, export, and saved-view management
+- Analytics dashboards frontend page (`/analytics`) with a dashboard catalog, widget rendering (metrics/charts/funnels/series/tables), date filters, drill-down, saved views, and export, plus navigation
+- exhaustive Phase 23 validation script `tests/phase23-dashboards-exhaustive.mjs`
+- functional specification, API documentation, user guide, and customer success user guide updates
 
 - Phase 22 migration `20260622050000_phase22_ai_actions.sql` with tenant-scoped `ai_action_runs`
 - module AI action catalog (`aiActionCatalog` in `@crm/types`) integrating the AI Gateway and Prompt Registry into 37 actions across Leads, Accounts, Opportunities, Campaigns, Social, Support, Customer Success, Training, Partners, and Resellers

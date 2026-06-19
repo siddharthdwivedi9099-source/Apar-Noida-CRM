@@ -92,3 +92,14 @@ Typical behavior:
 - users with create, edit, assign, or configure permissions can add or update shared productivity records
 
 If an action is unavailable, contact your administrator to review your role permissions.
+
+## Analytics dashboards (Phase 23)
+
+The **Analytics** page (`/analytics`) gives you role-based dashboards built from live CRM data.
+
+- **Pick a dashboard** — the sidebar lists every dashboard; those your role can't open are dimmed. Choose from executive, sales, marketing, campaign, social, SDR, inside sales, presales, partner, reseller, support, customer success, onboarding, customer health, training, revenue, forecast, and AI insights.
+- **Widgets** — each dashboard shows metrics, charts, funnels, timelines, and tables computed from real records.
+- **Date filters** — set a **From**/**To** range and click **Apply** to scope the data; **Clear** resets it.
+- **Drill-down** — widgets that support it have a **Drill down** button that lists the underlying records (for example the leads or tickets behind a number).
+- **Saved views** — name and **Save** the current filter as a view, then re-apply it later; shared views are visible to your team.
+- **Export** — use **Export** to download the dashboard data (requires export permission).
