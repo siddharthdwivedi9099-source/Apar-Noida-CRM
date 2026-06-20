@@ -16,6 +16,8 @@ This repository now contains the implemented foundation for:
 - Phase 11: SDR and inside sales workspace
 - Phases 12–27: business development, partners, resellers, support, customer success, training, the AI platform (gateway, registries, RAG, customer query bot, module AI actions), dashboards, workflow automation, notifications and approvals, the customer portal, and audit/security/data-governance
 - Phase 28: automated testing framework (Vitest) with backend, frontend, and contract test coverage
+- Phase 29: observability, logging, metrics placeholders, cache seams, background-job monitor, and performance indexes
+- Phase 30: deployment, DevOps, Docker, and CI readiness
 
 ## What Exists Now
 
@@ -40,6 +42,7 @@ This repository now contains the implemented foundation for:
 
 - Express + TypeScript API
 - PostgreSQL-backed health checks
+- liveness, readiness, metrics, and observability/admin endpoints
 - SQL migration runner and rollback support
 - idempotent seed system
 - authentication and refresh-token session flow
@@ -48,6 +51,8 @@ This repository now contains the implemented foundation for:
 - CRM APIs for leads, accounts, contacts, opportunities, campaigns, and shared productivity records
 - sales workspace APIs for SDR and inside-sales queues, workflow state, and lead handoff updates
 - audit logging for auth, RBAC, tenant-config, and CRM writes
+- production-style Docker image definitions for the API and web app
+- GitHub Actions CI for install, typecheck, build, offline tests, and container build validation
 
 ### Shared Packages
 
@@ -95,6 +100,23 @@ Frontend:
 API:
 - `http://127.0.0.1:4000/api/v1`
 
+### 5. Optional full Docker stack
+
+```bash
+npm run docker:config
+npm run docker:up
+```
+
+Docker stack URLs:
+- web: `http://localhost:5173`
+- API: `http://localhost:4000/api/v1`
+
+Stop the stack:
+
+```bash
+npm run docker:down
+```
+
 ## Seeded Admin Login
 
 Default local bootstrap values:
@@ -130,8 +152,12 @@ npm run db:rollback
 npm run db:seed
 npm run typecheck
 npm run build
+npm test
+npm run docker:config
+npm run docker:build
 node tests/phase8-campaigns-exhaustive.mjs
 node tests/phase10-opportunities-exhaustive.mjs
+node tests/phase30-deployment-devops-exhaustive.mjs
 ```
 
 ## Testing
@@ -150,6 +176,8 @@ database and remain the deepest gate:
 
 ```bash
 node tests/phase27-audit-security-governance-exhaustive.mjs
+node tests/phase29-observability-performance-exhaustive.mjs
+node tests/phase30-deployment-devops-exhaustive.mjs
 ```
 
 See [docs/testing/TESTING_STRATEGY.md](docs/testing/TESTING_STRATEGY.md) for the
@@ -170,6 +198,11 @@ Important variables:
 - `DEFAULT_ADMIN_PASSWORD`
 - `SESSION_COOKIE_NAME`
 - `VITE_API_BASE_URL`
+- `METRICS_ENABLED`
+- `SLOW_QUERY_THRESHOLD_MS`
+- `DASHBOARD_CACHE_ENABLED`
+- `RUN_MIGRATIONS`
+- `RUN_SEED`
 
 For local browser auth, the default CORS configuration supports both:
 - `http://127.0.0.1:5173`
@@ -186,6 +219,7 @@ Not implemented yet:
 - record-level authorization beyond tenant boundaries
 - Redis-backed caching and workers
 - AI execution runtime
+- production registry publishing and environment-specific deployment automation
 
 ## Documentation Map
 

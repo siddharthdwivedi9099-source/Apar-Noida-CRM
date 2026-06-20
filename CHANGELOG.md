@@ -2,9 +2,17 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 29 implementation work.
+Current repository state now includes Phase 1 through Phase 30 implementation work.
 
 ### Added
+
+- Phase 30 deployment, DevOps, Docker, and CI readiness: production-style API and web container definitions, full-stack Docker Compose topology, CI workflow, environment template hardening, and deployment documentation
+- API Docker image with multi-stage build, pruned runtime dependencies, non-root `crm` user, health check, and optional migration/seed entrypoint controlled by `RUN_MIGRATIONS` and `RUN_SEED`
+- web Docker image with Vite build args, nginx runtime, SPA route fallback, asset caching, and container health check
+- root Docker helper scripts: `docker:config`, `docker:build`, `docker:infra`, `docker:up`, `docker:down`, and `docker:logs`
+- GitHub Actions CI workflow for `npm ci`, typecheck, build, offline tests, and API/web container build validation
+- exhaustive Phase 30 validation script `tests/phase30-deployment-devops-exhaustive.mjs`
+- deployment guide, DevOps guide, production readiness checklist, README, VERSION, and `.env.example` updates for deployment readiness
 
 - Phase 29 observability + performance readiness: liveness (`/health`, `/live`), readiness (`/ready`, returns `503` when dependencies are unreachable), and a placeholder runtime metrics endpoint (`/metrics`, process + cache counters)
 - admin-gated observability routes `/observability/jobs` (background job monitor placeholder) and `/observability/cache` (dashboard cache status)

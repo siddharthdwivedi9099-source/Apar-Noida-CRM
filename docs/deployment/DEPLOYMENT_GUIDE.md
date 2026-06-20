@@ -2,82 +2,120 @@
 
 ## Purpose
 
-This document defines how the platform should be prepared for deployment once runtime components are introduced. It establishes the operational expectations for packaging, environment management, promotion, and verification.
+This guide defines the Phase 30 deployment baseline: how the web and API are packaged, how the local full stack runs, how CI verifies changes, and what must be true before promoting a build.
 
-## Scope
+## Phase 30 Deployment Artifacts
 
-This document covers:
-- environment strategy
-- deployment targets
-- release flow expectations
-- operational dependencies
-- implementation guidance
+Phase 30 adds concrete deployment assets:
 
-This document does not cover:
-- concrete CI/CD configuration
-- final infrastructure vendor decisions
-- live production runbooks
+- `.dockerignore` — keeps dependencies, build output, local secrets, and editor noise out of image contexts.
+- `apps/api/Dockerfile` — multi-stage production image for the compiled Express API.
+- `apps/api/docker-entrypoint.sh` — optional migration/seed entrypoint controlled by `RUN_MIGRATIONS` and `RUN_SEED`.
+- `apps/web/Dockerfile` — multi-stage Vite build served by nginx.
+- `apps/web/nginx.conf` — SPA fallback and long-cache rules for fingerprinted assets.
+- `docker-compose.yml` — local full-stack topology for Postgres, Redis, MinIO, API, and web.
+- `.github/workflows/ci.yml` — CI pipeline for install, typecheck, build, offline tests, and container image build validation.
 
-## Deployment Objectives
+## Local Full-Stack Run
 
-- promote consistent build artifacts across environments
-- keep environment configuration externalized and secure
-- support safe rollback and observability
-- separate local development scaffolding from production deployment expectations
+Start the full stack:
 
-## Environment Strategy
+```bash
+npm run docker:up
+```
 
-### Local Development
+This builds and starts:
 
-Used for feature development, documentation alignment, and early validation.
+- web: `http://localhost:5173`
+- API: `http://localhost:4000/api/v1`
+- Postgres: host port `5433`
+- Redis: host port `6380`
+- MinIO API/console: host ports `9002` and `9003`
 
-### Shared Integration or Staging
+Infrastructure-only mode remains available:
 
-Used for integration testing, release validation, and operational checks before production.
+```bash
+npm run docker:infra
+```
 
-### Production
+Validate Compose syntax:
 
-Used for controlled promotion with observability, rollback readiness, and stronger governance.
+```bash
+npm run docker:config
+```
 
-## Deployment Targets
+Stop the stack:
 
-- web application tier
-- API and orchestration tier
-- background workers
-- AI and retrieval workers
-- managed data and infrastructure services
+```bash
+npm run docker:down
+```
 
-## Core Operational Requirements
+## Container Behavior
 
-- immutable build artifacts
-- secure configuration injection
-- external secrets management
-- readiness and health checks
-- centralized logs, metrics, and traces
-- rollback strategy and post-deploy verification
+### API
 
-## Suggested Release Flow
+The API image compiles shared package dependencies and `@crm/api`, prunes dev dependencies, runs as a non-root `crm` user, and exposes port `4000`.
 
-1. validate changes in CI
-2. build versioned artifacts
-3. promote to a non-production environment
-4. run smoke, integration, and release checks
-5. approve promotion to production
-6. deploy with rollback path and post-deploy monitoring
+Health check:
 
-## Local Development Baseline
+```text
+GET /api/v1/health
+```
 
-The included `docker-compose.yml` is intended only as a local development dependency scaffold. It is not a production deployment definition.
+Startup migration behavior:
 
-## Implementation Guidance
+- `RUN_MIGRATIONS=true` runs `node scripts/database.mjs migrate`.
+- `RUN_SEED=true` runs `node scripts/database.mjs seed`.
+- For production, run migrations as a deliberate release step unless the environment explicitly accepts startup migrations.
 
-When deployment work begins:
-- define build artifacts and version stamping early
-- keep environment variables and secrets outside the repository
-- standardize health checks across services
-- require deploy-time and post-deploy verification steps
-- align deployment automation with the production readiness checklist
+### Web
 
-## Phase 0 Note
+The web image builds the Vite app with `VITE_API_BASE_URL` and serves static output from nginx on port `80`.
 
-No deployable application components exist yet. This document provides deployment expectations for future phases.
+Nginx behavior:
+
+- `/assets/*` receives long-cache immutable headers.
+- unknown paths fall back to `/index.html` for React Router routes.
+
+## CI Flow
+
+The GitHub Actions workflow performs:
+
+1. `npm ci`
+2. `npm run typecheck`
+3. `npm run build`
+4. `npm test`
+5. `docker compose build api web`
+
+Database-backed exhaustive phase scripts remain manual/live-environment gates because they require a running API and seeded Postgres.
+
+## Release Promotion Guidance
+
+Recommended release flow:
+
+1. Run CI on the branch.
+2. Run `npm run docker:config`.
+3. Build images with `npm run docker:build`.
+4. Apply migrations intentionally in staging.
+5. Seed only when intended and idempotent.
+6. Run smoke checks against `/api/v1/health`, `/api/v1/ready`, `/api/v1/metrics`, and the web login route.
+7. Promote the same image digests to production.
+8. Monitor readiness, error rate, slow queries, and audit/security events after deployment.
+
+## Secrets and Configuration
+
+Use `.env.example` as the reference only. Production secrets must live in the deployment platform secret manager, not in Git or container images.
+
+Minimum production secret review:
+
+- `DATABASE_URL`
+- `POSTGRES_PASSWORD`
+- `JWT_ACCESS_TOKEN_SECRET`
+- `JWT_REFRESH_TOKEN_SECRET`
+- `DEFAULT_ADMIN_PASSWORD`
+- object-storage credentials
+- AI provider API keys
+
+## Rollback
+
+Rollback should use immutable image tags or digests. If a migration is not backward-compatible, pause promotion until a tested rollback or forward-fix path exists.

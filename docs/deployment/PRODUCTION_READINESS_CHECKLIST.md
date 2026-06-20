@@ -66,6 +66,22 @@ Reference: [OBSERVABILITY_GUIDE.md](./OBSERVABILITY_GUIDE.md) and
 - [ ] Background job monitor reviewed (`/observability/jobs`); worker runtime status understood.
 - [ ] Alerting defined for readiness failures, error-rate spikes, and slow-query volume.
 
+## Deployment and CI Readiness (Phase 30)
+
+Reference: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) and [DEVOPS_GUIDE.md](./DEVOPS_GUIDE.md).
+
+- [ ] `npm run typecheck`, `npm run build`, and `npm test` pass in CI.
+- [ ] `docker compose config` passes and is reviewed for expected services, ports, and secrets.
+- [ ] API image builds from `apps/api/Dockerfile` and runs as a non-root user.
+- [ ] Web image builds from `apps/web/Dockerfile` and serves React Router deep links through nginx fallback.
+- [ ] Container health checks are wired to `/api/v1/health` for API and `/` for web.
+- [ ] `RUN_MIGRATIONS` and `RUN_SEED` policy is explicitly set per environment.
+- [ ] Production secrets are injected by the deployment platform, not baked into images.
+- [ ] `VITE_API_BASE_URL` is set correctly for the target environment before web image build.
+- [ ] CI builds API and web images before merge or release.
+- [ ] Image tags/digests and rollback procedure are documented for the release.
+- [ ] Post-deploy smoke checks cover web load, login, `/api/v1/health`, `/api/v1/ready`, and `/api/v1/metrics`.
+
 ## Quality Readiness
 
 - automated tests cover critical behaviors

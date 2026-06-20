@@ -40,6 +40,62 @@ services:
     volumes:
       - minio_data:/data
 
+  # ---------------------------------------------------------------------------
+  # Application services (full-stack run). Infrastructure-only development is
+  # still available with: `docker compose up postgres redis minio`.
+  # Full stack: `docker compose up --build`.
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: crm-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: 4000
+      DATABASE_ENABLED: "true"
+      DATABASE_URL: postgresql://crm:crm@postgres:5432/crm
+      REDIS_ENABLED: "false"
+      REDIS_URL: redis://redis:6379
+      METRICS_ENABLED: "true"
+      QUERY_LOGGING_ENABLED: "true"
+      SLOW_QUERY_THRESHOLD_MS: "500"
+      DASHBOARD_CACHE_ENABLED: "false"
+      DASHBOARD_CACHE_TTL_SECONDS: "60"
+      BACKGROUND_WORKERS_ENABLED: "false"
+      API_CORS_ORIGIN: http://localhost:5173,http://127.0.0.1:5173
+      JWT_ACCESS_TOKEN_SECRET: ${JWT_ACCESS_TOKEN_SECRET:-dev-access-secret-change-me}
+      JWT_REFRESH_TOKEN_SECRET: ${JWT_REFRESH_TOKEN_SECRET:-dev-refresh-secret-change-me}
+      DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-sample-tenant}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@sample-tenant.local}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-ChangeMe123!}
+      # Local convenience: migrate + seed on startup. Set both to "false" in prod
+      # and run migrations as a deliberate, separate step.
+      RUN_MIGRATIONS: "true"
+      RUN_SEED: "true"
+    ports:
+      - "${API_PORT:-4000}:4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:${API_PORT:-4000}/api/v1
+        VITE_DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-sample-tenant}
+    container_name: crm-web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-5173}:80"
+
 volumes:
   postgres_data:
   minio_data:

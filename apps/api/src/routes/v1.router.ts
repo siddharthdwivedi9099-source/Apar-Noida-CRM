@@ -47,7 +47,7 @@ export function createV1Router({
 }: V1RouterDependencies) {
   const router = Router();
 
-  // Phase 29 observability/performance services (shared singletons).
+  // Observability/performance services (shared singletons).
   const cacheService = new CacheService(redisService, {
     enabled: env.DASHBOARD_CACHE_ENABLED,
     ttlSeconds: env.DASHBOARD_CACHE_TTL_SECONDS
@@ -58,7 +58,7 @@ export function createV1Router({
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-29-operational"
+      status: "phase-30-operational"
     });
   });
 

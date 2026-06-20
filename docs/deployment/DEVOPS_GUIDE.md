@@ -2,173 +2,148 @@
 
 ## Purpose
 
-This document explains how the current workspace is run locally, how the frontend and API are structured operationally, and what the immediate DevOps expectations are for the repository at Phase 1.
+This guide explains the current operational workflow for local development, containerized execution, CI, and release verification.
 
-## Scope
+## Phase 30 DevOps Baseline
 
-This guide covers:
-- local development workflow
-- workspace commands
-- environment variables
-- runtime ports
-- current build and verification flow
-- Phase 1 operational boundaries
+Phase 30 introduces a deployable local application stack and CI baseline:
 
-This guide does not cover:
-- production infrastructure automation
-- CI/CD implementation details
-- Kubernetes manifests
-- secret management tooling selection
+- production-style API container image
+- production-style web/nginx container image
+- full-stack Docker Compose topology
+- root Docker helper scripts
+- GitHub Actions verification workflow
+- expanded `.env.example` with secret markers and operational toggles
 
-## Current Runtime Topology
+## Runtime Topology
 
 ### Frontend
 
 - application: `apps/web`
 - stack: React, TypeScript, Vite, Tailwind CSS
-- local URL: `http://127.0.0.1:5173`
+- local dev URL: `http://127.0.0.1:5173`
+- container URL: `http://localhost:5173`
 
 ### API
 
 - application: `apps/api`
 - stack: Express, TypeScript, Zod, Pino
-- local URL: `http://127.0.0.1:4000`
-- health endpoint: `http://127.0.0.1:4000/api/v1/health`
+- local dev URL: `http://127.0.0.1:4000/api/v1`
+- container URL: `http://localhost:4000/api/v1`
+- liveness: `/api/v1/health` or `/api/v1/live`
+- readiness: `/api/v1/ready`
+- metrics placeholder: `/api/v1/metrics`
 
-### Local Infrastructure Placeholders
+### Infrastructure
 
-- PostgreSQL in `docker-compose.yml`
-- Redis in `docker-compose.yml`
-- MinIO in `docker-compose.yml`
+- PostgreSQL: host `localhost:5433`, container `postgres:5432`
+- Redis: host `localhost:6380`, container `redis:6379`
+- MinIO: host `localhost:9002`, console `localhost:9003`
 
-PostgreSQL is now used by the application for migrations, seeds, authentication, and live health checks. Redis and MinIO remain provisioned for future phases.
+## Local Commands
 
-## Workspace Commands
-
-### Install dependencies
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-### Run web only
-
-```bash
-npm run dev:web
-```
-
-### Run API only
-
-```bash
-npm run dev:api
-```
-
-### Run both applications
+Run local app processes:
 
 ```bash
 npm run dev
 ```
 
-### Typecheck all workspaces
+Run infrastructure only:
+
+```bash
+npm run docker:infra
+```
+
+Run full Docker stack:
+
+```bash
+npm run docker:up
+```
+
+View app container logs:
+
+```bash
+npm run docker:logs
+```
+
+Stop containers:
+
+```bash
+npm run docker:down
+```
+
+Validate Compose config:
+
+```bash
+npm run docker:config
+```
+
+## Verification Commands
+
+Core offline gates:
 
 ```bash
 npm run typecheck
+npm run build
+npm test
 ```
 
-### Build all workspaces
+Deployment artifact gate:
 
 ```bash
-npm run build
+node tests/phase30-deployment-devops-exhaustive.mjs
 ```
 
-## Environment Baseline
+Live database-backed phase gates remain available under `tests/phase*-exhaustive.mjs` and require a running API plus seeded Postgres.
 
-The environment reference file is [`.env.example`](/Users/apar/Documents/CRM for Apar and eLite/.env.example).
+## CI Pipeline
 
-### Frontend-related variables
+The GitHub Actions workflow in `.github/workflows/ci.yml` runs on pushes to `main` and `codex-*` branches, plus pull requests into `main`.
 
-- `VITE_APP_NAME`
-- `VITE_API_BASE_URL`
-- `VITE_DEFAULT_THEME`
-- `WEB_PORT`
+The current pipeline:
 
-### API-related variables
+- checks out code
+- installs Node 20 dependencies with `npm ci`
+- runs typecheck
+- runs production build
+- runs offline tests
+- validates API and web image builds with `docker compose build api web`
 
-- `API_HOST`
-- `API_PORT`
-- `API_CORS_ORIGIN`
-- `API_LOG_LEVEL`
-- `NODE_ENV`
+Image publishing and production deployment are intentionally deferred until registry and environment targets are selected.
 
-### Placeholder infrastructure variables
+## Environment Management
 
-- `DATABASE_ENABLED`
-- `DATABASE_URL`
-- `REDIS_ENABLED`
-- `REDIS_URL`
+Use `.env.example` as the reference. Do not commit real `.env` files.
 
-## Local Verification Flow
+Production and shared environments must override:
 
-### Frontend verification
+- database credentials and URL
+- JWT secrets
+- default admin bootstrap password
+- object storage credentials
+- AI provider API keys
+- CORS origins
+- cookie security settings
+- audit and retention settings
 
-1. Start the web app with `npm run dev:web`.
-2. Open `http://127.0.0.1:5173`.
-3. Verify that the sidebar, topbar, theme toggle, and placeholder routes render correctly.
+## Operational Notes
 
-### API verification
-
-1. Start the API with `npm run dev:api`.
-2. Call `curl http://127.0.0.1:4000/api/v1/health`.
-3. Confirm the JSON response includes status, version, environment, and placeholder dependency health.
-
-### Build verification
-
-1. Run `npm run typecheck`.
-2. Run `npm run build`.
-3. Confirm both workspaces complete successfully.
-
-## Logging and Error Handling
-
-### API logging
-
-- request logging is enabled through a centralized middleware
-- server startup uses a structured Pino logger
-- centralized error responses are returned by the API error handler
-
-### Frontend
-
-- no telemetry or error reporting service is configured yet
-- the current goal is reliable local initialization and layout verification
-
-## Operational Boundaries in Phase 1
-
-Phase 1 is intentionally limited to initialization and should not be treated as production-ready runtime behavior.
-
-Current limitations:
-- no auth
-- no RBAC enforcement
-- no tenant-context propagation
-- no persistence
-- no migrations
-- no caching
-- no background jobs
-- no CI/CD pipeline automation
-- no production deploy pipeline
-
-## Immediate DevOps Next Steps
-
-The next operational tasks after Phase 1 should be:
-- add Authentication and RBAC as the next platform implementation phase
-- add linting and CI checks
-- define container build strategy for the web and API
-- add environment-specific configuration handling
-- introduce secrets management conventions
-- add smoke-test automation for the health endpoint and basic frontend boot
-- define deployment promotion stages
+- API containers run as a non-root `crm` user.
+- API migrations and seeds are controlled by `RUN_MIGRATIONS` and `RUN_SEED`.
+- Web builds bake `VITE_API_BASE_URL` at image build time.
+- The nginx image supports React Router deep links through SPA fallback.
+- Compose defaults are local-development defaults, not production secrets.
 
 ## Relationship to Other Docs
 
-- high-level deployment direction: [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
-- technical stack and module design: [../technical/TECHNICAL_DESIGN.md](../technical/TECHNICAL_DESIGN.md)
-- architecture boundaries: [../architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
-- testing approach: [../testing/TESTING_STRATEGY.md](../testing/TESTING_STRATEGY.md)
+- deployment runbook: [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
+- observability: [OBSERVABILITY_GUIDE.md](OBSERVABILITY_GUIDE.md)
+- performance: [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md)
+- production checklist: [PRODUCTION_READINESS_CHECKLIST.md](PRODUCTION_READINESS_CHECKLIST.md)
+- testing strategy: [../testing/TESTING_STRATEGY.md](../testing/TESTING_STRATEGY.md)

@@ -24,7 +24,18 @@
     "db:migrate": "npm run db:build && node scripts/database.mjs migrate",
     "db:rollback": "npm run db:build && node scripts/database.mjs rollback",
     "db:seed": "npm run db:build && node scripts/database.mjs seed",
-    "db:status": "npm run db:build && node scripts/database.mjs status"
+    "db:status": "npm run db:build && node scripts/database.mjs status",
+    "db:migrate:run": "node scripts/database.mjs migrate",
+    "db:rollback:run": "node scripts/database.mjs rollback",
+    "db:seed:run": "node scripts/database.mjs seed",
+    "db:status:run": "node scripts/database.mjs status",
+    "start": "node apps/api/dist/server.js",
+    "docker:config": "docker compose config",
+    "docker:build": "docker compose build",
+    "docker:infra": "docker compose up -d postgres redis minio",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down --remove-orphans",
+    "docker:logs": "docker compose logs -f api web"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",
