@@ -6,11 +6,13 @@ import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
 import { validateRequest } from "../../common/validation/validate-request.js";
 import { env } from "../../config/env.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { CacheService } from "../../platform/cache/cache.service.js";
 import { AuthService } from "../auth/auth.service.js";
 import { DashboardService } from "./dashboard.service.js";
 
 interface RouterDependencies {
   databaseService: DatabaseService;
+  cacheService: CacheService;
 }
 
 const recordSchema = z.record(z.unknown());
@@ -52,7 +54,7 @@ function getFilter(request: Request) {
   return { from: query.from ?? null, to: query.to ?? null };
 }
 
-export function createDashboardsRouter({ databaseService }: RouterDependencies) {
+export function createDashboardsRouter({ databaseService, cacheService }: RouterDependencies) {
   const router = Router();
   const authService = new AuthService(databaseService, {
     enabled: env.DATABASE_ENABLED,
@@ -65,7 +67,7 @@ export function createDashboardsRouter({ databaseService }: RouterDependencies) 
     enableAuditLogs: env.ENABLE_AUDIT_LOGS
   });
   const authMiddleware = createAuthMiddleware(authService);
-  const service = new DashboardService(databaseService, { enableAuditLogs: env.ENABLE_AUDIT_LOGS });
+  const service = new DashboardService(databaseService, { enableAuditLogs: env.ENABLE_AUDIT_LOGS }, cacheService);
 
   router.use(authMiddleware);
 

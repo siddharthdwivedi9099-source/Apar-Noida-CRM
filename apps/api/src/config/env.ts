@@ -71,7 +71,14 @@ const envSchema = z.object({
   AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(365),
   AI_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(180),
   EXPORT_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(365),
-  FILE_UPLOAD_MAX_MB: z.coerce.number().int().positive().default(25)
+  FILE_UPLOAD_MAX_MB: z.coerce.number().int().positive().default(25),
+  // Phase 29: observability and performance readiness.
+  SLOW_QUERY_THRESHOLD_MS: z.coerce.number().int().positive().default(500),
+  QUERY_LOGGING_ENABLED: booleanish.default(true),
+  METRICS_ENABLED: booleanish.default(true),
+  DASHBOARD_CACHE_ENABLED: booleanish.default(false),
+  DASHBOARD_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
+  BACKGROUND_WORKERS_ENABLED: booleanish.default(false)
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

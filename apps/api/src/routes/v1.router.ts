@@ -9,6 +9,7 @@ import { createDashboardsRouter } from "../modules/dashboards/dashboards.router.
 import { createWorkflowsRouter } from "../modules/workflows/workflows.router.js";
 import { createApprovalsRouter } from "../modules/approvals/approvals.router.js";
 import { createAuditRouter } from "../modules/audit/audit.router.js";
+import { createObservabilityRouter } from "../modules/observability/observability.router.js";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
 import {
   createBusinessDevelopmentRouter,
@@ -31,6 +32,9 @@ import { createTrainingRouter } from "../modules/training/training.router.js";
 import { createTenantConfigRouter } from "../modules/tenant-config/tenant-config.router.js";
 import { DatabaseService } from "../platform/database/database.service.js";
 import { RedisService } from "../platform/redis/redis.service.js";
+import { CacheService } from "../platform/cache/cache.service.js";
+import { JobMonitorService } from "../platform/jobs/job-monitor.service.js";
+import { env } from "../config/env.js";
 
 interface V1RouterDependencies {
   databaseService: DatabaseService;
@@ -43,15 +47,22 @@ export function createV1Router({
 }: V1RouterDependencies) {
   const router = Router();
 
+  // Phase 29 observability/performance services (shared singletons).
+  const cacheService = new CacheService(redisService, {
+    enabled: env.DASHBOARD_CACHE_ENABLED,
+    ttlSeconds: env.DASHBOARD_CACHE_TTL_SECONDS
+  });
+  const jobMonitorService = new JobMonitorService({ workersEnabled: env.BACKGROUND_WORKERS_ENABLED });
+
   router.get("/", (_request, response) => {
     response.status(200).json({
       name: "AI-Native CRM API",
       version: apiConfig.version,
-      status: "phase-27-operational"
+      status: "phase-29-operational"
     });
   });
 
-  router.use(createHealthRouter({ databaseService, redisService }));
+  router.use(createHealthRouter({ databaseService, redisService, cacheService }));
   router.use("/auth", createAuthRouter({ databaseService }));
   router.use("/rbac", createRbacRouter({ databaseService }));
   router.use("/tenant-config", createTenantConfigRouter({ databaseService }));
@@ -72,11 +83,12 @@ export function createV1Router({
   router.use("/ai", createAiActionsRouter({ databaseService }));
   router.use("/ai", createRagRouter({ databaseService }));
   router.use("/customer-query", createCustomerQueryRouter({ databaseService }));
-  router.use("/dashboards", createDashboardsRouter({ databaseService }));
+  router.use("/dashboards", createDashboardsRouter({ databaseService, cacheService }));
   router.use("/notifications", createNotificationsRouter({ databaseService }));
   router.use("/approvals", createApprovalsRouter({ databaseService }));
   router.use("/workflows", createWorkflowsRouter({ databaseService }));
   router.use("/audit", createAuditRouter({ databaseService }));
+  router.use("/observability", createObservabilityRouter({ databaseService, cacheService, jobMonitorService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;

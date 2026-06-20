@@ -14,6 +14,7 @@ export * from "./workflows.js";
 export * from "./notifications.js";
 export * from "./customer-portal.js";
 export * from "./audit.js";
+export * from "./observability.js";
 
 export type EnvironmentName = "development" | "test" | "production";
 

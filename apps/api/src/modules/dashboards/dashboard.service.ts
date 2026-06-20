@@ -17,6 +17,7 @@ import {
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { CacheService } from "../../platform/cache/cache.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -59,7 +60,8 @@ const DRILLDOWN_METRICS = new Set(["leads_by_status", "lead_source", "opportunit
 export class DashboardService {
   constructor(
     private readonly databaseService: DatabaseService,
-    private readonly config: DashboardConfig
+    private readonly config: DashboardConfig,
+    private readonly cacheService: CacheService
   ) {}
 
   private assertEnabled() {
@@ -360,27 +362,35 @@ export class DashboardService {
     this.requirePermission(actor, dashboard.requiredPermissions, `You do not have permission to view the ${dashboard.name}.`);
 
     const ctx: MetricContext = { tenantId: actor.tenantId, from: filter.from, to: filter.to };
-    const widgets = await this.databaseService.withClient(async (client) => {
-      const resolved: DashboardWidgetData[] = [];
-      for (const widget of dashboard.widgets) {
-        const metric = await this.computeMetric(client, ctx, widget.metricKey);
-        resolved.push({
-          key: widget.key,
-          label: widget.label,
-          type: widget.type,
-          metricKey: widget.metricKey,
-          kind: metric.kind,
-          drilldown: widget.drilldown,
-          value: metric.value ?? null,
-          unit: metric.unit ?? null,
-          breakdown: metric.breakdown ?? [],
-          series: metric.series ?? [],
-          rows: metric.rows ?? [],
-          note: metric.note ?? null
-        });
-      }
-      return resolved;
-    });
+
+    // Phase 29: route this read-mostly, expensive metric computation through the
+    // dashboard cache. Keyed by tenant + dashboard + date filter so cached entries
+    // never leak across tenants or filters. (Redis-backed serving is deferred; the
+    // strategy and key shape are in place and recompute live until then.)
+    const cacheKey = this.cacheService.buildKey(["dashboard", actor.tenantId, dashboard.key, filter.from, filter.to]);
+    const widgets = await this.cacheService.wrap<DashboardWidgetData[]>(cacheKey, () =>
+      this.databaseService.withClient(async (client) => {
+        const resolved: DashboardWidgetData[] = [];
+        for (const widget of dashboard.widgets) {
+          const metric = await this.computeMetric(client, ctx, widget.metricKey);
+          resolved.push({
+            key: widget.key,
+            label: widget.label,
+            type: widget.type,
+            metricKey: widget.metricKey,
+            kind: metric.kind,
+            drilldown: widget.drilldown,
+            value: metric.value ?? null,
+            unit: metric.unit ?? null,
+            breakdown: metric.breakdown ?? [],
+            series: metric.series ?? [],
+            rows: metric.rows ?? [],
+            note: metric.note ?? null
+          });
+        }
+        return resolved;
+      })
+    );
 
     return {
       key: dashboard.key,

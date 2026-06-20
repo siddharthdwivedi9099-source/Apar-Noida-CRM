@@ -217,6 +217,36 @@ The seed runner now bootstraps:
 
 The seed remains idempotent and updates existing seeded records instead of duplicating them.
 
+## Observability and Performance (Phase 29)
+
+Operational visibility and performance readiness are first-class concerns:
+
+- **Structured logging.** A pino JSON logger carries `service`/`environment` base
+  fields and redacts secrets. Request, error, slow-query, AI-usage, and
+  workflow-execution logs are all structured; every request gets a correlatable
+  `x-request-id`.
+- **Operational endpoints.** Liveness (`/health`, `/live`), readiness (`/ready`,
+  `503` when dependencies are unreachable), and a placeholder metrics endpoint
+  (`/metrics`, process + cache counters) are unauthenticated for probes/scrapers.
+  Admin-gated `/observability/jobs` and `/observability/cache` expose the
+  background-job catalog and cache status.
+- **Slow-query logging.** `DatabaseService` times statements (direct and pooled)
+  and logs any exceeding `SLOW_QUERY_THRESHOLD_MS`.
+- **Indexing.** Tenant-scoped partial indexes (`WHERE deleted_at IS NULL`) cover
+  filter and sort paths; Phase 29 adds composites for email/name/score/schedule
+  and SLA scanning. See the [Performance Guide](../deployment/PERFORMANCE_GUIDE.md).
+- **Pagination.** List endpoints use bounded offset pagination with capped page
+  sizes and indexed sort columns; keyset pagination is the future enhancement.
+- **Dashboard caching.** Dashboard metrics route through a tenant-scoped cache
+  seam (`CacheService`) with TTL and hit/miss accounting; Redis-backed serving is
+  deferred (placeholder), so it currently recomputes live.
+- **Background jobs.** A job monitor publishes the planned background-job catalog
+  (retention purge, embedding backfill, workflow scheduler, notification
+  dispatch, cache warmer); a worker runtime is deferred to the cache/queue phase.
+
+See the [Observability Guide](../deployment/OBSERVABILITY_GUIDE.md) for endpoint
+and logging details.
+
 ## Current Limits
 
 Phase 5 intentionally does not yet implement:

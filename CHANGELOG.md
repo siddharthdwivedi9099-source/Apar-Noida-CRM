@@ -2,9 +2,20 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 28 implementation work.
+Current repository state now includes Phase 1 through Phase 29 implementation work.
 
 ### Added
+
+- Phase 29 observability + performance readiness: liveness (`/health`, `/live`), readiness (`/ready`, returns `503` when dependencies are unreachable), and a placeholder runtime metrics endpoint (`/metrics`, process + cache counters)
+- admin-gated observability routes `/observability/jobs` (background job monitor placeholder) and `/observability/cache` (dashboard cache status)
+- structured logging hardening: pino base fields (`service`/`environment`) and secret redaction across request, error, slow-query, AI-usage, and workflow-execution logs
+- slow-query logging in `DatabaseService` for direct and pooled-client queries, controlled by `SLOW_QUERY_THRESHOLD_MS`
+- dashboard caching strategy via a tenant-scoped `CacheService` seam wired into `DashboardService.getDashboard` (Redis-backed serving deferred; recomputes live with hit/miss accounting surfaced through `/metrics`)
+- background job monitor service publishing the planned job catalog (retention purge, embedding backfill, workflow scheduler, notification dispatch, dashboard cache warmer)
+- Phase 29 migration `20260629050000_phase29_performance_indexes.sql` adding composite partial indexes for lead/contact email, account name + health, lead score, opportunity amount, campaign schedule, and open-ticket SLA scanning
+- new observability/performance configuration: `SLOW_QUERY_THRESHOLD_MS`, `QUERY_LOGGING_ENABLED`, `METRICS_ENABLED`, `DASHBOARD_CACHE_ENABLED`, `DASHBOARD_CACHE_TTL_SECONDS`, `BACKGROUND_WORKERS_ENABLED`
+- observability and performance test coverage (liveness/readiness/metrics endpoints, cache service, background job monitor)
+- `docs/deployment/OBSERVABILITY_GUIDE.md`, `docs/deployment/PERFORMANCE_GUIDE.md`, plus Phase 29 sections in the production readiness checklist and technical design
 
 - Phase 28 automated testing framework using Vitest, configured for both `@crm/api` (node environment + supertest) and `@crm/web` (jsdom + Testing Library), with shared tooling installed at the repository root
 - root test commands `npm test`, `npm run test:api`, `npm run test:web`, and `npm run test:coverage`, plus per-workspace `test`/`test:watch`/`test:coverage` scripts

@@ -48,6 +48,24 @@ This document does not replace:
 - rollback procedure is documented
 - operational owners are clear
 
+## Observability and Performance Readiness (Phase 29)
+
+Reference: [OBSERVABILITY_GUIDE.md](./OBSERVABILITY_GUIDE.md) and
+[PERFORMANCE_GUIDE.md](./PERFORMANCE_GUIDE.md).
+
+- [ ] Liveness probe configured against `GET /api/v1/health` (or `/live`).
+- [ ] Readiness probe configured against `GET /api/v1/ready` (expects 503 to drain traffic).
+- [ ] Metrics endpoint `GET /api/v1/metrics` reachable by the scraper / dashboards.
+- [ ] Structured JSON logs are shipped to a central aggregator and queryable by `requestId`.
+- [ ] Log redaction verified — no secrets/tokens/passwords appear in shipped logs.
+- [ ] Request, error, slow-query, AI-usage, and workflow-execution logs are flowing.
+- [ ] `SLOW_QUERY_THRESHOLD_MS` is tuned for the environment and slow-query logs are reviewed.
+- [ ] Major tables have indexes covering their filter + sort paths (Phase 29 migration applied).
+- [ ] Pagination is bounded (capped `pageSize`) on all list endpoints.
+- [ ] Dashboard caching strategy is configured; `DASHBOARD_CACHE_ENABLED`/TTL set when Redis is live.
+- [ ] Background job monitor reviewed (`/observability/jobs`); worker runtime status understood.
+- [ ] Alerting defined for readiness failures, error-rate spikes, and slow-query volume.
+
 ## Quality Readiness
 
 - automated tests cover critical behaviors
