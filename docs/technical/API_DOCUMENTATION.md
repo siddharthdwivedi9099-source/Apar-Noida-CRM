@@ -752,6 +752,22 @@ Customer-facing routes are mounted under `/customer-portal` and require a valid 
 
 Security behavior: customer portal APIs do not expose internal CRM navigation data, ticket owners/assignees, root-cause fields, internal notes, restricted knowledge sources, or cross-account records.
 
+## Audit, Security and Data Governance Routes (Phase 27)
+
+Administrative audit and governance routes are mounted under `/audit` and require a valid access token. Read routes accept any of `admin.view`, `admin.view_dashboard`, `admin.configure`, or `admin.manage_workflow`; exports require `admin.export` or `admin.configure`; governance updates require `admin.configure`. Every query is tenant-scoped.
+
+- `GET /audit/logs` — paginated, tenant-scoped audit log with filters: `eventType`, `action`, `actorUserId`, `resourceType`, `status`, `category`, `search`, `from`, `to`, `page`, `pageSize` (max page size 200). Resolves the actor display name.
+- `GET /audit/summary?windowDays=` — event totals over a rolling window (1–365 days, default 30): event-type and status distributions, failed-access and sensitive-action counts, and per-category counts.
+- `GET /audit/export` — export up to 5,000 matching audit rows (same filters as `/audit/logs`). The export is itself audited as a `security` / `audit.export` event.
+- `GET /audit/security-review` — the security control checklist surfaced to admins (auth, RBAC, tenant isolation, AI permission checks, rate limiting, secure headers, CORS, failed-access logging, retention, upload validation).
+- `GET /audit/governance` — per-tenant data governance settings (retention windows, PII redaction, failed-access logging, upload limits/types); the row is provisioned with configured defaults on first read.
+- `PATCH /audit/governance` — update governance settings: `auditLogRetentionDays`, `aiLogRetentionDays`, `exportLogRetentionDays`, `piiRedactionEnabled`, `failedAccessLoggingEnabled`, `fileUploadMaxMb`, `allowedFileTypes`, `metadata`. Audited as a `security` / `data_governance.update` event.
+- `GET /audit/security/rate-limit-check` — a strict, per-user rate-limited probe (default 5 requests/window) that returns `429 RATE_LIMITED` past the limit, demonstrating the rate-limiting control independently of the generous global API limit.
+
+Audit categories (`category` filter and summary counts): `user_activity`, `authentication`, `data_access`, `role_change`, `permission_change`, `ai_usage`, `exports`, `failed_access`, `sensitive_action`.
+
+Security hardening (Phase 27): a global in-memory per-client API rate limiter (keyed by authenticated user, else client IP), strengthened Helmet headers (`no-referrer`, same-site CORP, HSTS in production), an explicit CORS method allowlist with preflight caching, and best-effort failed-access logging — `401`/`403` responses for authenticated requests are written to the audit log as `security` / `security.access_denied` events.
+
 ## Validation and Error Handling
 
 Common behaviors:

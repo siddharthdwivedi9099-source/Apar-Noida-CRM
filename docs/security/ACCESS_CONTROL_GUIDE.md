@@ -112,6 +112,18 @@ Phase 26 adds a dedicated `customer_portal` RBAC module and seeded **Customer Po
 - **Customer-safe AI** — portal Ask AI only retrieves approved/published articles from enabled tenant-scoped knowledge sources with no internal `required_permission`.
 - **Frontend separation** — `/portal/*` uses a separate customer portal shell; customer-only users do not see the internal CRM sidebar.
 
+## Audit, Security and Data Governance (Phase 27)
+
+Phase 27 centralizes the audit trail and adds an administrative governance surface under `/audit`, gated by the `admin` permission module.
+
+- **Read gate** — `/audit/logs`, `/audit/summary`, `/audit/security-review`, and `GET /audit/governance` accept any of `admin.view`, `admin.view_dashboard`, `admin.configure`, or `admin.manage_workflow`.
+- **Export gate** — `/audit/export` requires `admin.export` or `admin.configure`; every export is itself written to the audit log as a `security` / `audit.export` event.
+- **Configure gate** — `PATCH /audit/governance` requires `admin.configure` and records a `security` / `data_governance.update` event listing the changed fields.
+- **Tenant boundary** — every audit query and governance row is filtered by `tenant_id`; the governance row is provisioned with configured defaults on first read.
+- **Failed-access logging** — authenticated requests that resolve to `401`/`403` are written to the audit log as `security` / `security.access_denied` events by a database-aware error handler. Logging is best-effort and never blocks or fails the response.
+- **Rate limiting** — a global in-memory per-client limiter protects the whole API (keyed by authenticated user, else client IP), and `GET /audit/security/rate-limit-check` provides a strict per-user probe that returns `429 RATE_LIMITED` past its limit.
+- **Transport hardening** — strengthened Helmet headers (`no-referrer`, same-site CORP, production HSTS), an explicit CORS method allowlist with preflight caching, and `trust proxy` for correct forwarded client-IP resolution.
+
 ## Relationship to the RBAC Matrix
 
 [RBAC_MATRIX.md](./RBAC_MATRIX.md) now reflects the actual seeded modules, action categories, and role templates rather than a planning-only access sketch.

@@ -2,8 +2,9 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import { apiConfig } from "@crm/config";
-import { errorHandler } from "./common/middleware/error-handler.js";
+import { createErrorHandler } from "./common/middleware/error-handler.js";
 import { notFoundHandler } from "./common/middleware/not-found.js";
+import { createRateLimiter } from "./common/middleware/rate-limit.js";
 import { requestLogger } from "./common/middleware/request-logger.js";
 import { requestContext } from "./common/middleware/request-context.js";
 import { env } from "./config/env.js";
@@ -45,10 +46,19 @@ export function createApp() {
   });
 
   app.disable("x-powered-by");
-  app.use(helmet());
+  app.set("trust proxy", true);
+  app.use(
+    helmet({
+      referrerPolicy: { policy: "no-referrer" },
+      crossOriginResourcePolicy: { policy: "same-site" },
+      hsts: env.NODE_ENV === "production" ? undefined : false
+    })
+  );
   app.use(
     cors({
       credentials: true,
+      methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+      maxAge: 600,
       origin(requestOrigin, callback) {
         if (!requestOrigin) {
           callback(null, true);
@@ -64,6 +74,10 @@ export function createApp() {
   app.use(requestContext);
   app.use(requestLogger);
 
+  if (env.API_RATE_LIMIT_ENABLED) {
+    app.use(createRateLimiter({ windowMs: env.API_RATE_LIMIT_WINDOW_MS, max: env.API_RATE_LIMIT_MAX, keyPrefix: "api" }));
+  }
+
   app.get("/", (_request, response) => {
     response.status(200).json({
       name: "AI-Native CRM API",
@@ -74,7 +88,7 @@ export function createApp() {
 
   app.use(apiConfig.versionPrefix, createV1Router({ databaseService, redisService }));
   app.use(notFoundHandler);
-  app.use(errorHandler);
+  app.use(createErrorHandler(databaseService));
 
   return app;
 }

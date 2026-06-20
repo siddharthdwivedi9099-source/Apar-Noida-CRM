@@ -197,7 +197,9 @@ async function main() {
   try {
     log("Checking root API status, schema, permissions, and role templates.");
     const root = await request("/", { expectedStatus: 200 });
-    assert.equal(root.status, "phase-26-operational", "API root should report Phase 26 status.");
+    // The root status is a single global current-phase marker that advances with each
+    // phase, so assert it is operational rather than pinning it to phase 26 specifically.
+    assert.match(root.status, /^phase-\d+-operational$/, "API root should report an operational phase status.");
 
     for (const tableName of ["customer_portal_profiles", "customer_feedback"]) {
       const table = await queryOne(

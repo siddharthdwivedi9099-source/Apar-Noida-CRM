@@ -63,7 +63,15 @@ const envSchema = z.object({
   AI_AZURE_OPENAI_ENDPOINT: z.string().default(""),
   AI_LOCAL_ENDPOINT: z.string().default(""),
   AI_EMBEDDING_MODEL: z.string().default("text-embedding-3-large"),
-  AI_VECTOR_BACKEND: z.string().default("placeholder")
+  AI_VECTOR_BACKEND: z.string().default("placeholder"),
+  API_RATE_LIMIT_ENABLED: booleanish.default(true),
+  API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+  API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5000),
+  SECURITY_PROBE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+  AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(365),
+  AI_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(180),
+  EXPORT_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(365),
+  FILE_UPLOAD_MAX_MB: z.coerce.number().int().positive().default(25)
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

@@ -2,9 +2,19 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 26 implementation work.
+Current repository state now includes Phase 1 through Phase 27 implementation work.
 
 ### Added
+
+- Phase 27 migration `20260627050000_phase27_data_governance.sql` with tenant-scoped `data_governance_settings` and additional composite indexes on `audit_logs` (event/action/status by tenant and time)
+- centralized audit log APIs under `/audit`: `GET /audit/logs` (tenant-scoped, filterable, paginated), `GET /audit/summary` (windowed totals plus per-category counts), and `GET /audit/export` (capped, self-audited export)
+- nine audit categories (user activity, authentication, data access, role change, permission change, AI usage, exports, failed access, sensitive action) surfaced through filters and summary counts
+- per-tenant data governance settings APIs (`GET`/`PATCH /audit/governance`) for retention windows, PII redaction, failed-access logging, and file-upload limits/types, provisioned with configured defaults on first read and audited on update
+- security hardening: global in-memory per-client API rate limiter, a strict per-user rate-limit probe (`GET /audit/security/rate-limit-check`), strengthened Helmet headers, explicit CORS method allowlist with preflight caching, and `trust proxy` for correct client-IP resolution
+- best-effort failed-access logging: authenticated `401`/`403` responses are written to the audit log as `security.access_denied` events via a database-aware error handler
+- admin security review checklist API (`GET /audit/security-review`) summarizing enforced, configured, and deferred controls
+- exhaustive Phase 27 validation script `tests/phase27-audit-security-governance-exhaustive.mjs`
+- audit, security hardening, and data governance documentation and API documentation updates
 
 - Phase 26 migration `20260626050000_phase26_customer_portal.sql` with tenant-scoped `customer_portal_profiles` and `customer_feedback`
 - dedicated `customer_portal` RBAC module and seeded **Customer Portal User** role template
