@@ -64,7 +64,8 @@ const TOP_CITATIONS = 4;
 const LEVEL_3_KEYWORDS = ["outage", "down", "offline", "data loss", "data corruption", "corrupt", "breach", "hacked", "security", "vulnerability", "billing", "invoice", "charge", "refund", "payment", "contract", "integration failure", "integration fail", "api down", "critical", "emergency", "custom development", "custom feature", "data leak"];
 const LEVEL_2_KEYWORDS = ["workflow", "permission", "access denied", "denied", "dashboard", "assignment", "assign", "configuration", "config", "troubleshoot", "not working", "broken", "error", "cannot", "can't", "unable", "fails", "failing"];
 
-function classifyLevel(text: string): CustomerQueryLevel {
+// Exported for unit testing of the query classification + escalation logic.
+export function classifyLevel(text: string): CustomerQueryLevel {
   const haystack = text.toLowerCase();
   if (LEVEL_3_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
     return 3;
@@ -75,7 +76,7 @@ function classifyLevel(text: string): CustomerQueryLevel {
   return 1;
 }
 
-function computeConfidence(citations: RagCitation[]): number {
+export function computeConfidence(citations: RagCitation[]): number {
   if (citations.length === 0) {
     return 0;
   }
@@ -85,7 +86,7 @@ function computeConfidence(citations: RagCitation[]): number {
   return Math.round((0.6 * scoreFactor + 0.4 * countFactor) * 1000) / 1000;
 }
 
-function buildAnswer(citations: RagCitation[], escalated: boolean): string {
+export function buildAnswer(citations: RagCitation[], escalated: boolean): string {
   if (citations.length === 0) {
     return "I couldn't find an approved answer to your question. I've escalated it to our team and logged it so we can improve our knowledge base.";
   }

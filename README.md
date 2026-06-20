@@ -14,6 +14,8 @@ This repository now contains the implemented foundation for:
 - Phase 9: social media marketing module
 - Phase 10: sales pipeline and opportunity management
 - Phase 11: SDR and inside sales workspace
+- Phases 12–27: business development, partners, resellers, support, customer success, training, the AI platform (gateway, registries, RAG, customer query bot, module AI actions), dashboards, workflow automation, notifications and approvals, the customer portal, and audit/security/data-governance
+- Phase 28: automated testing framework (Vitest) with backend, frontend, and contract test coverage
 
 ## What Exists Now
 
@@ -132,6 +134,28 @@ node tests/phase8-campaigns-exhaustive.mjs
 node tests/phase10-opportunities-exhaustive.mjs
 ```
 
+## Testing
+
+Automated tests (Vitest) run offline with no server or database required:
+
+```bash
+npm test            # builds shared packages, then runs backend + frontend suites
+npm run test:api    # backend only (apps/api)
+npm run test:web    # frontend only (apps/web)
+npm run test:coverage
+```
+
+The live, data-backed end-to-end scripts run against a started server + seeded
+database and remain the deepest gate:
+
+```bash
+node tests/phase27-audit-security-governance-exhaustive.mjs
+```
+
+See [docs/testing/TESTING_STRATEGY.md](docs/testing/TESTING_STRATEGY.md) for the
+full approach and [docs/testing/QA_CHECKLIST.md](docs/testing/QA_CHECKLIST.md)
+for the manual release checklist.
+
 ## Environment Highlights
 
 Important variables:
@@ -177,3 +201,5 @@ Not implemented yet:
 - sales guide: [docs/user-guides/SALES_USER_GUIDE.md](docs/user-guides/SALES_USER_GUIDE.md)
 - multi-tenancy: [docs/architecture/MULTI_TENANCY_DESIGN.md](docs/architecture/MULTI_TENANCY_DESIGN.md)
 - security design: [docs/security/SECURITY_DESIGN.md](docs/security/SECURITY_DESIGN.md)
+- testing strategy: [docs/testing/TESTING_STRATEGY.md](docs/testing/TESTING_STRATEGY.md)
+- manual QA checklist: [docs/testing/QA_CHECKLIST.md](docs/testing/QA_CHECKLIST.md)

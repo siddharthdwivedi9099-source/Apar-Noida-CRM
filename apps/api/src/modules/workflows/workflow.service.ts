@@ -55,7 +55,8 @@ function getField(context: Record<string, unknown>, field: string): unknown {
   return field.split(".").reduce<unknown>((value, key) => (value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined), context);
 }
 
-function evaluateCondition(condition: WorkflowCondition, context: Record<string, unknown>): boolean {
+// Exported for unit testing of the workflow condition engine.
+export function evaluateCondition(condition: WorkflowCondition, context: Record<string, unknown>): boolean {
   const actual = getField(context, condition.field);
   const expected = condition.value;
   switch (condition.operator as WorkflowConditionOperator) {

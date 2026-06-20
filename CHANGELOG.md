@@ -2,9 +2,16 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 27 implementation work.
+Current repository state now includes Phase 1 through Phase 28 implementation work.
 
 ### Added
+
+- Phase 28 automated testing framework using Vitest, configured for both `@crm/api` (node environment + supertest) and `@crm/web` (jsdom + Testing Library), with shared tooling installed at the repository root
+- root test commands `npm test`, `npm run test:api`, `npm run test:web`, and `npm run test:coverage`, plus per-workspace `test`/`test:watch`/`test:coverage` scripts
+- backend tests covering auth/JWT, RBAC middleware + catalog, rate limiting, error handling, AuthService identity + tenant isolation (faked database), the workflow condition engine, customer-query escalation, AI gateway providers, prompt/agent registry, RAG knowledge baseline, and supertest API contract tests asserting auth gating for every protected module
+- frontend tests covering the login page, the authenticated route gate, role-based navigation, and mount/loading smoke tests for the lead form, opportunity board, ticket/support page, customer-success dashboard, and AI assistant panel
+- `docs/testing/QA_CHECKLIST.md` (manual QA + regression process) and a Phase 28 section in `docs/testing/TESTING_STRATEGY.md` documenting how to run tests, the coverage approach, and release gates
+- exported the workflow `evaluateCondition` and customer-query `classifyLevel`/`computeConfidence`/`buildAnswer` helpers for direct unit testing (no behavior change)
 
 - Phase 27 migration `20260627050000_phase27_data_governance.sql` with tenant-scoped `data_governance_settings` and additional composite indexes on `audit_logs` (event/action/status by tenant and time)
 - centralized audit log APIs under `/audit`: `GET /audit/logs` (tenant-scoped, filterable, paginated), `GET /audit/summary` (windowed totals plus per-category counts), and `GET /audit/export` (capped, self-audited export)

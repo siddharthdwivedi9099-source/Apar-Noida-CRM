@@ -14,6 +14,10 @@
     "dev:web": "npm run build:web-deps && npm run dev --workspace @crm/web",
     "dev:api": "npm run build:api-deps && npm run dev --workspace @crm/api",
     "build": "npm run build:packages && npm run build --workspace @crm/web && npm run build --workspace @crm/api",
+    "test": "npm run build:packages && npm run test:api && npm run test:web",
+    "test:api": "npm run test --workspace @crm/api",
+    "test:web": "npm run test --workspace @crm/web",
+    "test:coverage": "npm run build:packages && npm run test:coverage --workspace @crm/api && npm run test:coverage --workspace @crm/web",
     "typecheck": "npm run typecheck --workspace @crm/types && npm run typecheck --workspace @crm/config && npm run typecheck --workspace @crm/ui && npm run typecheck --workspace @crm/auth && npm run typecheck --workspace @crm/ai && npm run typecheck --workspace @crm/database && npm run typecheck --workspace @crm/web && npm run typecheck --workspace @crm/api",
     "db:build": "npm run build --workspace @crm/database",
     "db:create:migration": "npm run db:build && node scripts/database.mjs create-migration",
@@ -23,6 +27,14 @@
     "db:status": "npm run db:build && node scripts/database.mjs status"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/supertest": "^6.0.3",
+    "concurrently": "^9.1.2",
+    "jsdom": "^25.0.1",
+    "supertest": "^7.2.2",
+    "vitest": "^2.1.9"
   }
 }
