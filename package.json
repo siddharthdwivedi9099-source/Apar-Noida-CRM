@@ -1,6 +1,6 @@
 {
   "name": "ai-native-crm-platform",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -15,6 +15,7 @@
     "dev:api": "npm run build:api-deps && npm run dev --workspace @crm/api",
     "build": "npm run build:packages && npm run build --workspace @crm/web && npm run build --workspace @crm/api",
     "test": "npm run build:packages && npm run test:api && npm run test:web",
+    "test:release": "node tests/phase31-production-release-readiness.mjs",
     "test:api": "npm run test --workspace @crm/api",
     "test:web": "npm run test --workspace @crm/web",
     "test:coverage": "npm run build:packages && npm run test:coverage --workspace @crm/api && npm run test:coverage --workspace @crm/web",

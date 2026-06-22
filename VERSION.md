@@ -2,7 +2,7 @@
 
 ## Current Release Version
 
-Latest documented formal release: **v0.1.0**
+Latest documented formal release: **v1.0.0**
 
 ## Current Repository State
 
@@ -23,21 +23,31 @@ The repository now contains completed implementation work through:
 - Phase 28: automated testing framework and coverage
 - Phase 29: observability, logging, metrics, cache seams, and performance readiness
 - Phase 30: deployment, DevOps, Docker, and CI readiness
+- Phase 31: production release preparation and final v1.0.0 release gate
 
 This means:
-- `v0.1.0` is still the latest formally documented release baseline
-- the repository has progressed significantly beyond that baseline
-- the next formal release should be cut separately rather than assumed automatically
+- `v1.0.0` is the current formal release baseline
+- the requested v1.0.0 release criteria have been reviewed and documented
+- known limitations are captured explicitly in `KNOWN_LIMITATIONS.md`
+- post-release work is tracked in `POST_RELEASE_ROADMAP.md`
 
-## What Phase 30 Added
+## What Phase 31 Added
 
-Phase 30 introduced:
-- production-style API and web Docker images
-- full-stack Docker Compose topology for Postgres, Redis, MinIO, API, and web
-- optional API startup migration/seed entrypoint controls
-- GitHub Actions CI for install, typecheck, build, offline tests, and image build validation
-- deployment, DevOps, and production readiness documentation updates
-- an exhaustive Phase 30 validation script for deployment artifacts
+Phase 31 introduced:
+- final production readiness review across modules, documentation, security, API surface, user guides, deployment, and testing
+- `FINAL_PRODUCTION_READINESS_REPORT.md`
+- refreshed `RELEASE_NOTES.md` for v1.0.0
+- `KNOWN_LIMITATIONS.md`
+- `POST_RELEASE_ROADMAP.md`
+- static release-readiness validation through `npm run test:release`
+
+## v1.0.0 Release Criteria Result
+
+Status: **met for controlled v1.0.0 release baseline**.
+
+The release includes implemented and documented support for authentication, RBAC, tenant isolation, core CRM, campaigns, sales pipeline, partner/reseller management, support tickets, customer success, training, AI Gateway, Prompt Registry, RAG foundation, Customer AI query bot, dashboards, workflow engine, audit logs, documentation, automated tests, and deployment guidance.
+
+Production operators should review `KNOWN_LIMITATIONS.md` before external launch because some execution backends and enterprise hardening items remain intentionally deferred.
 
 ## Versioning Guidance
 

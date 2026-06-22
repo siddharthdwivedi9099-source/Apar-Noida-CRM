@@ -106,9 +106,11 @@ async function main() {
   await client.connect();
 
   try {
-    log("Checking root API status reports Phase 29.");
+    log("Checking root API status is operational.");
     const root = await request("/", { expectedStatus: 200 });
-    assert.equal(root.status, "phase-29-operational", "API root should report Phase 29 status.");
+    // The root status is a single global current-phase marker that advances each phase;
+    // assert it is operational rather than pinning it to this phase specifically.
+    assert.match(root.status, /^phase-\d+-operational$/, "API root should report an operational phase status.");
 
     log("Verifying Phase 29 performance indexes exist in the database.");
     for (const indexName of PHASE29_INDEXES) {

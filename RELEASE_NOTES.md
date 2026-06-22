@@ -1,99 +1,62 @@
 # Release Notes
 
-## Purpose
+## v1.0.0 - Production Release Baseline
 
-Release notes provide a human-readable summary of what a release means to stakeholders. Unlike the changelog, which is optimized for cumulative historical tracking, release notes are optimized for communicating release intent, scope, and impact.
-
-## Scope
-
-Release notes should summarize:
-- the theme of a release
-- what was included
-- what was intentionally excluded
-- why the release matters
-- what is recommended next
-
-## Current Implemented Repository State
-
-The repository is currently beyond the original `v0.1.0` baseline.
-
-As of **June 15, 2026**, the implemented state includes:
-- Phase 0 repository and documentation foundation
-- Phase 1 frontend and backend project initialization
-
-This implemented state is reflected in the repository and changelog, even though the latest formal release baseline documented here remains `v0.1.0`.
-
-## Phase 1 Implemented State Summary
-
-### Theme
-
-Backend and frontend project initialization on top of the original documentation baseline.
-
-### Included in the Current Implemented State
-
-- React + TypeScript + Vite frontend in `apps/web`
-- Tailwind CSS and ShadCN-ready structure
-- responsive shell with sidebar and topbar
-- placeholder routes for login, dashboard, admin, leads, accounts, opportunities, campaigns, support, customer success, and AI assistant
-- Express + TypeScript API in `apps/api`
-- versioned API structure under `/api/v1`
-- working health endpoint at `/api/v1/health`
-- centralized API error handling and request logging foundation
-- initialized shared packages for config, types, UI, auth, AI, and database placeholders
-- DevOps and local run documentation
-
-### Explicitly Not Included Yet
-
-- authentication
-- RBAC enforcement
-- tenant-context propagation
-- CRM business logic
-- persistence logic
-- workflow execution
-- AI runtime execution
-
-### Why This Matters
-
-This means the platform is no longer only a documentation baseline. It now has a real application frame that can support the next implementation phase safely and consistently.
-
-### Recommended Next Phase
-
-The next implementation phase should focus on:
-- Authentication
-- RBAC
-- tenant context propagation
-
-These should be treated as the next core platform features before deeper CRM module implementation begins.
-
-## Latest Formal Release Baseline: v0.1.0
-
-Release date: **June 14, 2026**
+Release date: **2026-06-20**
 
 ### Release Theme
 
-Foundation and documentation baseline for the AI-native CRM platform.
+`v1.0.0` establishes the AI-native CRM as a controlled production release baseline. It brings together the platform foundation, multi-tenant security model, core CRM modules, revenue operations workflows, customer success/training capabilities, AI governance foundation, dashboards, workflow automation, auditability, deployment packaging, and release-readiness documentation.
 
-### Summary
+### Who This Release Is For
 
-`v0.1.0` established the starting point for the platform as a documentation-first program. It defined the product shape, architecture direction, security posture, AI governance baseline, customer-success scope, and release framework needed before implementation began.
+- CRM admins configuring tenants, roles, modules, terminology, themes, and governance.
+- Sales, SDR, inside-sales, marketing, partner, reseller, support, customer-success, and training teams working inside the authenticated CRM.
+- Customer users accessing the customer portal for tickets, knowledge, Ask AI, training, and profile/feedback flows.
+- Operators preparing the platform for controlled production deployment.
 
-### Included in v0.1.0
+### Major Capabilities Included
 
-- Repository directory structure for future applications and packages
-- Product vision, business requirements, and functional baseline documentation
-- Architecture, data-model, and multi-tenancy direction
-- Security design and first-pass role access baseline
-- AI Gateway, Prompt Registry, Agent Registry, RAG, and customer query design baseline
-- Customer success, training, and health model documentation
-- Testing and deployment guidance
-- Local development environment template and dependency scaffold
+- Authentication with JWT access tokens, refresh-token rotation, secure password hashing, session tracking, login audit logs, failed-login handling, and rate limiting.
+- Configurable RBAC with seeded role templates, permission catalog, role CRUD, role assignment, permission middleware, and permission-aware frontend navigation.
+- Tenant-aware foundation with tenant settings, module toggles, terminology, theme configuration, custom-field metadata, form-layout metadata, option sets, pipeline stages, ticket statuses, and customer-success stages.
+- Core CRM for leads, accounts, contacts, notes, tasks, activities, shared timeline, soft deletes, search, filtering, sorting, validation, RBAC, tenant isolation, and audit logs.
+- Campaign, social media marketing, opportunity pipeline, SDR/inside-sales, business-development, partner, reseller, support, customer-success, and training workspaces.
+- AI platform foundation with AI Gateway, Prompt Registry, AI Agent Registry, RAG knowledge foundation, Customer AI query bot, module AI actions, governance docs, audit logs, and approval controls for sensitive AI actions.
+- Dashboards with role-based catalog visibility, live CRM metrics, drilldowns, saved views, exports, and dashboard cache seams.
+- Workflow engine, notifications, approval workflows, and customer portal.
+- Observability and deployment readiness: health, liveness, readiness, metrics, structured logging, slow-query logging, Docker images, Docker Compose stack, CI workflow, and deployment guidance.
 
-### Not Included in v0.1.0
+### Security and Governance Highlights
 
-- runnable application logic
-- APIs
-- authentication and authorization implementation
-- CRM module implementation
-- workflow engine logic
-- database schemas and migrations
-- AI runtime or provider integration
+- Tenant-scoped data access is a first-class design and implementation pattern.
+- Authenticated APIs use JWT identity and permission checks.
+- Sensitive writes and exports are audited.
+- Refresh tokens are hashed in storage and rotated.
+- AI calls route through a governed gateway instead of directly through modules.
+- RAG and Customer AI retrieval use tenant-aware, permission-aware, approved-knowledge constraints.
+
+### Testing and Validation
+
+Validated release gates include:
+
+- `npm run typecheck`
+- `npm run build`
+- `npm test`
+- `npm run test:release`
+- `node tests/phase30-deployment-devops-exhaustive.mjs`
+- Docker Compose config/build/runtime smoke checks from the Phase 30 release gate
+
+The repository also includes phase-specific live exhaustive scripts and offline Vitest suites for backend, frontend, and contract coverage.
+
+### Deployment Notes
+
+Use `docs/deployment/DEPLOYMENT_GUIDE.md` and `docs/deployment/DEVOPS_GUIDE.md` as the deployment source of truth. Production deployment should inject secrets from the target platform, run migrations intentionally, preserve immutable image tags or digests, and run smoke checks against web load, login, `/api/v1/health`, `/api/v1/ready`, and `/api/v1/metrics`.
+
+### Known Limitations
+
+Known limitations are documented in `KNOWN_LIMITATIONS.md`. The most important items are live external AI provider execution, production registry publishing, environment-specific deployment automation, full worker execution, Redis-backed dashboard cache serving, MFA/SSO, password reset, and advanced record/field-level authorization.
+
+### Recommended Next Step
+
+Run a staging release rehearsal using production-like secrets and datasets, then follow `POST_RELEASE_ROADMAP.md` for the first post-v1.0.0 hardening wave.

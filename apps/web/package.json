@@ -1,6 +1,6 @@
 {
   "name": "@crm/web",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -40,4 +40,3 @@
     "vite": "^5.4.19"
   }
 }
-

@@ -2,9 +2,19 @@
 
 ## [Unreleased]
 
-Current repository state now includes Phase 1 through Phase 30 implementation work.
+No unreleased changes.
+
+## [v1.0.0] - 2026-06-20
+
+Current repository state now includes Phase 1 through Phase 31 implementation work.
 
 ### Added
+
+- Phase 31 production release preparation: final readiness report, v1.0.0 release notes, known limitations, post-release roadmap, release version alignment, and static release-readiness validation script
+- formal v1.0.0 release metadata across the monorepo package manifests, lockfile, and VERSION documentation
+- `FINAL_PRODUCTION_READINESS_REPORT.md`, `KNOWN_LIMITATIONS.md`, and `POST_RELEASE_ROADMAP.md`
+- refreshed `RELEASE_NOTES.md` for the v1.0.0 release scope
+- `npm run test:release` release-readiness gate
 
 - Phase 30 deployment, DevOps, Docker, and CI readiness: production-style API and web container definitions, full-stack Docker Compose topology, CI workflow, environment template hardening, and deployment documentation
 - API Docker image with multi-stage build, pruned runtime dependencies, non-root `crm` user, health check, and optional migration/seed entrypoint controlled by `RUN_MIGRATIONS` and `RUN_SEED`

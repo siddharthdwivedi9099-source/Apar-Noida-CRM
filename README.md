@@ -18,6 +18,7 @@ This repository now contains the implemented foundation for:
 - Phase 28: automated testing framework (Vitest) with backend, frontend, and contract test coverage
 - Phase 29: observability, logging, metrics placeholders, cache seams, background-job monitor, and performance indexes
 - Phase 30: deployment, DevOps, Docker, and CI readiness
+- Phase 31: production release preparation for v1.0.0
 
 ## What Exists Now
 
@@ -50,6 +51,7 @@ This repository now contains the implemented foundation for:
 - tenant configuration APIs for settings, theme, modules, terminology, custom fields, option sets, and form layouts
 - CRM APIs for leads, accounts, contacts, opportunities, campaigns, and shared productivity records
 - sales workspace APIs for SDR and inside-sales queues, workflow state, and lead handoff updates
+- business development, partner, reseller, support ticketing, customer success, training, AI, RAG, dashboard, workflow, notification, approval, audit, and customer portal APIs
 - audit logging for auth, RBAC, tenant-config, and CRM writes
 - production-style Docker image definitions for the API and web app
 - GitHub Actions CI for install, typecheck, build, offline tests, and container build validation
@@ -155,6 +157,7 @@ npm run build
 npm test
 npm run docker:config
 npm run docker:build
+npm run test:release
 node tests/phase8-campaigns-exhaustive.mjs
 node tests/phase10-opportunities-exhaustive.mjs
 node tests/phase30-deployment-devops-exhaustive.mjs
@@ -169,6 +172,7 @@ npm test            # builds shared packages, then runs backend + frontend suite
 npm run test:api    # backend only (apps/api)
 npm run test:web    # frontend only (apps/web)
 npm run test:coverage
+npm run test:release # static v1.0.0 release-readiness gate
 ```
 
 The live, data-backed end-to-end scripts run against a started server + seeded
@@ -210,19 +214,24 @@ For local browser auth, the default CORS configuration supports both:
 
 ## Current Limits
 
-Not implemented yet:
+Documented v1.0.0 limitations:
 - public registration
-- admin-created user lifecycle UI
 - lead conversion
-- dedicated ticket and customer-success operational modules
+- admin-created user lifecycle UI
 - dynamic form rendering from custom-field metadata
 - record-level authorization beyond tenant boundaries
 - Redis-backed caching and workers
-- AI execution runtime
+- live external AI execution runtime
 - production registry publishing and environment-specific deployment automation
+
+See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for the full release limitation register.
 
 ## Documentation Map
 
+- v1.0.0 release notes: [RELEASE_NOTES.md](RELEASE_NOTES.md)
+- final readiness report: [FINAL_PRODUCTION_READINESS_REPORT.md](FINAL_PRODUCTION_READINESS_REPORT.md)
+- known limitations: [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)
+- post-release roadmap: [POST_RELEASE_ROADMAP.md](POST_RELEASE_ROADMAP.md)
 - technical design: [docs/technical/TECHNICAL_DESIGN.md](docs/technical/TECHNICAL_DESIGN.md)
 - data model: [docs/technical/DATA_MODEL.md](docs/technical/DATA_MODEL.md)
 - migrations and seeds: [docs/technical/DATABASE_MIGRATIONS.md](docs/technical/DATABASE_MIGRATIONS.md)
