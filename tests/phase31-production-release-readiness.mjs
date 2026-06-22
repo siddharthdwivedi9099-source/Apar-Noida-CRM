@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 
 function log(message) {
   console.log(`[phase31-release] ${message}`);
@@ -198,6 +198,63 @@ async function main() {
   await assertIncludes("docker-compose.yml", "postgres:");
   await assertIncludes("docker-compose.yml", "api:");
   await assertIncludes("docker-compose.yml", "web:");
+
+  log("Strict retest: verifying every workspace package is pinned to the release version.");
+  const workspaceManifests = [];
+  for (const base of ["apps", "packages"]) {
+    for (const entry of await readdir(base, { withFileTypes: true })) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const manifestPath = `${base}/${entry.name}/package.json`;
+      try {
+        await stat(manifestPath);
+      } catch {
+        continue;
+      }
+      workspaceManifests.push(manifestPath);
+    }
+  }
+  assert.ok(workspaceManifests.length >= 8, "All workspace packages should be discovered for the release version check.");
+  for (const manifestPath of workspaceManifests) {
+    await assertJsonVersion(manifestPath, "1.0.0");
+  }
+
+  log("Strict retest: verifying the AI, governance, and portal modules are actually mounted in the API router.");
+  const v1Router = await file("apps/api/src/routes/v1.router.ts");
+  for (const mount of [
+    "createAuthRouter",
+    "createRbacRouter",
+    "createTenantConfigRouter",
+    "createDashboardsRouter",
+    "createWorkflowsRouter",
+    "createApprovalsRouter",
+    "createNotificationsRouter",
+    "createAuditRouter",
+    "createCustomerPortalRouter",
+    "createAiGatewayRouter",
+    "createAiRegistryRouter",
+    "createRagRouter",
+    "createCustomerQueryRouter",
+    "createCrmRouter"
+  ]) {
+    assert.ok(v1Router.includes(`${mount}(`), `${mount} should be mounted in v1.router.ts (built and wired).`);
+  }
+
+  log("Strict retest: verifying release artifacts reference v1.0.0 and are substantive.");
+  for (const path of ["FINAL_PRODUCTION_READINESS_REPORT.md", "KNOWN_LIMITATIONS.md", "POST_RELEASE_ROADMAP.md", "RELEASE_NOTES.md"]) {
+    const contents = await file(path);
+    assert.ok(contents.includes("1.0.0"), `${path} should reference the v1.0.0 release.`);
+    assert.ok(contents.length > 1000, `${path} should be a substantive release document.`);
+  }
+
+  log("Strict retest: verifying deployment env example and changelog completeness through the release.");
+  for (const envVar of ["API_RATE_LIMIT_MAX", "AUDIT_LOG_RETENTION_DAYS", "SLOW_QUERY_THRESHOLD_MS"]) {
+    await assertIncludes(".env.example", envVar);
+  }
+  for (const phase of ["Phase 27", "Phase 29", "Phase 30"]) {
+    await assertIncludes("CHANGELOG.md", phase);
+  }
 
   log("Phase 31 production release readiness checks passed.");
 }
