@@ -122,4 +122,14 @@ The RAG foundation is implemented as of Phase 20: permission-aware, tenant-aware
 
 Retrieval is keyword/overlap-based (`strategy = keyword_placeholder`) until vector embeddings are enabled; the response advertises the configured `vectorBackend` and `embeddingModel` and flags `deferred: true`.
 
+## Governance Review Confirmation (2026-06-24)
+
+The AI governance review verified retrieval grounding in code:
+- **Permission-filtered grounding.** Retrieval runs as the calling actor; knowledge sources carrying a `required_permission` are excluded unless the actor holds it, so citations never expose content the caller may not see. `accessibleSourceCount`/`restrictedSourceCount` are reported.
+- **Approved-only.** Only `approved` + `published` articles from enabled, tenant-scoped sources are returned.
+- **Citations & grounding signal.** Every result carries source id/name/type, snippet, and score; downstream answers set an `is_grounded` flag and escalate rather than fabricate when retrieval is empty.
+- **Knowledge gaps.** Empty retrievals are logged to `knowledge_gaps` for review.
+
+See [AI_GOVERNANCE_REVIEW_REPORT.md](./AI_GOVERNANCE_REVIEW_REPORT.md) for the full assessment.
+
 See [../technical/API_DOCUMENTATION.md](../technical/API_DOCUMENTATION.md) for the full route list and [../technical/DATA_MODEL.md](../technical/DATA_MODEL.md) for the schema.

@@ -155,3 +155,12 @@ Customer portal AI is stricter than the internal customer-query console:
 - If no approved customer-visible citation is found, it returns a safe no-answer response and creates an open `customer_query_escalations` record instead of inventing an answer.
 
 This preserves the Phase 21 retrieve-before-answer model while making the external customer channel narrower than the internal support/customer-success review tools.
+
+## Governance Review Confirmation (2026-06-24)
+
+The AI governance review verified the customer-query bot in code:
+- **Extractive, not generative.** Answers are assembled from retrieved approved-source snippets (`buildAnswer`), never free-form LLM text. The customer's question is used only for retrieval matching, so the customer channel has **no LLM execution surface** and is not a prompt-injection vector.
+- **Escalation rules.** `classifyLevel` assigns L1/L2/L3; level 3 always escalates, no-citation answers escalate as `no_answer`, and answers below the `LOW_CONFIDENCE_THRESHOLD` (0.4) escalate as `low_confidence`. Level-3 and no-answer escalations auto-create a support ticket.
+- **Auditability & feedback.** Each ask/feedback/escalate/ticket/resolve writes an `ai` audit-log entry; answers persist confidence, grounding, and citations; `helpful`/`not_helpful` feedback is captured per answer.
+
+These thresholds and keyword lists are currently constants (not tenant-configurable) — a documented low risk (R4). See [AI_GOVERNANCE_REVIEW_REPORT.md](./AI_GOVERNANCE_REVIEW_REPORT.md).

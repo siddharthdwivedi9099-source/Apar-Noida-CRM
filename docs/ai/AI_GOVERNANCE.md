@@ -99,3 +99,9 @@ The security review confirmed the governance controls above and recorded these g
 RAG retrieval already enforces source-level permissions (`required_permission`), tenant scoping, and approved/published-only results, and is audit-logged.
 
 The 2026-06-24 deep security review reconfirmed (by reading the code) that AI settings, usage logs, and action runs are tenant-scoped, that AI/RAG access is permission-gated, and that prompts resolve from the managed registry rather than caller input — keeping current prompt-injection execution risk low while live providers remain deferred.
+
+## Prompt-Variable Hardening (2026-06-24 AI governance review)
+
+The AI governance review added a defense-in-depth guardrail at the single point where caller-supplied values enter a managed template (`resolvePrompt` in `ai-gateway.service.ts`). Before interpolation, each variable value has control characters stripped, the `{{`/`}}` template delimiters neutralized (a value can never introduce template tokens), and its length clamped (8000 chars). Because every generative path — AI Actions and the gateway route — funnels through this method, all callers inherit the guard. This bounds prompt-stuffing/abuse; natural-language injection remains mitigated by managed templates and per-action human review and should be re-reviewed before live providers are enabled.
+
+See [AI_GOVERNANCE_REVIEW_REPORT.md](./AI_GOVERNANCE_REVIEW_REPORT.md) for the full 17-area governance review.
