@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata, getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   supportEscalationStatuses,
@@ -140,24 +141,6 @@ const updatePermissions: string[] = ["support.edit", "support.assign", "support.
 const deletePermissions: string[] = ["support.delete", "support.configure"];
 const messagePermissions: string[] = ["support.edit", "support.create", "support.configure", "support.manage_workflow"];
 const configurePermissions: string[] = ["support.configure", "support.manage_workflow"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return {
-    requestId: request.requestId,
-    ipAddress: getClientIp(request),
-    userAgent: request.header("user-agent") ?? null
-  };
-}
 
 export function createSupportRouter({ databaseService }: RouterDependencies) {
   const router = Router();

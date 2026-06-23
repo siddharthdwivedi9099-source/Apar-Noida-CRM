@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import type { LoginRequestBody, RefreshRequestBody } from "@crm/types";
 import { AppError } from "../../common/errors/app-error.js";
@@ -24,16 +25,6 @@ const loginSchema = z.object({
 const refreshSchema = z.object({
   refreshToken: z.string().optional()
 });
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-
-  return request.ip ?? null;
-}
 
 export function createAuthRouter({ databaseService }: AuthRouterDependencies) {
   const router = Router();

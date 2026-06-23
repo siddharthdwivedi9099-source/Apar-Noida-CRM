@@ -1,4 +1,5 @@
-import { Router, type Request, type RequestHandler } from "express";
+import { Router, type RequestHandler } from "express";
+import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   accountSortFields,
@@ -279,16 +280,6 @@ function requireRecordPermissions(
     const permissionGroup = getRecordPermissionGroup(request.params.entityType as CrmEntityType);
     return requirePermissions({ oneOf: permissionGroup[permissionKey] })(request, response, next);
   };
-}
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-
-  return request.ip ?? null;
 }
 
 export function createCrmRouter({ databaseService }: CrmRouterDependencies) {

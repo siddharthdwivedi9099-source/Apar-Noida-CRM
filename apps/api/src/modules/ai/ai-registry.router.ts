@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   aiAgentDataScopes,
@@ -135,18 +136,6 @@ const createPermissions: string[] = ["ai.create", "ai.configure", "ai.manage_ai"
 const editPermissions: string[] = ["ai.edit", "ai.configure", "ai.manage_ai"];
 const activatePermissions: string[] = ["ai.configure", "ai.manage_ai"];
 const approvePermissions: string[] = ["ai.approve", "ai.configure", "ai.manage_ai"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null };
-}
 
 export function createAiRegistryRouter({ databaseService }: RouterDependencies) {
   const router = Router();

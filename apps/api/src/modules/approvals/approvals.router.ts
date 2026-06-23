@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   approvalStatuses,
@@ -66,16 +67,6 @@ const approvalCommentSchema = z.object({
 const approvalIdSchema = z.object({
   approvalId: uuidSchema
 });
-
-function getAuditMetadata(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-
-  return {
-    requestId: request.requestId,
-    ipAddress: forwardedFor ? forwardedFor.split(",")[0]?.trim() ?? null : request.ip ?? null,
-    userAgent: request.header("user-agent") ?? null
-  };
-}
 
 const approvalReadPermissions = [
   "approvals.view",

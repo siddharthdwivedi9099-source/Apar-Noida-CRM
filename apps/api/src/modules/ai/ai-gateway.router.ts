@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import { aiProviderKeys, aiRequestTypes, type AiGatewayRequestBody, type AiUsageLogListQuery, type UpdateAiSettingsRequestBody } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
@@ -61,18 +62,6 @@ const readPermissions: string[] = [
 const usePermissions: string[] = ["ai.use_ai", "ai.manage_ai", "ai.configure"];
 const configurePermissions: string[] = ["ai.configure", "ai.manage_ai"];
 const logsPermissions: string[] = ["ai.view", "ai.manage_ai", "ai.configure", "ai.view_dashboard"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null };
-}
 
 export function createAiGatewayRouter({ databaseService }: RouterDependencies) {
   const router = Router();

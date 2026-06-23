@@ -305,7 +305,7 @@ export function OpportunitiesPage() {
       <CrmHero
         eyebrow="Sales pipeline workspace"
         title={`${opportunitiesLabel} now run on tenant-safe CRUD, configurable stages, and audited pipeline progression.`}
-        summary={`This workspace combines ${opportunityLabel.toLowerCase()} creation, dashboard metrics, list filtering, role-aware stage movement, and a Kanban pipeline view backed by the Phase 10 opportunity engine.`}
+        summary={`This workspace combines ${opportunityLabel.toLowerCase()} creation, dashboard metrics, list filtering, role-aware stage movement, and a Kanban pipeline view backed by the opportunity engine.`}
         actions={
           <>
             {canCreate ? (
