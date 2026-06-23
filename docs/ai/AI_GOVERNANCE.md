@@ -97,3 +97,5 @@ The security review confirmed the governance controls above and recorded these g
 - **Provider execution is deferred.** Calls return deterministic placeholders (`result.placeholder`), so prompt-injection execution risk is currently low. Re-run the AI sections of [../security/SECURITY_REVIEW_REPORT.md](../security/SECURITY_REVIEW_REPORT.md) before enabling any live provider.
 
 RAG retrieval already enforces source-level permissions (`required_permission`), tenant scoping, and approved/published-only results, and is audit-logged.
+
+The 2026-06-24 deep security review reconfirmed (by reading the code) that AI settings, usage logs, and action runs are tenant-scoped, that AI/RAG access is permission-gated, and that prompts resolve from the managed registry rather than caller input — keeping current prompt-injection execution risk low while live providers remain deferred.

@@ -11,6 +11,7 @@
 
 - Security review (PROMPT 34): added a production startup guard in `apps/api/src/config/env.ts` that refuses to boot when `NODE_ENV=production` if JWT secrets are still development defaults, the access/refresh secrets are identical, the admin password is the documented default, or `AUTH_COOKIE_SECURE` is not `true`.
 - Added `docs/security/SECURITY_REVIEW_REPORT.md` and updated `SECURITY_DESIGN.md`, `ACCESS_CONTROL_GUIDE.md`, `docs/ai/AI_GOVERNANCE.md`, and `docs/deployment/PRODUCTION_READINESS_CHECKLIST.md` to reflect the reviewed implementation and documented residual risks (AI rate-limit enforcement, `trust proxy` hop count, multi-replica rate-limit store).
+- Deep second-pass security review (2026-06-24): adversarial verification of SQL injection, cross-tenant IDOR, record-level scope, mass assignment, log redaction, and per-endpoint authorization found no new critical/high issues. Made Express `trust proxy` configurable via the new `API_TRUST_PROXY` environment variable (default preserves current behavior; production should pin a finite hop count) to close residual risk M-2.
 
 ### Notes
 

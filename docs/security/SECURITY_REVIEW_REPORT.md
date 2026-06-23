@@ -1,6 +1,6 @@
 # Security Review Report
 
-**Review date:** 2026-06-23
+**Review date:** 2026-06-23 (first pass) · 2026-06-24 (second/deep pass)
 **Release reviewed:** v1.0.0 (`main` through Phase 31)
 **Reviewer:** Code/security review pass (PROMPT 34)
 **Scope:** Application-layer security of the AI-Native CRM API and web client. Infrastructure hardening (host, network, TLS termination, database server config) is out of scope and tracked separately in the deployment guides.
@@ -11,13 +11,13 @@ The platform's application-layer security posture is **strong**. Authentication,
 
 One **high-severity** configuration weakness was found and **fixed** during this review: in production the API could previously boot with known development JWT secrets, a known default admin password, or a non-`Secure` refresh cookie. A startup guard now refuses to boot under those conditions.
 
-No SQL injection, authentication bypass, missing-authentication, broken tenant-isolation, or XSS sink was found.
+No SQL injection, authentication bypass, missing-authentication, broken tenant-isolation, cross-tenant IDOR, mass-assignment, or XSS sink was found. The deep second pass (2026-06-24) reconfirmed this against the dynamic-SQL builders, validation schemas, and log redaction, and found **no new critical or high issues**; it also closed M-2 by making `trust proxy` configurable.
 
 | Severity | Found | Fixed | Documented / Deferred |
 |----------|-------|-------|------------------------|
 | Critical | 0 | 0 | 0 |
 | High | 1 | 1 | 0 |
-| Medium | 2 | 0 | 2 |
+| Medium | 2 | 1 (M-2, configurable) | 1 |
 | Low / Hardening | 3 | 0 | 3 |
 
 ## Methodology
@@ -36,10 +36,11 @@ Each of the 23 review areas below was assessed by reading the implementing code 
 - **Issue:** The per-tenant AI rate limit is reported in responses (`enforced: false`) but not enforced. This is a cost/abuse-control gap rather than a confidentiality/integrity issue. Per the review constraints, enforcement is a feature and was not added in this pass.
 - **Recommendation:** Implement enforcement against the per-tenant `rate_limit_per_minute` before enabling live provider calls. Tracked in `KNOWN_LIMITATIONS.md` and `docs/ai/AI_GOVERNANCE.md`.
 
-### M-2 (Medium, DOCUMENTED) — `trust proxy` trusts all hops
-- **Where:** `apps/api/src/app.ts` (`app.set("trust proxy", true)`)
-- **Issue:** Trusting all proxies means a client could spoof `X-Forwarded-For` to influence IP-derived values used by the IP-based rate limiters and audit logs when the API is not strictly fronted by a controlled proxy.
-- **Recommendation:** Set `trust proxy` to the specific number of trusted hops (e.g. `1`) matching the production load-balancer topology.
+### M-2 (Medium, PARTIALLY FIXED) — `trust proxy` trusted all hops
+- **Where:** `apps/api/src/app.ts`
+- **Issue:** `trust proxy` was hardcoded to `true`, so a client could spoof `X-Forwarded-For` to influence IP-derived values used by the IP-based rate limiters and audit logs when the API is not strictly fronted by a controlled proxy.
+- **Fix (second pass):** `trust proxy` is now driven by the `API_TRUST_PROXY` environment variable (`"true"`/`"false"`/hop count/IP list). The default preserves existing behavior; production should set a finite hop count (e.g. `API_TRUST_PROXY=1`) matching the load-balancer topology. This is now enforced as a production-readiness checklist item.
+- **Residual:** the secure value is operator-configured, so the default still trusts all hops if left unset.
 
 ### L-1 (Low / Hardening, DOCUMENTED) — IP-based rate limiter is in-memory
 - The global and login rate limiters are per-instance in-memory fixed windows. Behind multiple API replicas the effective limit multiplies by replica count. Recommend a shared (Redis) store for multi-instance deployments.
@@ -78,8 +79,27 @@ Each of the 23 review areas below was assessed by reading the implementing code 
 | 22 | Error messages | ✅ Good | Generic login failure (`Invalid tenant, email, or password.`) prevents user enumeration. |
 | 23 | Secrets management | ✅ Fixed | Production guard added (see H-1); secrets sourced from environment, never committed. |
 
+## Second Pass — Deep Review (2026-06-24)
+
+The second pass was adversarial, targeting issue classes a broad first pass can miss. Additional files reviewed: every `*.service.ts` dynamic-SQL builder (`resellers`, `opportunities`, `rbac`, `sales-workspaces`, `training`), `platform/logger/logger.ts`, and the router validation schemas across all modules. **No new critical or high issues were found.**
+
+| Attack class | Method | Result |
+|--------------|--------|--------|
+| SQL injection | Grepped all `${...}` inside query strings and `+` concatenation; read every dynamic builder. | ✅ Safe. Interpolated fragments are whitelisted identifiers only — table names are compile-time unions, sort columns come from fixed maps, `UPDATE SET` assignments use hardcoded column names. All user **values** are bound as `$n` parameters. |
+| Cross-tenant IDOR | Verified fetch/update/delete-by-id queries. | ✅ Safe. Every record query carries `tenant_id = $n`; UPDATE/DELETE use `WHERE id = $1 AND tenant_id = $2`. |
+| Record-level access | Read `resolveScope` / `buildScopedWhere`. | ✅ Enforced. Owner/team scope is resolved and a `403` is raised when a caller requests a scope they lack permission for. |
+| Mass assignment | Checked `z.record(z.unknown())` usage and service update paths. | ✅ Bounded. Loose record schemas apply only to free-form `metadata`/`config` JSON (stored as `jsonb`); update services assign only explicitly whitelisted columns via `keys.includes(...)`. |
+| Secrets in logs | Read `logger.ts` redaction config. | ✅ Strong. Pino redacts `authorization`/`cookie` headers, `password`, `passwordHash`, `accessToken`, `refreshToken`, `token`, `secret`, and wildcards. |
+| Sensitive-field exposure | Grepped `password_hash`/`refresh_token_hash`/`secret` in SELECTs and responses. | ✅ Safe. Confined to the auth module's in-SQL comparison; never selected into API responses. |
+| Credential brute force | Read `login-rate-limit.ts` + account-lockout logic. | ✅ Bounded twice — limiter keyed on `ip:tenant:email` **and** DB account lockout after `AUTH_ACCOUNT_LOCK_THRESHOLD` failures (independent of IP). |
+| Committed secrets | `git ls-files` for `.env`; grep for `sk-`/`AKIA` literals. | ✅ Clean. No committed `.env`; `.env*` gitignored; no hardcoded provider keys. |
+| Per-endpoint authz | Counted mutations vs permission gates in `audit`, `workflows`, `approvals`, `customer-query`, `tenant-config`. | ✅ Every mutation is permission-gated. |
+
+**Hardening applied this pass:** M-2 — `trust proxy` is now configurable via `API_TRUST_PROXY` (see finding above) instead of hardcoded `true`.
+
 ## Remediations Applied in This Review
-1. **H-1** — Production secret/cookie startup guard added to `apps/api/src/config/env.ts`.
+1. **H-1** — Production secret/cookie startup guard added to `apps/api/src/config/env.ts` (first pass).
+2. **M-2** — `trust proxy` made configurable via `API_TRUST_PROXY`, defaulting to current behavior, with production guidance to pin a finite hop count (second pass).
 
 ## Residual Risks (Accepted / Deferred)
 - **M-1** AI gateway rate-limit enforcement (deferred; feature work).
