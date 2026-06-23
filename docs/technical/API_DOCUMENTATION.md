@@ -802,3 +802,53 @@ Shared productivity writes produce CRM audit events such as:
 - `social.delete`
 
 Equivalent action patterns apply to `account`, `contact`, `opportunity`, `ticket`, and `customer_success_account`.
+
+## Customer Query AI Bot
+
+Customer-facing, RAG-grounded query assistant. All routes require authentication and `customer_query.*` permissions; answers are extractive from approved knowledge sources and escalate when ungrounded or low-confidence. See [../ai/CUSTOMER_QUERY_AI_DESIGN.md](../ai/CUSTOMER_QUERY_AI_DESIGN.md).
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| POST | `/customer-query/ask` | Ask a question; returns a grounded answer with citations, confidence, and escalation state |
+| GET | `/customer-query/dashboard` | Aggregate metrics (questions, grounded answers, confidence, escalations) |
+| GET | `/customer-query/knowledge-gaps` | List logged knowledge gaps |
+| GET | `/customer-query/sessions` | List query sessions (reviewer permission) |
+| GET | `/customer-query/sessions/:sessionId` | Session detail (owner or reviewer) |
+| POST | `/customer-query/sessions/:sessionId/feedback` | Submit helpful / not-helpful feedback |
+| POST | `/customer-query/sessions/:sessionId/ticket` | Create a support ticket from the session |
+| POST | `/customer-query/sessions/:sessionId/escalate` | Escalate the session |
+| POST | `/customer-query/sessions/:sessionId/resolve` | Resolve the session (manage permission) |
+
+## Notifications
+
+In-app notifications and per-user delivery preferences. All routes require authentication.
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| GET | `/notifications` | List the caller's notifications |
+| POST | `/notifications` | Create a notification |
+| GET | `/notifications/preferences` | Get the caller's notification preferences |
+| PUT | `/notifications/preferences` | Update notification preferences |
+| POST | `/notifications/read-all` | Mark all notifications read |
+| POST | `/notifications/:notificationId/read` | Mark a single notification read |
+
+## Approvals
+
+Generic approval requests and decisions used by workflows and sensitive actions. All routes require authentication and the relevant approval permissions.
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| GET | `/approvals` | List approval requests |
+| POST | `/approvals` | Create an approval request |
+| GET | `/approvals/:approvalId` | Get an approval request |
+| POST | `/approvals/:approvalId/decision` | Approve or reject |
+| POST | `/approvals/:approvalId/comments` | Add a comment |
+
+## Observability
+
+Operational visibility into background jobs and cache health. All routes require authentication and observability permissions. See [../deployment/OBSERVABILITY_GUIDE.md](../deployment/OBSERVABILITY_GUIDE.md).
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| GET | `/observability/jobs` | Background job monitor status |
+| GET | `/observability/cache` | Cache service health/metrics |

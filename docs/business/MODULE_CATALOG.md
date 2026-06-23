@@ -4,6 +4,8 @@
 
 This catalog records the major platform and business modules in the product and highlights which ones are now implemented versus still planned.
 
+> **Status reconciliation (2026-06-24 documentation audit):** the modules previously grouped under "Planned Revenue and Service Modules" are now **implemented** (Opportunities, Business Development, Presales, Partner/Reseller, Support, Customer Success). The authoritative, complete list of all 26 implemented API modules is the table at the end of this document. See [../DOCUMENTATION_AUDIT_REPORT.md](../DOCUMENTATION_AUDIT_REPORT.md).
+
 ## Implemented Platform Modules
 
 ### Tenant Administration
@@ -116,7 +118,9 @@ This catalog records the major platform and business modules in the product and 
   - permission-aware AI placeholder actions
 - Shared dependencies: RBAC, tenant option sets, audit logging, campaigns, tenant terminology, and the AI permission model
 
-## Planned Revenue and Service Modules
+## Revenue and Service Modules (Implemented)
+
+> These modules were planned in earlier phases and are now implemented with live API routers. The per-module "Status" lines below are retained for history; treat the implemented-modules table at the end of this document as authoritative.
 
 ### Opportunities
 
@@ -233,3 +237,40 @@ This catalog records the major platform and business modules in the product and 
 - Support, onboarding, and customer-success modules should extend these entities rather than duplicate them.
 - Tenant option sets and terminology must remain the source of truth for configurable dropdowns and labels.
 - Every new module should inherit the existing RBAC, audit, and soft-delete patterns.
+
+## All Implemented Modules (2026-06-24 audit — authoritative)
+
+All 26 modules below ship with live API routers (`apps/api/src/modules/`). Route prefixes are mounted in `apps/api/src/routes/v1.router.ts`.
+
+| Module | Route prefix | Area |
+|--------|--------------|------|
+| auth | `/auth` | Identity & access |
+| rbac | `/rbac` | Identity & access |
+| tenant-config | `/tenant-config` | Configuration |
+| crm | `/records`, `/leads`, `/accounts`, `/contacts` | Core CRM |
+| opportunities | `/opportunities` | Revenue |
+| campaigns | `/campaigns` | Marketing |
+| social | `/social` | Marketing |
+| sales-workspaces | `/sales-workspaces` | SDR / inside sales |
+| business-development | `/business-development` | Revenue |
+| presales | `/presales` | Revenue |
+| partners | `/partners` | Ecosystem |
+| resellers | `/resellers` | Ecosystem |
+| support | `/support` | Service |
+| customer-success | `/customer-success` | Service |
+| training | `/training` | Service |
+| customer-portal | `/customer-portal` | Customer-facing |
+| customer-query | `/customer-query` | Customer-facing AI |
+| ai (gateway) | `/ai` | AI platform |
+| ai (registry) | `/ai` | AI platform |
+| ai-actions | `/ai` | AI platform |
+| rag | `/ai` | AI platform |
+| dashboards | `/dashboards` | Analytics |
+| notifications | `/notifications` | Platform |
+| approvals | `/approvals` | Platform |
+| workflows | `/workflows` | Automation |
+| audit | `/audit` | Compliance |
+| observability | `/observability` | Operations |
+| health | `/health`, `/` | Operations |
+
+See [../DOCUMENTATION_INDEX.md](../DOCUMENTATION_INDEX.md) for cross-references to each module's documentation.
