@@ -6,7 +6,6 @@ import type {
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
   CrmOptionValueSummary,
-  CrmPagination,
   OpportunityLookupSummary,
   PartnerAiPlaceholderSummary,
   PartnerContactInput,
@@ -31,6 +30,7 @@ import type {
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 
 interface AuditMetadata {
@@ -192,19 +192,6 @@ function normalizeOnboardingTaskStatus(value: unknown): PartnerOnboardingTaskSta
   return ONBOARDING_TASK_STATUSES.includes(value as PartnerOnboardingTaskStatus)
     ? (value as PartnerOnboardingTaskStatus)
     : "pending";
-}
-
-function buildPagination(page: number, pageSize: number, total: number): CrmPagination {
-  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
-
-  return {
-    page,
-    pageSize,
-    total,
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1
-  };
 }
 
 export class PartnersService {

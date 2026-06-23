@@ -78,6 +78,16 @@ Still not implemented:
 - secrets manager integration
 - automated dependency and secret scanning in CI
 
+## Production Configuration Hardening (2026-06-23 review)
+
+The API enforces secure configuration at startup. When `NODE_ENV=production`, `apps/api/src/config/env.ts` refuses to boot if any of the following is true:
+- `JWT_ACCESS_TOKEN_SECRET` or `JWT_REFRESH_TOKEN_SECRET` still equals its development default
+- the access and refresh JWT secrets are identical
+- `DEFAULT_ADMIN_PASSWORD` still equals the documented default
+- `AUTH_COOKIE_SECURE` is not `true` (the refresh cookie must be HTTPS-only)
+
+This prevents a production deployment from silently running with known secrets or an insecure refresh cookie. Development and test environments are unaffected.
+
 ## Design Direction for Next Phases
 
 Future security work should prioritize:
@@ -86,3 +96,6 @@ Future security work should prioritize:
 - CSRF strategy for production cookie usage
 - tenant-aware business audit trails
 - operational alerting for suspicious auth activity
+- AI gateway rate-limit enforcement and a shared (Redis-backed) rate-limit store for multi-replica deployments
+
+See [SECURITY_REVIEW_REPORT.md](./SECURITY_REVIEW_REPORT.md) for the full 2026-06-23 security review.

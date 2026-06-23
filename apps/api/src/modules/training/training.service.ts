@@ -11,7 +11,6 @@ import type {
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
   CrmOptionValueSummary,
-  CrmPagination,
   CustomerLearnerSummary,
   CustomerLearnersResponse,
   MyTrainingResponse,
@@ -48,6 +47,7 @@ import type {
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 
 interface AuditMetadata {
@@ -160,11 +160,6 @@ function mapContact(row: ContactLookupRow): ContactRelationshipSummary {
     email: row.email,
     role: mapOptionValue({ id: row.role_id, key: row.role_key, label: row.role_label, description: row.role_description, color: row.role_color, isDefault: row.role_is_default, isActive: row.role_is_active })
   };
-}
-
-function buildPagination(page: number, pageSize: number, total: number): CrmPagination {
-  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
-  return { page, pageSize, total, totalPages, hasNextPage: page < totalPages, hasPreviousPage: page > 1 };
 }
 
 export class TrainingService {

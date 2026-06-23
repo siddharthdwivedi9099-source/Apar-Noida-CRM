@@ -10,7 +10,6 @@ import type {
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
   CrmOptionValueSummary,
-  CrmPagination,
   CsAiPlaceholderSummary,
   CsStakeholder,
   CsSupportTrend,
@@ -55,6 +54,7 @@ import type {
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 
 interface AuditMetadata {
@@ -214,11 +214,6 @@ function normalizeStakeholders(value: unknown): CsStakeholder[] {
   }
 
   return result;
-}
-
-function buildPagination(page: number, pageSize: number, total: number): CrmPagination {
-  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
-  return { page, pageSize, total, totalPages, hasNextPage: page < totalPages, hasPreviousPage: page > 1 };
 }
 
 export class CustomerSuccessService {

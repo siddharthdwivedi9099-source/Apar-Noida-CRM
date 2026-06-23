@@ -13,6 +13,7 @@ import type {
 import { notificationTypeCatalog } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import { getPositiveNumber } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 
 interface AuditMetadata {
@@ -74,14 +75,6 @@ function getPagination(total: number, page: number, pageSize: number) {
 
 function getMetadata(value: Record<string, unknown> | null | undefined) {
   return value ?? {};
-}
-
-function getPositiveNumber(value: number | undefined, fallback: number, maximum: number) {
-  if (!value || value < 1) {
-    return fallback;
-  }
-
-  return Math.min(value, maximum);
 }
 
 function mapUser(input: {

@@ -21,6 +21,7 @@ import type {
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import { getPositiveNumber } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 import { CrmService } from "../crm/crm.service.js";
 
@@ -221,14 +222,6 @@ function getTrimmedNullableString(value: string | null | undefined) {
 
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function getPositiveNumber(value: number | undefined, fallback: number, maximum: number) {
-  if (!value || value < 1) {
-    return fallback;
-  }
-
-  return Math.min(value, maximum);
 }
 
 function getPagination(total: number, page: number, pageSize: number): CrmPagination {

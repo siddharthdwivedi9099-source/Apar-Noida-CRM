@@ -2,7 +2,19 @@
 
 ## [Unreleased]
 
-No unreleased changes.
+### Changed
+
+- Code review and refactoring pass (PROMPT 33): consolidated duplicated request-metadata helpers (`getClientIp`/`getAuditMetadata`) into `apps/api/src/common/http/request-metadata.ts` across all module routers, and duplicated pagination helpers (`buildPagination`/`getPositiveNumber`) into `apps/api/src/common/pagination.ts` across all module services.
+- Removed stale hardcoded "Phase N" labels from the API root response and web pages in favor of version-driven/neutral copy.
+
+### Security
+
+- Security review (PROMPT 34): added a production startup guard in `apps/api/src/config/env.ts` that refuses to boot when `NODE_ENV=production` if JWT secrets are still development defaults, the access/refresh secrets are identical, the admin password is the documented default, or `AUTH_COOKIE_SECURE` is not `true`.
+- Added `docs/security/SECURITY_REVIEW_REPORT.md` and updated `SECURITY_DESIGN.md`, `ACCESS_CONTROL_GUIDE.md`, `docs/ai/AI_GOVERNANCE.md`, and `docs/deployment/PRODUCTION_READINESS_CHECKLIST.md` to reflect the reviewed implementation and documented residual risks (AI rate-limit enforcement, `trust proxy` hop count, multi-replica rate-limit store).
+
+### Notes
+
+- No new business features were added in this pass. Behavioral inconsistency between `getPagination` (empty result → `totalPages = 1`) and `buildPagination` (empty result → `totalPages = 0`) was documented rather than silently changed.
 
 ## [v1.0.0] - 2026-06-20
 

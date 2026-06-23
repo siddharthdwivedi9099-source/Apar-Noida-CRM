@@ -18,7 +18,6 @@ import type {
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
   CrmOptionValueSummary,
-  CrmPagination,
   OpportunityLookupSummary,
   PresalesAiPlaceholderSummary,
   PresalesComplianceStatus,
@@ -39,6 +38,7 @@ import type {
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 
 interface AuditMetadata {
@@ -237,19 +237,6 @@ function normalizeComplianceStatus(value: unknown): PresalesComplianceStatus {
   return PRESALES_COMPLIANCE_STATUSES.includes(value as PresalesComplianceStatus)
     ? (value as PresalesComplianceStatus)
     : "pending";
-}
-
-function buildPagination(page: number, pageSize: number, total: number): CrmPagination {
-  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
-
-  return {
-    page,
-    pageSize,
-    total,
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1
-  };
 }
 
 export class BusinessDevelopmentService {

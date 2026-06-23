@@ -8,7 +8,6 @@ import type {
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
   CrmOptionValueSummary,
-  CrmPagination,
   SupportAiPlaceholderSummary,
   SupportDashboardResponse,
   SupportEscalationStatus,
@@ -34,6 +33,7 @@ import type {
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 
 interface AuditMetadata {
@@ -179,19 +179,6 @@ function normalizeEscalationStatus(value: unknown): SupportEscalationStatus {
 
 function normalizeArticleStatus(value: unknown): SupportKnowledgeArticleStatus {
   return ARTICLE_STATUSES.includes(value as SupportKnowledgeArticleStatus) ? (value as SupportKnowledgeArticleStatus) : "draft";
-}
-
-function buildPagination(page: number, pageSize: number, total: number): CrmPagination {
-  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
-
-  return {
-    page,
-    pageSize,
-    total,
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1
-  };
 }
 
 function computeSlaStatus(row: SupportTicketRow): SupportSlaStatus {

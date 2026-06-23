@@ -88,3 +88,12 @@ Module AI actions integrate AI into every CRM module under a fixed set of rules,
 6. **Tenant isolation** — `ai_action_runs` are tenant-scoped; runs from one tenant are never visible to another.
 
 See [AI_USE_CASE_CATALOG.md](./AI_USE_CASE_CATALOG.md) for the catalog and [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md) for the composition.
+
+## Known Governance Gaps (2026-06-23 review)
+
+The security review confirmed the governance controls above and recorded these gaps to address before enabling live provider execution:
+- **Rate limiting is reported but not enforced.** The gateway returns the per-tenant `rate_limit_per_minute` with `enforced: false`. Enforcement must be implemented before live providers are enabled, to bound cost and abuse.
+- **Redaction flag without enforced redaction.** `redaction_enabled` is stored per tenant, but redaction is not yet applied to provider payloads. Treat it as configuration intent only until enforcement lands.
+- **Provider execution is deferred.** Calls return deterministic placeholders (`result.placeholder`), so prompt-injection execution risk is currently low. Re-run the AI sections of [../security/SECURITY_REVIEW_REPORT.md](../security/SECURITY_REVIEW_REPORT.md) before enabling any live provider.
+
+RAG retrieval already enforces source-level permissions (`required_permission`), tenant scoping, and approved/published-only results, and is audit-logged.
