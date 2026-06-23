@@ -16,6 +16,24 @@ function normalizeOrigin(value: string) {
   return value.trim().replace(/\/+$/, "");
 }
 
+// Resolve the Express "trust proxy" setting from configuration. A finite hop
+// count is preferred in production so a client cannot spoof X-Forwarded-For to
+// influence IP-derived rate limiting and audit logs.
+function parseTrustProxy(value: string): boolean | number | string {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") {
+    return true;
+  }
+  if (normalized === "false") {
+    return false;
+  }
+  const asNumber = Number(normalized);
+  if (Number.isInteger(asNumber) && asNumber >= 0) {
+    return asNumber;
+  }
+  return value.trim();
+}
+
 function getAllowedCorsOrigins(value: string) {
   return Array.from(
     new Set(
@@ -46,7 +64,7 @@ export function createApp() {
   });
 
   app.disable("x-powered-by");
-  app.set("trust proxy", true);
+  app.set("trust proxy", parseTrustProxy(env.API_TRUST_PROXY));
   app.use(
     helmet({
       referrerPolicy: { policy: "no-referrer" },

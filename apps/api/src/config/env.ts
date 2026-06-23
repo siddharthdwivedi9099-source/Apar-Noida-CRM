@@ -34,6 +34,11 @@ const envSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   API_CORS_ORIGIN: z.string().default("http://127.0.0.1:5173,http://localhost:5173"),
+  // Express "trust proxy" setting. "true"/"false" toggle trusting all/no
+  // proxies; an integer pins the number of trusted hops (recommended in
+  // production so X-Forwarded-For cannot be spoofed); any other value is passed
+  // through to Express (e.g. an IP/subnet list).
+  API_TRUST_PROXY: z.string().default("true"),
   DATABASE_ENABLED: booleanish.default(true),
   DATABASE_URL: z.string().default("postgresql://crm:crm@localhost:5433/crm"),
   DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),

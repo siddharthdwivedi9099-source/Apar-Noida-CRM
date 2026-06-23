@@ -88,6 +88,10 @@ The API enforces secure configuration at startup. When `NODE_ENV=production`, `a
 
 This prevents a production deployment from silently running with known secrets or an insecure refresh cookie. Development and test environments are unaffected.
 
+Transport trust is also configurable: `API_TRUST_PROXY` controls Express's `trust proxy` setting (`"true"`/`"false"`/hop count/IP list). Production should set a finite hop count so `X-Forwarded-For` cannot be spoofed to influence IP-based rate limiting and audit logs.
+
+A 2026-06-24 deep review additionally confirmed (by reading the code) that all dynamic SQL is parameterized with whitelisted identifiers, queries are tenant-scoped (no cross-tenant IDOR), update paths assign only whitelisted columns (no mass assignment), and the structured logger redacts credentials and tokens.
+
 ## Design Direction for Next Phases
 
 Future security work should prioritize:

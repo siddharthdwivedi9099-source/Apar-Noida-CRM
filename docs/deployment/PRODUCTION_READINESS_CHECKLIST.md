@@ -121,7 +121,7 @@ Before promoting to production, confirm the following. The API now enforces the 
 - [ ] `DEFAULT_ADMIN_PASSWORD` changed from the documented default (and rotated after first login)
 - [ ] `AUTH_COOKIE_SECURE=true` and `AUTH_COOKIE_SAME_SITE` chosen for the deployment topology
 - [ ] `API_CORS_ORIGIN` restricted to the real web origin(s)
-- [ ] `trust proxy` hop count matches the load-balancer topology (avoid trusting all hops; see SECURITY_REVIEW_REPORT M-2)
+- [ ] `API_TRUST_PROXY` set to a finite hop count (e.g. `1`) matching the load-balancer topology rather than the default `true` (avoids `X-Forwarded-For` spoofing; see SECURITY_REVIEW_REPORT M-2)
 - [ ] Shared (Redis) rate-limit store configured if running multiple API replicas (see SECURITY_REVIEW_REPORT L-1)
 - [ ] AI gateway rate-limit enforcement reviewed before enabling live providers (see AI_GOVERNANCE known gaps)
 

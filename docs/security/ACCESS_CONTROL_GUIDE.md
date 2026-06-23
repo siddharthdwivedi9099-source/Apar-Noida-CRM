@@ -136,4 +136,6 @@ Authorization is enforced at two complementary layers, both verified during the 
 
 Customer-portal access is additionally constrained to the caller's own `tenant_id`, `user_id`, and `account_id`, and requires an active portal profile before any portal data is returned.
 
-See [SECURITY_REVIEW_REPORT.md](./SECURITY_REVIEW_REPORT.md) for the full area-by-area assessment.
+Record-level access within a tenant is enforced via scope resolution (e.g. `resolveScope`/`buildScopedWhere`): a caller requesting a scope (own vs. team vs. all) they lack permission for receives a `403`, and the resulting SQL is filtered accordingly. Every record query is additionally tenant-scoped, so cross-tenant object access by ID is not possible.
+
+See [SECURITY_REVIEW_REPORT.md](./SECURITY_REVIEW_REPORT.md) for the full area-by-area assessment and the 2026-06-24 deep-review results.
