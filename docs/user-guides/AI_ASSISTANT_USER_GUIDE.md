@@ -30,4 +30,12 @@ Actions you don't have permission for are shown as **No access** and cannot be r
 - **Prompt Registry** — every action resolves its prompt from the managed registry; no prompts are hardcoded in the UI.
 - **Human review** — sensitive outputs require approval before use.
 
-See [../ai/AI_USE_CASE_CATALOG.md](../ai/AI_USE_CASE_CATALOG.md) for the full action list and [../ai/AI_GOVERNANCE.md](../ai/AI_GOVERNANCE.md) for the governance model.
+## What keeps AI answers trustworthy
+
+- **Grounded answers.** The customer query assistant answers only from your organization's approved knowledge sources and shows the sources it used. If it can't find an approved answer, it tells you and routes the question to a person instead of guessing.
+- **Automatic escalation.** Urgent or sensitive topics (outages, security, billing, contracts) and low-confidence answers are escalated automatically, and a support ticket is opened for you.
+- **You're only shown what you're allowed to see.** Retrieval respects your permissions, so cited content never exposes information you don't have access to.
+- **Your feedback matters.** Marking an answer helpful or not helpful is recorded and feeds the knowledge-gap review.
+- **Sensitive AI actions wait for a human.** Drafts and recommendations flagged sensitive are held for an authorized reviewer before they're considered usable.
+
+See [../ai/AI_USE_CASE_CATALOG.md](../ai/AI_USE_CASE_CATALOG.md) for the full action list, [../ai/AI_GOVERNANCE.md](../ai/AI_GOVERNANCE.md) for the governance model, and [../ai/AI_GOVERNANCE_REVIEW_REPORT.md](../ai/AI_GOVERNANCE_REVIEW_REPORT.md) for the latest review.

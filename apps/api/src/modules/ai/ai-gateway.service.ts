@@ -21,6 +21,26 @@ import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 
+// Upper bound on a single interpolated prompt variable. Bounds prompt-stuffing
+// and runaway token cost from caller-supplied values.
+const MAX_PROMPT_VARIABLE_LENGTH = 8000;
+
+// Defensive normalization of caller-supplied prompt-variable values before they
+// are interpolated into a managed template and sent to a provider. This is a
+// prompt-injection / abuse guardrail (AI governance review): it strips control
+// characters, neutralizes the `{{ }}` template delimiters so a value can never
+// introduce template tokens, and clamps the length. It intentionally does not
+// try to detect natural-language "ignore previous instructions" attacks; those
+// are mitigated by templates being managed and by per-action human review.
+function sanitizePromptVariable(value: string): string {
+  // Strip control characters except tab, newline, and carriage return.
+  const withoutControlChars = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+  const withoutDelimiters = withoutControlChars.replace(/\{\{/g, "{ {").replace(/\}\}/g, "} }");
+  return withoutDelimiters.length > MAX_PROMPT_VARIABLE_LENGTH
+    ? withoutDelimiters.slice(0, MAX_PROMPT_VARIABLE_LENGTH)
+    : withoutDelimiters;
+}
+
 interface AuditMetadata {
   requestId: string;
   ipAddress: string | null;
@@ -210,7 +230,7 @@ export class AiGatewayService {
   private resolvePrompt(templateText: string, variables: Record<string, string>) {
     return templateText.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
       const value = variables[key];
-      return value === undefined || value === null ? `{{${key}}}` : String(value);
+      return value === undefined || value === null ? `{{${key}}}` : sanitizePromptVariable(String(value));
     });
   }
 
