@@ -23,7 +23,7 @@ import { DatabaseService } from "../../platform/database/database.service.js";
 
 // Upper bound on a single interpolated prompt variable. Bounds prompt-stuffing
 // and runaway token cost from caller-supplied values.
-const MAX_PROMPT_VARIABLE_LENGTH = 8000;
+export const MAX_PROMPT_VARIABLE_LENGTH = 8000;
 
 // Defensive normalization of caller-supplied prompt-variable values before they
 // are interpolated into a managed template and sent to a provider. This is a
@@ -32,7 +32,7 @@ const MAX_PROMPT_VARIABLE_LENGTH = 8000;
 // introduce template tokens, and clamps the length. It intentionally does not
 // try to detect natural-language "ignore previous instructions" attacks; those
 // are mitigated by templates being managed and by per-action human review.
-function sanitizePromptVariable(value: string): string {
+export function sanitizePromptVariable(value: string): string {
   // Strip control characters except tab, newline, and carriage return.
   const withoutControlChars = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
   const withoutDelimiters = withoutControlChars.replace(/\{\{/g, "{ {").replace(/\}\}/g, "} }");
