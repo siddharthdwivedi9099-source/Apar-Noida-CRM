@@ -163,3 +163,26 @@ When authorization is implemented:
 ## Relationship to RBAC Matrix
 
 This document explains the business meaning of roles. The detailed access direction is captured in [RBAC_MATRIX.md](../security/RBAC_MATRIX.md). The two documents should remain synchronized as roles evolve.
+
+## Canonical Seeded Role Templates (2026-06-24 audit)
+
+The sections above describe roles by business function. For reference, the **28 role templates actually seeded** by the platform are defined in `packages/types/src/rbac.ts`. The narrative names above map onto these canonical templates:
+
+| Administrative | Marketing & Sales | Service & Ecosystem | Customer Success & Leadership |
+|----------------|-------------------|---------------------|-------------------------------|
+| Super Admin | Social Media Marketing Executive | Presales Executive | Customer Success Manager - Onboarding |
+| CRM Admin | Social Media Marketing Manager | Presales Manager | Customer Success Manager - Scaled |
+| Customer Portal User | Marketing Executive | Support Executive | Customer Success Manager - Enterprise |
+| | Marketing Manager | Support Manager | Customer Success Head |
+| | Inside Sales Executive | Partner Manager | Executive Leadership |
+| | Inside Sales Manager | Reseller Manager | |
+| | Sales Development Representative | | |
+| | SDR Manager | | |
+| | Business Development Executive | | |
+| | Business Development Manager | | |
+| | Sales Executive | | |
+| | Sales Manager | | |
+| | Sales Head | | |
+| | Sales Leader | | |
+
+All 28: Super Admin · CRM Admin · Customer Portal User · Social Media Marketing Executive · Social Media Marketing Manager · Marketing Executive · Marketing Manager · Inside Sales Executive · Inside Sales Manager · Sales Development Representative · SDR Manager · Business Development Executive · Business Development Manager · Sales Executive · Sales Manager · Sales Head · Sales Leader · Presales Executive · Presales Manager · Support Executive · Support Manager · Partner Manager · Reseller Manager · Customer Success Manager - Onboarding · Customer Success Manager - Scaled · Customer Success Manager - Enterprise · Customer Success Head · Executive Leadership.
