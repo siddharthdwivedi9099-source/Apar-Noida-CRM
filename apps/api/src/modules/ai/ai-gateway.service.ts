@@ -195,10 +195,10 @@ export class AiGatewayService {
     this.assertEnabled();
     const settings = (await this.getSettings(actor)).settings;
     const descriptions: Record<AiProviderKey, string> = {
-      openai: "OpenAI chat/completions provider (placeholder; configure AI_OPENAI_API_KEY to enable).",
-      anthropic: "Anthropic Claude provider (placeholder; configure AI_ANTHROPIC_API_KEY to enable).",
-      azure_openai: "Azure OpenAI provider (placeholder; configure AI_AZURE_OPENAI_API_KEY and endpoint to enable).",
-      local: "Local/self-hosted model provider (placeholder; configure AI_LOCAL_ENDPOINT to enable)."
+      openai: "OpenAI chat/completions provider (live when AI_OPENAI_API_KEY is configured; deterministic placeholder otherwise).",
+      anthropic: "Anthropic Claude provider (live when AI_ANTHROPIC_API_KEY is configured; deterministic placeholder otherwise).",
+      azure_openai: "Azure OpenAI provider (live when AI_AZURE_OPENAI_API_KEY and endpoint are configured; deterministic placeholder otherwise).",
+      local: "Local/self-hosted model provider (live when AI_LOCAL_ENDPOINT is configured; deterministic placeholder otherwise)."
     };
     return {
       gatewayEnabled: this.config.gatewayEnabled && settings.isEnabled,
@@ -305,7 +305,9 @@ export class AiGatewayService {
     const rateLimit = { limitPerMinute: settings.rateLimitPerMinute, remaining: settings.rateLimitPerMinute, enforced: false };
 
     const result = await activeProvider.generate({ providerKey, model, prompt: resolvedPrompt, requestType: input.requestType ?? activeTemplate.requestType, tenantId: actor.tenantId, metadata: input.metadata });
-    const status: AiUsageStatus = result.status === "success" ? "success" : "placeholder";
+    // Pass the provider's real status through to the usage log: success, a
+    // governed error from a failed live call, or a deterministic placeholder.
+    const status: AiUsageStatus = result.status === "success" ? "success" : result.status === "error" ? "error" : "placeholder";
 
     await this.databaseService.withTransaction(async (client) => {
       if (settings.loggingEnabled) {

@@ -17,7 +17,7 @@ The single most important caveat: several **runtime capabilities are deliberate,
 
 | # | Vision element | Status | Evidence |
 |---|----------------|--------|----------|
-| 1 | AI-native | 🟡 Partial | Single governed AI Gateway, Prompt Registry, Agent Registry, AI Actions, RAG, customer-query bot — all implemented; **provider execution is a deferred placeholder** (`packages/ai/src/providers.ts`). |
+| 1 | AI-native | 🟢 Complete (live-capable) | Single governed AI Gateway, Prompt Registry, Agent Registry, AI Actions, RAG, customer-query bot — all implemented. **Providers now make real Anthropic/OpenAI/Azure/local calls when credentials are configured** (`packages/ai/src/providers.ts`), with a deterministic placeholder fallback when unconfigured. Remaining before production AI: enforce gateway rate limiting and output redaction. |
 | 2 | Production-ready | 🟡 Partial | Code quality, security, RBAC, config, docs are production-grade; live AI, real-DB/E2E tests, and scale primitives pending. |
 | 3 | Highly scalable | 🟡 Partial | Stateless API, tenant-scoped queries, pooled DB; but rate limiter, cache, and job runtime are **in-memory placeholders** (Redis optional, not wired live). |
 | 4 | Highly secure | 🟢 Complete | Two security reviews (2026-06-23/24): JWT + refresh rotation, pgcrypto hashing, RBAC, tenant isolation, input validation, audit logging, prod secret guard. |
@@ -53,7 +53,7 @@ Legend: 🟢 Complete · 🟡 Partial · 🔴 Missing. **Result: 16 complete, 6 
 - **CI/CD:** GitHub Actions (build → typecheck → test → deployment-artifact validation → image build); 109 automated tests (93 API + 16 web) all passing.
 
 ## 2. What Is Partially Complete
-- **Live AI execution** — gateway/agents/actions are wired, but providers return deterministic placeholders until credentials + the live-call phase are enabled.
+- **Live AI execution** — *implemented (2026-06-24):* providers now call the real Anthropic/OpenAI/Azure/local APIs when credentials are configured, falling back to a deterministic placeholder otherwise. Still pending for production AI: gateway rate-limit enforcement and output redaction (below).
 - **RAG retrieval** — permission-aware retrieval and citations exist, but matching is keyword-based; vector embeddings/semantic search are deferred.
 - **Scalability primitives** — rate limiting, caching, and background jobs are single-instance/in-memory placeholders; Redis and a worker/queue runtime are interfaced but not live.
 - **Customer insights / analytics** — dashboards exist; several deeper analytics surfaces are explicit placeholders.
@@ -102,15 +102,15 @@ Legend: 🟢 Complete · 🟡 Partial · 🔴 Missing. **Result: 16 complete, 6 
 | RBAC & configurability | 9.0 | 28 roles, rich tenant config. |
 | Documentation & versioning | 9.0 | Complete set + index/audit; minor drift risk. |
 | Functional scope vs. vision | 9.0 | All vision modules present. |
-| AI (governance vs. live execution) | 6.0 | Excellent governance; execution deferred. |
+| AI (governance vs. live execution) | 7.5 | Excellent governance; live provider calls now implemented (activate with credentials); rate-limit/redaction enforcement still pending. |
 | Scalability (proven) | 6.0 | Ready by design; primitives are placeholders. |
 | Testing depth | 6.0 | Strong offline coverage; no DB-integration/E2E. |
-| **Overall** | **7.5 / 10** | Production-ready foundation; complete live-AI + scale + test work before a full production launch. |
+| **Overall** | **7.7 / 10** | Production-ready foundation; live AI is now implemented (activate with credentials). Complete vector RAG, distributed scale primitives, and live-DB/E2E tests before a full production launch. |
 
 ## 10. Recommended Next 10 Improvements
 *(Ordered by impact-to-readiness. None adds net-new feature scope; each completes or de-risks an existing capability.)*
 
-1. **Enable live AI provider execution** — wire Anthropic/OpenAI/Azure with credentials and an output-validation step; flip placeholders to live behind a per-tenant flag. *(Realizes "AI-native".)*
+1. **Enable live AI provider execution** — ✅ *implemented (2026-06-24):* `packages/ai/src/providers.ts` now calls the real Anthropic/OpenAI/Azure/local APIs when credentials are configured (placeholder fallback otherwise). Remaining operational step: provision provider credentials and validate against the live APIs in a staging tenant. *(Realizes "AI-native".)*
 2. **Implement vector RAG** — embeddings + a vector backend to replace keyword retrieval; keep the existing permission/citation/grounding model. *(Realizes "RAG-ready".)*
 3. **Enforce AI gateway rate limiting** — bound cost/abuse per tenant before any live provider call. *(Closes A2/R1.)*
 4. **Add real-DB integration + E2E tests** — a seeded Postgres (e.g. testcontainers) for service tests and a browser E2E smoke for the critical flows. *(Closes T2/biggest test gap.)*
