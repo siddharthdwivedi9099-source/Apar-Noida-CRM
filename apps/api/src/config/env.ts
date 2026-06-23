@@ -1,6 +1,12 @@
 import "dotenv/config";
 import { z } from "zod";
 
+// Known development defaults. Centralized so the production hardening guard
+// below can reject them without the literals drifting from the schema defaults.
+const DEV_ACCESS_TOKEN_SECRET = "dev-access-secret-change-me";
+const DEV_REFRESH_TOKEN_SECRET = "dev-refresh-secret-change-me";
+const DEV_ADMIN_PASSWORD = "ChangeMe123!";
+
 const booleanish = z.preprocess((value) => {
   if (typeof value === "boolean") {
     return value;
@@ -36,12 +42,12 @@ const envSchema = z.object({
   DEFAULT_TENANT_SLUG: z.string().default("sample-tenant"),
   DEFAULT_TENANT_NAME: z.string().default("Sample Tenant"),
   DEFAULT_ADMIN_EMAIL: z.string().email().default("admin@sample-tenant.local"),
-  DEFAULT_ADMIN_PASSWORD: z.string().min(8).default("ChangeMe123!"),
+  DEFAULT_ADMIN_PASSWORD: z.string().min(8).default(DEV_ADMIN_PASSWORD),
   DEFAULT_ADMIN_FIRST_NAME: z.string().default("Platform"),
   DEFAULT_ADMIN_LAST_NAME: z.string().default("Admin"),
   ENABLE_AUDIT_LOGS: booleanish.default(true),
-  JWT_ACCESS_TOKEN_SECRET: z.string().min(16).default("dev-access-secret-change-me"),
-  JWT_REFRESH_TOKEN_SECRET: z.string().min(16).default("dev-refresh-secret-change-me"),
+  JWT_ACCESS_TOKEN_SECRET: z.string().min(16).default(DEV_ACCESS_TOKEN_SECRET),
+  JWT_REFRESH_TOKEN_SECRET: z.string().min(16).default(DEV_REFRESH_TOKEN_SECRET),
   JWT_ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),
   JWT_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   AUTH_LOGIN_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
@@ -89,3 +95,32 @@ if (!parsedEnv.success) {
 }
 
 export const env = parsedEnv.data;
+
+// Production secret hardening (Phase 33/34 security review): refuse to boot in
+// production with known development defaults or an insecure refresh cookie.
+// Booting with these would allow JWT forgery, a known admin password, or the
+// refresh-token cookie being sent over plaintext HTTP.
+if (env.NODE_ENV === "production") {
+  const insecureSettings: string[] = [];
+
+  if (env.JWT_ACCESS_TOKEN_SECRET === DEV_ACCESS_TOKEN_SECRET) {
+    insecureSettings.push("JWT_ACCESS_TOKEN_SECRET must be set to a unique value (the development default is not allowed in production).");
+  }
+  if (env.JWT_REFRESH_TOKEN_SECRET === DEV_REFRESH_TOKEN_SECRET) {
+    insecureSettings.push("JWT_REFRESH_TOKEN_SECRET must be set to a unique value (the development default is not allowed in production).");
+  }
+  if (env.JWT_ACCESS_TOKEN_SECRET === env.JWT_REFRESH_TOKEN_SECRET) {
+    insecureSettings.push("JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET must be different values.");
+  }
+  if (env.DEFAULT_ADMIN_PASSWORD === DEV_ADMIN_PASSWORD) {
+    insecureSettings.push("DEFAULT_ADMIN_PASSWORD must be changed from the documented default in production.");
+  }
+  if (!env.AUTH_COOKIE_SECURE) {
+    insecureSettings.push("AUTH_COOKIE_SECURE must be true in production so the refresh-token cookie is only sent over HTTPS.");
+  }
+
+  if (insecureSettings.length > 0) {
+    console.error("Insecure production configuration detected:\n - " + insecureSettings.join("\n - "));
+    throw new Error("Insecure production environment configuration");
+  }
+}

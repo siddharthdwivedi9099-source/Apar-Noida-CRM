@@ -127,3 +127,13 @@ Phase 27 centralizes the audit trail and adds an administrative governance surfa
 ## Relationship to the RBAC Matrix
 
 [RBAC_MATRIX.md](./RBAC_MATRIX.md) now reflects the actual seeded modules, action categories, and role templates rather than a planning-only access sketch.
+
+## Authorization Enforcement Points (2026-06-23 review)
+
+Authorization is enforced at two complementary layers, both verified during the security review:
+- **Router layer** — every data router applies the authentication middleware; only the public `health` router is unauthenticated by design. Most routers then gate handlers with permission requirements.
+- **Service layer** — some modules (e.g. dashboards) intentionally allow any authenticated user to reach the catalog endpoint and enforce per-resource permissions inside the service via `requirePermission(...)`, including record-ownership checks (e.g. a user may only modify their own saved views). This is defense-in-depth, not a missing check.
+
+Customer-portal access is additionally constrained to the caller's own `tenant_id`, `user_id`, and `account_id`, and requires an active portal profile before any portal data is returned.
+
+See [SECURITY_REVIEW_REPORT.md](./SECURITY_REVIEW_REPORT.md) for the full area-by-area assessment.

@@ -257,6 +257,16 @@ Phase 5 intentionally does not yet implement:
 - form-rendering from custom layout metadata
 - dynamic runtime rendering of custom fields inside CRM entity forms
 
+## Shared API Utilities (2026-06-23 code review)
+
+To remove duplication that had accumulated across the 25+ module routers and services, common helpers now live in dedicated modules under `apps/api/src/common/`:
+- `common/http/request-metadata.ts` — `getClientIp` / `getAuditMetadata` for audit logging (used by every router).
+- `common/pagination.ts` — `buildPagination` / `getPositiveNumber` for list endpoints (used by every paginated service).
+
+Each module imports these rather than redefining them locally. The rate limiter retains its own `getClientIp` variant because it deliberately falls back to `request.socket.remoteAddress` for keying.
+
+Configuration safety is enforced centrally in `common`-adjacent `config/env.ts`: in production the process refuses to start with development JWT secrets, a default admin password, or a non-`Secure` refresh cookie. See [../security/SECURITY_DESIGN.md](../security/SECURITY_DESIGN.md) and [../security/SECURITY_REVIEW_REPORT.md](../security/SECURITY_REVIEW_REPORT.md).
+
 ## Next Technical Steps
 
 The next implementation phase should:
@@ -264,3 +274,4 @@ The next implementation phase should:
 - consume tenant option sets and terminology in those modules
 - read custom-field metadata during form rendering
 - preserve audit logging and RBAC checks for business CRUD
+- reconcile the `getPagination`/`buildPagination` empty-result semantics into a single shared helper

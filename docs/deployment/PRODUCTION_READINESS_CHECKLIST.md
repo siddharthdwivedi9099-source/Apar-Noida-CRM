@@ -112,6 +112,21 @@ When future releases are prepared:
 - record exceptions explicitly with owner and approval
 - keep readiness criteria aligned with architecture, security, and AI governance documents
 
+## Security Configuration Gate (2026-06-23 review)
+
+Before promoting to production, confirm the following. The API now enforces the secret/cookie items automatically at startup when `NODE_ENV=production` (it refuses to boot otherwise):
+
+- [ ] `JWT_ACCESS_TOKEN_SECRET` set to a unique, non-default value
+- [ ] `JWT_REFRESH_TOKEN_SECRET` set to a unique, non-default value, different from the access secret
+- [ ] `DEFAULT_ADMIN_PASSWORD` changed from the documented default (and rotated after first login)
+- [ ] `AUTH_COOKIE_SECURE=true` and `AUTH_COOKIE_SAME_SITE` chosen for the deployment topology
+- [ ] `API_CORS_ORIGIN` restricted to the real web origin(s)
+- [ ] `trust proxy` hop count matches the load-balancer topology (avoid trusting all hops; see SECURITY_REVIEW_REPORT M-2)
+- [ ] Shared (Redis) rate-limit store configured if running multiple API replicas (see SECURITY_REVIEW_REPORT L-1)
+- [ ] AI gateway rate-limit enforcement reviewed before enabling live providers (see AI_GOVERNANCE known gaps)
+
+Reference: [../security/SECURITY_REVIEW_REPORT.md](../security/SECURITY_REVIEW_REPORT.md).
+
 ## Phase 0 Note
 
 This checklist is intentionally forward-looking. The repository is not yet near production operation, but the readiness bar is being defined early.
