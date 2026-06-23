@@ -16,6 +16,10 @@
 - Documentation audit (2026-06-24): reconciled all 12 doc categories against the implementation (26 modules, 287 routes, 28 roles, 37 AI actions, 16 agents, 56 config options). Created `docs/DOCUMENTATION_INDEX.md` and `docs/DOCUMENTATION_AUDIT_REPORT.md`; corrected `MODULE_CATALOG.md` (implemented modules previously mislabeled "Planned" + 10 missing modules added), added the canonical 28-role table to `ROLE_CATALOG.md`, and documented the previously missing `/customer-query`, `/notifications`, `/approvals`, and `/observability` routes in `API_DOCUMENTATION.md`.
 - Final product review (2026-06-24): created `FINAL_PRODUCT_REVIEW.md` assessing the product against the original 23-point vision (16 complete, 6 partial, 0 missing), with technical/product/AI/security risks, documentation gaps, an overall production-readiness score of 7.5/10, and a prioritized next-10 improvement plan. Key finding: AI provider execution, vector RAG, background jobs, and distributed cache/rate-limiting are governed placeholders pending live enablement.
 
+### Added
+
+- Live AI provider execution: `packages/ai/src/providers.ts` now makes real Anthropic, OpenAI, Azure OpenAI, and local (OpenAI-compatible) API calls when the corresponding credentials are configured, with a deterministic placeholder fallback when they are not. Calls are timeout-bounded and fail closed to a governed `error` result; the AI Gateway propagates the real `success`/`error`/`placeholder` status to usage logs. Adds provider unit tests (mocked transport). This moves the "AI-native" capability from deferred placeholder to live-capable (operationally, provision credentials and enforce gateway rate-limit + redaction before enabling in a tenant). Final product review and `docs/ai/AI_GOVERNANCE.md` updated accordingly (readiness score 7.5 → 7.7).
+
 ### Notes
 
 - No new business features were added in this pass. Behavioral inconsistency between `getPagination` (empty result → `totalPages = 1`) and `buildPagination` (empty result → `totalPages = 0`) was documented rather than silently changed.

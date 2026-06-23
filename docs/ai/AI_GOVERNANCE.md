@@ -94,7 +94,7 @@ See [AI_USE_CASE_CATALOG.md](./AI_USE_CASE_CATALOG.md) for the catalog and [AI_A
 The security review confirmed the governance controls above and recorded these gaps to address before enabling live provider execution:
 - **Rate limiting is reported but not enforced.** The gateway returns the per-tenant `rate_limit_per_minute` with `enforced: false`. Enforcement must be implemented before live providers are enabled, to bound cost and abuse.
 - **Redaction flag without enforced redaction.** `redaction_enabled` is stored per tenant, but redaction is not yet applied to provider payloads. Treat it as configuration intent only until enforcement lands.
-- **Provider execution is deferred.** Calls return deterministic placeholders (`result.placeholder`), so prompt-injection execution risk is currently low. Re-run the AI sections of [../security/SECURITY_REVIEW_REPORT.md](../security/SECURITY_REVIEW_REPORT.md) before enabling any live provider.
+- **Provider execution is now live-capable (2026-06-24).** `packages/ai/src/providers.ts` makes real Anthropic/OpenAI/Azure/local API calls when credentials are configured, and falls back to a deterministic placeholder when they are not. **Before configuring live credentials in a tenant, the two gaps above (rate-limit enforcement and output redaction) must be addressed**, and the AI sections of [../security/SECURITY_REVIEW_REPORT.md](../security/SECURITY_REVIEW_REPORT.md) re-run — once live, natural-language prompt-injection and output-validation become active concerns mitigated by managed templates, human review, and the variable sanitizer.
 
 RAG retrieval already enforces source-level permissions (`required_permission`), tenant scoping, and approved/published-only results, and is audit-logged.
 
