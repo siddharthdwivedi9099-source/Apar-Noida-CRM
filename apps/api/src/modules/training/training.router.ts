@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   trainingAssetTypes,
@@ -179,18 +180,6 @@ const updatePermissions: string[] = ["training.edit", "training.configure", "tra
 const deletePermissions: string[] = ["training.delete", "training.configure"];
 const manageContentPermissions: string[] = ["training.create", "training.edit", "training.configure", "training.manage_workflow"];
 const assignPermissions: string[] = ["training.assign", "training.create", "training.edit", "training.configure"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null };
-}
 
 export function createTrainingRouter({ databaseService }: RouterDependencies) {
   const router = Router();

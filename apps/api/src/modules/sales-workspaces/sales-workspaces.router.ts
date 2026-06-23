@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import type { UpdateLeadWorkspaceRequestBody } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
@@ -70,16 +71,6 @@ const salesWorkspaceUpdatePermissions: string[] = [
   "sales.assign",
   "sales.configure"
 ];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-
-  return request.ip ?? null;
-}
 
 export function createSalesWorkspacesRouter({ databaseService }: SalesWorkspacesRouterDependencies) {
   const router = Router();

@@ -50,7 +50,7 @@ export function LoginPage() {
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl gap-6 lg:grid-cols-[1.3fr_0.9fr]">
         <section className="glass-panel flex flex-col justify-between rounded-[2rem] p-8 lg:p-12">
           <div className="space-y-6">
-            <Badge variant="success">Phase 7 ready</Badge>
+            <Badge variant="success">Secure access</Badge>
             <div className="space-y-4">
               <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">{platformMetadata.shortName}</p>
               <h1 className="max-w-3xl font-display text-5xl font-semibold leading-tight">

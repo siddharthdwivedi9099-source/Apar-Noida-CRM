@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import type {
   CreateNotificationRequestBody,
@@ -59,16 +60,6 @@ const replacePreferencesSchema = z.object({
 const notificationIdSchema = z.object({
   notificationId: uuidSchema
 });
-
-function getAuditMetadata(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-
-  return {
-    requestId: request.requestId,
-    ipAddress: forwardedFor ? forwardedFor.split(",")[0]?.trim() ?? null : request.ip ?? null,
-    userAgent: request.header("user-agent") ?? null
-  };
-}
 
 const notificationReadPermissions = ["notifications.view", "notifications.edit", "notifications.configure"];
 const notificationCreatePermissions = [

@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   workflowActionTypes,
@@ -84,18 +85,6 @@ const readPermissions: string[] = ["workflows.view", "workflows.view_dashboard",
 const createPermissions: string[] = ["workflows.create", "workflows.configure", "workflows.manage_workflow"];
 const editPermissions: string[] = ["workflows.edit", "workflows.configure", "workflows.manage_workflow"];
 const runPermissions: string[] = ["workflows.manage_workflow", "workflows.configure", "workflows.edit"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null };
-}
 
 export function createWorkflowsRouter({ databaseService }: RouterDependencies) {
   const router = Router();

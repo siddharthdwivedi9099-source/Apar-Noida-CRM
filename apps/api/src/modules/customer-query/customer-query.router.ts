@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   customerQueryChannels,
@@ -55,18 +56,6 @@ const askPermissions: string[] = ["customer_query.use_ai", "customer_query.creat
 const reviewPermissions: string[] = ["customer_query.view", "customer_query.view_dashboard", "customer_query.manage_ai", "customer_query.assign", "customer_query.configure", "customer_query.edit"];
 const managePermissions: string[] = ["customer_query.assign", "customer_query.manage_ai", "customer_query.configure", "customer_query.edit"];
 const accessPermissions: string[] = Array.from(new Set([...askPermissions, ...reviewPermissions]));
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null };
-}
 
 export function createCustomerQueryRouter({ databaseService }: RouterDependencies) {
   const router = Router();

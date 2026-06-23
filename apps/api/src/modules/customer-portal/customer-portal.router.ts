@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata, getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import type {
   CreateCustomerPortalFeedbackRequestBody,
@@ -75,24 +76,6 @@ const readPermissions = ["customer_portal.view", "customer_portal.create", "cust
 const createPermissions = ["customer_portal.create"];
 const editPermissions = ["customer_portal.edit"];
 const aiPermissions = ["customer_portal.use_ai"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return {
-    requestId: request.requestId,
-    ipAddress: getClientIp(request),
-    userAgent: request.header("user-agent") ?? null
-  };
-}
 
 export function createCustomerPortalRouter({ databaseService }: RouterDependencies) {
   const router = Router();

@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata, getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   resellerOnboardingTaskStatuses,
@@ -152,24 +153,6 @@ const updatePermissions: string[] = ["resellers.edit", "resellers.assign", "rese
 const deletePermissions: string[] = ["resellers.delete", "resellers.configure"];
 const dealCreatePermissions: string[] = ["resellers.create", "resellers.edit", "resellers.configure"];
 const dealUpdatePermissions: string[] = ["resellers.edit", "resellers.approve", "resellers.configure", "resellers.manage_workflow"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return {
-    requestId: request.requestId,
-    ipAddress: getClientIp(request),
-    userAgent: request.header("user-agent") ?? null
-  };
-}
 
 export function createResellersRouter({ databaseService }: RouterDependencies) {
   const router = Router();

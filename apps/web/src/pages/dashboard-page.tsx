@@ -1,4 +1,3 @@
-import { aiFoundationCards } from "@crm/ai";
 import { platformMetadata } from "@crm/config";
 import { authFoundation } from "@crm/auth";
 import { Badge } from "@/components/ui/badge";
@@ -78,7 +77,7 @@ export function DashboardPage() {
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Phase 11 platform overview</CardTitle>
+            <CardTitle>Platform overview</CardTitle>
             <CardDescription>
               These cards summarize the current authenticated platform foundation now that SDR, inside sales, opportunities, campaigns, and social marketing are live.
             </CardDescription>

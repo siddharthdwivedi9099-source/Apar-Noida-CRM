@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata, getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   bdPipelineScopes,
@@ -219,24 +220,6 @@ const presalesUpdatePermissions: string[] = [
   "presales.manage_workflow"
 ];
 const presalesDeletePermissions: string[] = ["presales.delete", "presales.configure"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return {
-    requestId: request.requestId,
-    ipAddress: getClientIp(request),
-    userAgent: request.header("user-agent") ?? null
-  };
-}
 
 function createService(databaseService: DatabaseService) {
   const authService = new AuthService(databaseService, {

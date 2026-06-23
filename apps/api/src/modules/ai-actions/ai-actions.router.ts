@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import type { AiActionRunListQuery, ExecuteAiActionRequestBody, ReviewAiActionRunRequestBody } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
@@ -43,18 +44,6 @@ const actionKeyParams = z.object({ actionKey: z.string().min(1).max(120) });
 const runIdParams = z.object({ runId: z.string().uuid() });
 
 const observabilityPermissions: string[] = ["ai.view", "ai.view_dashboard", "ai.manage_ai", "ai.configure", "ai.approve"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null };
-}
 
 export function createAiActionsRouter({ databaseService }: RouterDependencies) {
   const router = Router();

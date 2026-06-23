@@ -329,7 +329,7 @@ export function CampaignsPage() {
             <CardHeader>
               <CardTitle>Campaign dashboard placeholder</CardTitle>
               <CardDescription>
-                This dashboard intentionally stays lightweight for Phase 8 while the campaign schema, permissions, and routing become real.
+                This dashboard intentionally stays lightweight while the campaign schema, permissions, and routing become real.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-3">

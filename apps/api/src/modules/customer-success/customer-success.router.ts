@@ -1,4 +1,5 @@
 import { Router, type Request } from "express";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   adoptionMetricTrends,
@@ -232,18 +233,6 @@ const createPermissions: string[] = ["customer_success.create", "customer_succes
 const updatePermissions: string[] = ["customer_success.edit", "customer_success.assign", "customer_success.approve", "customer_success.configure", "customer_success.manage_workflow"];
 const deletePermissions: string[] = ["customer_success.delete", "customer_success.configure"];
 const childPermissions: string[] = ["customer_success.create", "customer_success.edit", "customer_success.configure", "customer_success.manage_workflow"];
-
-function getClientIp(request: Request) {
-  const forwardedFor = request.header("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() ?? null;
-  }
-  return request.ip ?? null;
-}
-
-function getAuditMetadata(request: Request) {
-  return { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null };
-}
 
 function getScope(request: Request): CustomerSuccessScope | undefined {
   return (request.query as { scope?: CustomerSuccessScope }).scope;
