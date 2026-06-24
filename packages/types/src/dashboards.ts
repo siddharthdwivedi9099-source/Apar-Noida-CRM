@@ -112,8 +112,13 @@ const dashboardSeeds: DashboardSeed[] = [
   }
 ];
 
+// A dashboard is relevant to a role only when the role can view at least one of
+// the dashboard's underlying modules. Cross-functional dashboards declare the
+// `dashboards` module, so they remain visible to any role with general dashboard
+// access; module-specific dashboards (sales, support, marketing, ...) are gated
+// to the roles that actually work in those modules.
 function dashboardPermissions(modules: string[]): string[] {
-  const codes = new Set<string>(["dashboards.view", "dashboards.view_dashboard", "dashboards.manage_workflow"]);
+  const codes = new Set<string>();
   for (const module of modules) {
     codes.add(`${module}.view`);
     codes.add(`${module}.view_dashboard`);
