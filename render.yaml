@@ -1,0 +1,70 @@
+services:
+  - type: web
+    name: apar-elite-crm-demo
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: dashboard-rbac-and-config
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        value: 10000
+      - key: API_TRUST_PROXY
+        value: 1
+      - key: API_CORS_ORIGIN
+        value: https://apar-elite-crm-demo.onrender.com
+      - key: VITE_API_BASE_URL
+        value: /api/v1
+      - key: VITE_DEFAULT_TENANT_SLUG
+        value: apar-elite
+      - key: DATABASE_ENABLED
+        value: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: apar-elite-crm-demo-db
+          property: connectionString
+      - key: DATABASE_POOL_MAX
+        value: 5
+      - key: DEFAULT_TENANT_SLUG
+        value: apar-elite
+      - key: DEFAULT_TENANT_NAME
+        value: Apar and eLite CRM
+      - key: DEFAULT_ADMIN_EMAIL
+        sync: false
+      - key: DEFAULT_ADMIN_PASSWORD
+        sync: false
+      - key: JWT_ACCESS_TOKEN_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: AUTH_COOKIE_SECURE
+        value: true
+      - key: AUTH_COOKIE_SAME_SITE
+        value: lax
+      - key: REDIS_ENABLED
+        value: false
+      - key: DASHBOARD_CACHE_ENABLED
+        value: false
+      - key: BACKGROUND_WORKERS_ENABLED
+        value: false
+      - key: RUN_MIGRATIONS
+        value: true
+      - key: RUN_SEED
+        value: true
+
+databases:
+  - name: apar-elite-crm-demo-db
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"
+    databaseName: crm
+    user: crm
+    ipAllowList: []

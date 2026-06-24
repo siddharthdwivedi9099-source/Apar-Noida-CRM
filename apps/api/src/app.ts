@@ -1,6 +1,9 @@
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { apiConfig } from "@crm/config";
 import { createErrorHandler } from "./common/middleware/error-handler.js";
 import { notFoundHandler } from "./common/middleware/not-found.js";
@@ -45,8 +48,37 @@ function getAllowedCorsOrigins(value: string) {
   );
 }
 
+function getProductionWebPath() {
+  if (env.NODE_ENV !== "production") {
+    return null;
+  }
+
+  const webPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../web/dist");
+  return existsSync(path.join(webPath, "index.html")) ? webPath : null;
+}
+
+export function serveProductionWebApp(app: express.Express, webPath: string) {
+  app.use(
+    "/assets",
+    express.static(path.join(webPath, "assets"), {
+      immutable: true,
+      maxAge: "1y"
+    })
+  );
+  app.use(express.static(webPath, { index: false, maxAge: 0 }));
+  app.get("*", (request, response, next) => {
+    if (request.path.startsWith(apiConfig.versionPrefix)) {
+      next();
+      return;
+    }
+
+    response.sendFile(path.join(webPath, "index.html"));
+  });
+}
+
 export function createApp() {
   const app = express();
+  const productionWebPath = getProductionWebPath();
   const allowedCorsOrigins = getAllowedCorsOrigins(env.API_CORS_ORIGIN);
   const databaseService = new DatabaseService({
     enabled: env.DATABASE_ENABLED,
@@ -96,16 +128,21 @@ export function createApp() {
     app.use(createRateLimiter({ windowMs: env.API_RATE_LIMIT_WINDOW_MS, max: env.API_RATE_LIMIT_MAX, keyPrefix: "api" }));
   }
 
-  app.get("/", (_request, response) => {
-    response.status(200).json({
-      name: "AI-Native CRM API",
-      version: apiConfig.version,
-      status: "phase-30-operational",
-      docs: apiConfig.versionPrefix
+  if (!productionWebPath) {
+    app.get("/", (_request, response) => {
+      response.status(200).json({
+        name: "AI-Native CRM API",
+        version: apiConfig.version,
+        status: "phase-30-operational",
+        docs: apiConfig.versionPrefix
+      });
     });
-  });
+  }
 
   app.use(apiConfig.versionPrefix, createV1Router({ databaseService, redisService }));
+  if (productionWebPath) {
+    serveProductionWebApp(app, productionWebPath);
+  }
   app.use(notFoundHandler);
   app.use(createErrorHandler(databaseService));
 

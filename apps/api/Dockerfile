@@ -16,13 +16,19 @@ COPY packages/ai/package.json packages/ai/package.json
 COPY packages/database/package.json packages/database/package.json
 RUN npm ci
 
-# ---- build: compile shared packages + the API, then drop dev dependencies ----
+# ---- build: compile the API and web app, then drop dev dependencies ----
 FROM node:20-alpine AS build
 WORKDIR /app
+ARG VITE_API_BASE_URL=/api/v1
+ARG VITE_DEFAULT_TENANT_SLUG=apar-elite
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
+    VITE_DEFAULT_TENANT_SLUG=$VITE_DEFAULT_TENANT_SLUG
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build:api-deps \
   && npm run build --workspace @crm/api \
+  && npm run build:web-deps \
+  && npm run build --workspace @crm/web \
   && npm prune --omit=dev
 
 # ---- runtime: lean image running the compiled server as a non-root user ----
@@ -36,6 +42,7 @@ COPY --from=build --chown=crm:crm /app/node_modules ./node_modules
 COPY --from=build --chown=crm:crm /app/package.json ./package.json
 COPY --from=build --chown=crm:crm /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build --chown=crm:crm /app/apps/api/dist ./apps/api/dist
+COPY --from=build --chown=crm:crm /app/apps/web/dist ./apps/web/dist
 COPY --from=build --chown=crm:crm /app/packages ./packages
 COPY --from=build --chown=crm:crm /app/scripts ./scripts
 COPY --chown=crm:crm apps/api/docker-entrypoint.sh ./docker-entrypoint.sh

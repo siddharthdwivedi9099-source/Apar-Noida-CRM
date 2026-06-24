@@ -50,6 +50,27 @@ Stop the stack:
 npm run docker:down
 ```
 
+## Render Free Demo
+
+The root `render.yaml` Blueprint deploys a single public Docker web service and
+a private Render Postgres database in Singapore. The API serves the compiled
+React app in production, so browser requests and secure refresh cookies stay on
+one HTTPS origin.
+
+Create a Render Blueprint from this repository and select the
+`dashboard-rbac-and-config` branch. During initial creation, provide:
+
+- `DEFAULT_ADMIN_EMAIL` — the email used for the first administrator.
+- `DEFAULT_ADMIN_PASSWORD` — a unique password with at least eight characters.
+
+Render generates both JWT secrets and injects the private database connection
+string. The container runs idempotent migrations and seeds before starting.
+Open the generated `onrender.com` URL and sign in with tenant slug `apar-elite`.
+
+The free web service sleeps after inactivity and can take about a minute to wake.
+The free Postgres database expires after 30 days, so this topology is for demos,
+not durable production data.
+
 ## Container Behavior
 
 ### API
