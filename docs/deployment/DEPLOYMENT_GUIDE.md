@@ -58,14 +58,15 @@ React app in production, so browser requests and secure refresh cookies stay on
 one HTTPS origin.
 
 Create a Render Blueprint from this repository and select the
-`dashboard-rbac-and-config` branch. During initial creation, provide:
-
-- `DEFAULT_ADMIN_EMAIL` — the email used for the first administrator.
-- `DEFAULT_ADMIN_PASSWORD` — a unique password with at least eight characters.
+`dashboard-rbac-and-config` branch. During initial creation, provide a unique
+`DEFAULT_ADMIN_PASSWORD` with at least eight characters.
 
 Render generates both JWT secrets and injects the private database connection
 string. The container runs idempotent migrations and seeds before starting.
 Open the generated `onrender.com` URL and sign in with tenant slug `apar-elite`.
+The Render demo also seeds one account per canonical role using emails derived
+from `<role-slug>@apar-elite.com` (hyphens become dots) and the shared password
+configured in `DEMO_USER_PASSWORD`.
 
 The free web service sleeps after inactivity and can take about a minute to wake.
 The free Postgres database expires after 30 days, so this topology is for demos,
@@ -87,6 +88,7 @@ Startup migration behavior:
 
 - `RUN_MIGRATIONS=true` runs `node scripts/database.mjs migrate`.
 - `RUN_SEED=true` runs `node scripts/database.mjs seed`.
+- `RUN_DEMO_SEED=true` runs `node scripts/seed-demo-users.mjs` after the core seed.
 - For production, run migrations as a deliberate release step unless the environment explicitly accepts startup migrations.
 
 ### Web

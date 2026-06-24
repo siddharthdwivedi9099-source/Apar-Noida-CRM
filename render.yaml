@@ -38,9 +38,11 @@ services:
       - key: DEFAULT_TENANT_NAME
         value: Apar and eLite CRM
       - key: DEFAULT_ADMIN_EMAIL
-        sync: false
+        value: demo.admin@apar-elite.com
       - key: DEFAULT_ADMIN_PASSWORD
         sync: false
+      - key: DEMO_USER_PASSWORD
+        value: AparDemo@2026!
       - key: JWT_ACCESS_TOKEN_SECRET
         generateValue: true
       - key: JWT_REFRESH_TOKEN_SECRET
@@ -58,6 +60,8 @@ services:
       - key: RUN_MIGRATIONS
         value: true
       - key: RUN_SEED
+        value: true
+      - key: RUN_DEMO_SEED
         value: true
 
 databases:

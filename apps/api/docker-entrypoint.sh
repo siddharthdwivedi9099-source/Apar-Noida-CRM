@@ -1,7 +1,7 @@
 #!/bin/sh
 # Entrypoint for the @crm/api container.
-# Optionally runs migrations/seeds before starting the server. Both are opt-in via
-# environment so production can run them as deliberate, separate steps if preferred.
+# Optionally runs migrations and seeds before starting the server. Each step is
+# opt-in so production can keep demo personas disabled.
 set -e
 
 if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
@@ -12,6 +12,11 @@ fi
 if [ "${RUN_SEED:-false}" = "true" ]; then
   echo "[entrypoint] Seeding database (idempotent)..."
   node scripts/database.mjs seed
+fi
+
+if [ "${RUN_DEMO_SEED:-false}" = "true" ]; then
+  echo "[entrypoint] Seeding role-based demo users (idempotent)..."
+  node scripts/seed-demo-users.mjs
 fi
 
 echo "[entrypoint] Starting API server..."

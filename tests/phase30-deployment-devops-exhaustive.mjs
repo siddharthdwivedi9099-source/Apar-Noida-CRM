@@ -61,7 +61,9 @@ async function main() {
   const entrypoint = await file("apps/api/docker-entrypoint.sh");
   assertIncludes(entrypoint, "RUN_MIGRATIONS", "API entrypoint");
   assertIncludes(entrypoint, "RUN_SEED", "API entrypoint");
+  assertIncludes(entrypoint, "RUN_DEMO_SEED", "API entrypoint");
   assertIncludes(entrypoint, "node scripts/database.mjs migrate", "API entrypoint");
+  assertIncludes(entrypoint, "node scripts/seed-demo-users.mjs", "API entrypoint");
   assertIncludes(entrypoint, "exec node apps/api/dist/server.js", "API entrypoint");
 
   log("Checking web image and nginx SPA serving.");
