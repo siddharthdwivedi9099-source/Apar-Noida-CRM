@@ -56,7 +56,11 @@ services:
       redis:
         condition: service_healthy
     environment:
-      NODE_ENV: production
+      # Local full-stack runs default to development so the app boots over plain
+      # HTTP. The production startup guard (which requires non-default secrets and
+      # Secure cookies) only applies when NODE_ENV=production; set it explicitly,
+      # together with real secrets and HTTPS, for a production-like run.
+      NODE_ENV: ${NODE_ENV:-development}
       API_HOST: 0.0.0.0
       API_PORT: 4000
       DATABASE_ENABLED: "true"
