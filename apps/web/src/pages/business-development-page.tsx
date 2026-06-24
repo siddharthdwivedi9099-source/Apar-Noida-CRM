@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ListToolbar } from "@/components/crm/list-toolbar";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -67,6 +68,32 @@ export function BusinessDevelopmentPage() {
   const canCreate = hasAnyPermission(["business_development.create", "business_development.configure"]);
 
   const targetAccounts = useMemo(() => data?.targetAccounts ?? [], [data?.targetAccounts]);
+
+  // Client-side search / filter / sort over the loaded target-account list.
+  const [search, setSearch] = useState("");
+  const [tierFilter, setTierFilter] = useState("");
+  const [stageFilter, setStageFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "stakeholders" | "updated">("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  const visibleTargetAccounts = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = targetAccounts.filter((account) => {
+      if (tierFilter && account.tier?.key !== tierFilter) return false;
+      if (stageFilter && account.stage?.key !== stageFilter) return false;
+      if (term) {
+        const haystack = `${account.name} ${account.industry ?? ""} ${account.region ?? ""}`.toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      return true;
+    });
+    const direction = sortOrder === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "stakeholders") return (a.stakeholderCount - b.stakeholderCount) * direction;
+      if (sortBy === "updated") return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * direction;
+      return a.name.localeCompare(b.name) * direction;
+    });
+  }, [targetAccounts, search, tierFilter, stageFilter, sortBy, sortOrder]);
   const dashboard = useMemo(() => {
     const partnerships = targetAccounts.filter((account) => account.isPartnership).length;
     const committed = targetAccounts.filter((account) => account.stage?.key === "committed").length;
@@ -394,12 +421,40 @@ export function BusinessDevelopmentPage() {
             <CardDescription>Target accounts ranked for business development engagement.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {targetAccounts.length === 0 ? (
+            <ListToolbar
+              search={search}
+              onSearch={setSearch}
+              searchPlaceholder="Search name, industry, region..."
+              filters={[
+                { label: "tiers", value: tierFilter, onChange: setTierFilter, options: options.tiers.map((t) => ({ value: t.key, label: t.label })) },
+                { label: "stages", value: stageFilter, onChange: setStageFilter, options: options.stages.map((s) => ({ value: s.key, label: s.label })) }
+              ]}
+              sortBy={sortBy}
+              onSortBy={(value) => setSortBy(value as typeof sortBy)}
+              sortOptions={[
+                { value: "name", label: "Name" },
+                { value: "stakeholders", label: "Stakeholders" },
+                { value: "updated", label: "Recently updated" }
+              ]}
+              sortOrder={sortOrder}
+              onSortOrder={setSortOrder}
+              resultCount={visibleTargetAccounts.length}
+              totalCount={targetAccounts.length}
+              noun="target accounts"
+              onReset={() => {
+                setSearch("");
+                setTierFilter("");
+                setStageFilter("");
+                setSortBy("name");
+                setSortOrder("asc");
+              }}
+            />
+            {visibleTargetAccounts.length === 0 ? (
               <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
-                No target accounts are currently visible for this role.
+                {targetAccounts.length === 0 ? "No target accounts are currently visible for this role." : "No target accounts match the current filters."}
               </div>
             ) : (
-              targetAccounts.map((account) => (
+              visibleTargetAccounts.map((account) => (
                 <button
                   key={account.id}
                   type="button"

@@ -40,14 +40,14 @@ export function Sidebar({
       />
       <aside
         className={cn(
-          "workspace-sidebar-panel fixed inset-y-4 left-4 z-40 flex rounded-[1.75rem] transition-all duration-300",
+          "workspace-sidebar-panel fixed inset-y-4 left-4 z-40 flex overflow-hidden rounded-[1.75rem] transition-all duration-300",
           mobileOpen ? "translate-x-0" : "-translate-x-[120%] md:translate-x-0"
         )}
         style={{
           width: collapsed ? shellLayout.sidebarCollapsedWidth : shellLayout.sidebarWidth
         }}
       >
-        <div className="flex w-full min-h-0 flex-col gap-6 p-4">
+        <div className="flex h-full w-full min-h-0 flex-col gap-6 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className={cn("space-y-2", collapsed && "md:hidden")}>
               <Badge variant="success">{platformMetadata.currentPhase.split(":")[0]}</Badge>

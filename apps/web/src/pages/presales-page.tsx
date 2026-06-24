@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ListToolbar } from "@/components/crm/list-toolbar";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateOnly, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -67,6 +68,30 @@ export function PresalesPage() {
   const canCreate = hasAnyPermission(["presales.create", "presales.configure"]);
 
   const requests = useMemo(() => data?.requests ?? [], [data?.requests]);
+
+  // Client-side search / filter / sort over the loaded presales request list.
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"title" | "due" | "updated">("updated");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const visibleRequests = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = requests.filter((request) => {
+      if (statusFilter && request.status?.key !== statusFilter) return false;
+      if (priorityFilter && request.priority !== priorityFilter) return false;
+      if (term && !request.title.toLowerCase().includes(term)) return false;
+      return true;
+    });
+    const direction = sortOrder === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      if (a == null || b == null) return 0;
+      if (sortBy === "title") return a.title.localeCompare(b.title) * direction;
+      if (sortBy === "due") return (new Date(a.dueDate ?? 0).getTime() - new Date(b.dueDate ?? 0).getTime()) * direction;
+      return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * direction;
+    });
+  }, [requests, search, statusFilter, priorityFilter, sortBy, sortOrder]);
   const dashboard = useMemo(() => {
     const rfpRfi = requests.filter((request) => ["rfp", "rfi"].includes(request.type?.key ?? "")).length;
     const proposals = requests.filter((request) => request.type?.key === "proposal").length;
@@ -400,12 +425,40 @@ export function PresalesPage() {
             <CardDescription>Demo, RFP/RFI, proposal, and technical-validation requests.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {requests.length === 0 ? (
+            <ListToolbar
+              search={search}
+              onSearch={setSearch}
+              searchPlaceholder="Search by request title..."
+              filters={[
+                { label: "statuses", value: statusFilter, onChange: setStatusFilter, options: options.statuses.map((s) => ({ value: s.key, label: s.label })) },
+                { label: "priorities", value: priorityFilter, onChange: setPriorityFilter, options: PRIORITIES.map((p) => ({ value: p, label: p })) }
+              ]}
+              sortBy={sortBy}
+              onSortBy={(value) => setSortBy(value as typeof sortBy)}
+              sortOptions={[
+                { value: "updated", label: "Recently updated" },
+                { value: "title", label: "Title" },
+                { value: "due", label: "Due date" }
+              ]}
+              sortOrder={sortOrder}
+              onSortOrder={setSortOrder}
+              resultCount={visibleRequests.length}
+              totalCount={requests.length}
+              noun="requests"
+              onReset={() => {
+                setSearch("");
+                setStatusFilter("");
+                setPriorityFilter("");
+                setSortBy("updated");
+                setSortOrder("desc");
+              }}
+            />
+            {visibleRequests.length === 0 ? (
               <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
-                No presales requests are currently visible for this role.
+                {requests.length === 0 ? "No presales requests are currently visible for this role." : "No requests match the current filters."}
               </div>
             ) : (
-              requests.map((request) => (
+              visibleRequests.map((request) => (
                 <button
                   key={request.id}
                   type="button"
