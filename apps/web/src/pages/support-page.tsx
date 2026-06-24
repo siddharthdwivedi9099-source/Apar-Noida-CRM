@@ -77,6 +77,34 @@ export function SupportPage() {
 
   const tickets = useMemo(() => data?.tickets ?? [], [data?.tickets]);
 
+  // Client-side search / filter / sort over the loaded ticket list.
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"updated" | "subject" | "messages">("updated");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const visibleTickets = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = tickets.filter((ticket) => {
+      if (statusFilter && ticket.status?.key !== statusFilter) return false;
+      if (priorityFilter && ticket.priority?.key !== priorityFilter) return false;
+      if (categoryFilter && ticket.category?.key !== categoryFilter) return false;
+      if (term) {
+        const haystack = `${ticket.subject} ${ticket.account?.name ?? ""}`.toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      return true;
+    });
+    const direction = sortOrder === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "subject") return a.subject.localeCompare(b.subject) * direction;
+      if (sortBy === "messages") return (a.messageCount - b.messageCount) * direction;
+      return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * direction;
+    });
+  }, [tickets, search, statusFilter, priorityFilter, categoryFilter, sortBy, sortOrder]);
+
   async function loadAll() {
     if (!accessToken) {
       return;
@@ -369,10 +397,44 @@ export function SupportPage() {
             <CardDescription>Tickets with status, priority, SLA, and assignment.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {tickets.length === 0 ? (
-              <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">No tickets are currently visible for this role.</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                placeholder="Search subject or account..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="sm:col-span-2"
+              />
+              <select className={selectClassName} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option value="">All statuses</option>
+                {options.statuses.map((entry) => (<option key={entry.id} value={entry.key}>{entry.label}</option>))}
+              </select>
+              <select className={selectClassName} value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
+                <option value="">All priorities</option>
+                {options.priorities.map((entry) => (<option key={entry.id} value={entry.key}>{entry.label}</option>))}
+              </select>
+              <select className={selectClassName} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+                <option value="">All categories</option>
+                {options.categories.map((entry) => (<option key={entry.id} value={entry.key}>{entry.label}</option>))}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <select className={selectClassName} value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)}>
+                  <option value="updated">Sort: Recently updated</option>
+                  <option value="subject">Sort: Subject</option>
+                  <option value="messages">Sort: Message count</option>
+                </select>
+                <select className={selectClassName} value={sortOrder} onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)}>
+                  <option value="desc">Descending</option>
+                  <option value="asc">Ascending</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{visibleTickets.length} of {tickets.length} tickets</p>
+            {visibleTickets.length === 0 ? (
+              <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
+                {tickets.length === 0 ? "No tickets are currently visible for this role." : "No tickets match the current filters."}
+              </div>
             ) : (
-              tickets.map((ticket) => (
+              visibleTickets.map((ticket) => (
                 <button
                   key={ticket.id}
                   type="button"

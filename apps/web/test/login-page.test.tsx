@@ -38,14 +38,17 @@ describe("Login page", () => {
     const user = userEvent.setup();
     renderLogin();
 
-    const email = screen.getByLabelText(/email/i);
-    await user.clear(email);
-    await user.type(email, "sales.manager@sample-tenant.local");
+    await user.type(screen.getByLabelText(/email/i), "sales.manager@sample-tenant.local");
+    await user.type(screen.getByLabelText(/password/i), "Demo@1234");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => expect(loginMock).toHaveBeenCalledTimes(1));
     expect(loginMock).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "sales.manager@sample-tenant.local", tenantSlug: expect.any(String) })
+      expect.objectContaining({
+        email: "sales.manager@sample-tenant.local",
+        password: "Demo@1234",
+        tenantSlug: expect.any(String)
+      })
     );
   });
 
@@ -54,6 +57,8 @@ describe("Login page", () => {
     const user = userEvent.setup();
     renderLogin();
 
+    await user.type(screen.getByLabelText(/email/i), "sales.manager@sample-tenant.local");
+    await user.type(screen.getByLabelText(/password/i), "wrong-password");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     expect(await screen.findByText(/invalid credentials/i)).toBeInTheDocument();
