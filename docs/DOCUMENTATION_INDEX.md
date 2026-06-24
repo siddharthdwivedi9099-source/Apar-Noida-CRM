@@ -53,6 +53,7 @@ Last reconciled with the implementation on **2026-06-24** — see
 - [ENTERPRISE_SUCCESS_PLAYBOOK.md](./customer-success/ENTERPRISE_SUCCESS_PLAYBOOK.md)
 
 ## 7. User Guides (`docs/user-guides/`)
+- [USER_MANUAL.md](./user-guides/USER_MANUAL.md) — **comprehensive persona-wise user manual** (all 17 personas, real screens/workflows)
 - [USER_GUIDE.md](./user-guides/USER_GUIDE.md) — general user guide
 - [SALES_USER_GUIDE.md](./user-guides/SALES_USER_GUIDE.md)
 - [MARKETING_USER_GUIDE.md](./user-guides/MARKETING_USER_GUIDE.md)
@@ -79,6 +80,7 @@ Last reconciled with the implementation on **2026-06-24** — see
 - Configuration reference: [`.env.example`](../.env.example) — all 56 environment options
 
 ## 11. Testing Documentation (`docs/testing/`)
+- [TEST_CASES.md](./testing/TEST_CASES.md) — **comprehensive test cases** across all modules, AI, security, and non-functional
 - [TESTING_STRATEGY.md](./testing/TESTING_STRATEGY.md)
 - [QA_CHECKLIST.md](./testing/QA_CHECKLIST.md)
 

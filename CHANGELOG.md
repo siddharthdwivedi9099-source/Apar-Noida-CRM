@@ -19,6 +19,7 @@
 ### Added
 
 - Live AI provider execution: `packages/ai/src/providers.ts` now makes real Anthropic, OpenAI, Azure OpenAI, and local (OpenAI-compatible) API calls when the corresponding credentials are configured, with a deterministic placeholder fallback when they are not. Calls are timeout-bounded and fail closed to a governed `error` result; the AI Gateway propagates the real `success`/`error`/`placeholder` status to usage logs. Adds provider unit tests (mocked transport). This moves the "AI-native" capability from deferred placeholder to live-capable (operationally, provision credentials and enforce gateway rate-limit + redaction before enabling in a tenant). Final product review and `docs/ai/AI_GOVERNANCE.md` updated accordingly (readiness score 7.5 → 7.7).
+- Documentation: added a comprehensive persona-wise `docs/user-guides/USER_MANUAL.md` (17 personas, real screens/routes, step-by-step workflows, cross-cutting features, troubleshooting, glossary) and a comprehensive `docs/testing/TEST_CASES.md` (structured TC tables across auth, RBAC, tenant isolation, all modules, customer portal, AI/RAG governance, security, and non-functional, with automation-coverage mapping). Linked both from `docs/DOCUMENTATION_INDEX.md`.
 
 ### Notes
 
