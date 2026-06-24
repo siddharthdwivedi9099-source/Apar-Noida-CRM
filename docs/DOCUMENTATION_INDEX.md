@@ -54,6 +54,7 @@ Last reconciled with the implementation on **2026-06-24** — see
 
 ## 7. User Guides (`docs/user-guides/`)
 - [USER_MANUAL.md](./user-guides/USER_MANUAL.md) — **comprehensive persona-wise user manual** (all 17 personas, real screens/workflows)
+- [EDUCATION_ECOSYSTEM_GUIDE.md](./user-guides/EDUCATION_ECOSYSTEM_GUIDE.md) — using the CRM for education (eLite SIS) and IT service-project leads
 - [USER_GUIDE.md](./user-guides/USER_GUIDE.md) — general user guide
 - [SALES_USER_GUIDE.md](./user-guides/SALES_USER_GUIDE.md)
 - [MARKETING_USER_GUIDE.md](./user-guides/MARKETING_USER_GUIDE.md)

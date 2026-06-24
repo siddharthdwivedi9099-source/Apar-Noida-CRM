@@ -549,6 +549,53 @@ export interface TenantOptionSetSeedDefinition {
 
 export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] = [
   {
+    setKey: "lead-for",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead For",
+    description: "Whether a lead is for an IT custom-development service project or for a product.",
+    values: [
+      { key: "service_project", label: "IT Service Project", color: "#6366f1", sortOrder: 0, isDefault: true },
+      { key: "product", label: "Product", color: "#14b8a6", sortOrder: 1 }
+    ],
+    metadata: { seeded: true, category: "lead-config", usage: "lead_for" }
+  },
+  {
+    setKey: "service-technology",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Service Technology",
+    description: "Technologies a customer needs for an IT custom-development service project (multi-select).",
+    values: [
+      { key: "web_development", label: "Web Development", color: "#0ea5e9", sortOrder: 0 },
+      { key: "mobile_apps", label: "Mobile Apps", color: "#22c55e", sortOrder: 1 },
+      { key: "cloud_devops", label: "Cloud & DevOps", color: "#6366f1", sortOrder: 2 },
+      { key: "ai_ml", label: "AI & Machine Learning", color: "#a855f7", sortOrder: 3 },
+      { key: "data_analytics", label: "Data & Analytics", color: "#f59e0b", sortOrder: 4 },
+      { key: "erp_integration", label: "ERP & Integrations", color: "#14b8a6", sortOrder: 5 },
+      { key: "qa_testing", label: "QA & Testing", color: "#ef4444", sortOrder: 6 },
+      { key: "ui_ux", label: "UI/UX Design", color: "#ec4899", sortOrder: 7 },
+      { key: "cybersecurity", label: "Cybersecurity", color: "#64748b", sortOrder: 8 },
+      { key: "blockchain", label: "Blockchain", color: "#0891b2", sortOrder: 9 }
+    ],
+    metadata: { seeded: true, category: "lead-config", usage: "service_technology" }
+  },
+  {
+    setKey: "education-product",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Education Product",
+    description: "eLite SIS education products a lead is interested in (multi-select). Add more products here as the catalog grows.",
+    values: [
+      { key: "elite_sis_k12", label: "eLite SIS K12 — School ERP", color: "#0ea5e9", sortOrder: 0 },
+      { key: "elite_sis_learn", label: "eLite SIS Learn — Learning Management System", color: "#22c55e", sortOrder: 1 },
+      { key: "elite_sis_higher_ed", label: "eLite SIS Higher Ed — Higher Education ERP", color: "#6366f1", sortOrder: 2 },
+      { key: "elite_sis_ci", label: "eLite SIS CI — Coaching Institute ERP", color: "#f59e0b", sortOrder: 3 },
+      { key: "elite_sis_pi", label: "eLite SIS PI — Professional Studies Institution ERP", color: "#a855f7", sortOrder: 4 }
+    ],
+    metadata: { seeded: true, category: "lead-config", usage: "education_product" }
+  },
+  {
     setKey: "lead-status",
     moduleKey: "leads",
     kind: "dropdown",
