@@ -13,11 +13,14 @@ export function LoginPage() {
   const location = useLocation();
   const { login } = useAuth();
   const [tenantSlug, setTenantSlug] = useState(import.meta.env.VITE_DEFAULT_TENANT_SLUG ?? "sample-tenant");
-  const [email, setEmail] = useState("admin@sample-tenant.local");
-  const [password, setPassword] = useState("ChangeMe123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const redirectTarget = (location.state as { from?: string } | null)?.from ?? "/dashboard";
+  // Default to the workspace root so the post-login landing page is resolved
+  // from the signed-in user's own permissions (e.g. portal users land in the
+  // portal), rather than forcing everyone to the internal dashboard.
+  const redirectTarget = (location.state as { from?: string } | null)?.from ?? "/";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,12 +74,12 @@ export function LoginPage() {
                 value: "sample-tenant"
               },
               {
-                title: "Admin email",
-                value: "admin@sample-tenant.local"
+                title: "Role-based demo login",
+                value: "<role>@sample-tenant.local"
               },
               {
-                title: "Bootstrap password",
-                value: "ChangeMe123!"
+                title: "Demo password",
+                value: "Demo@1234"
               }
             ].map((credential) => (
               <div key={credential.title} className="rounded-[1.5rem] bg-background/75 p-5 shadow-sm">
@@ -117,6 +120,8 @@ export function LoginPage() {
                   id="email"
                   autoComplete="email"
                   type="email"
+                  required
+                  placeholder="you@company.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
@@ -130,6 +135,8 @@ export function LoginPage() {
                   id="password"
                   autoComplete="current-password"
                   type="password"
+                  required
+                  placeholder="Your password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                 />

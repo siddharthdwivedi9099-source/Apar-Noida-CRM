@@ -87,6 +87,32 @@ export function PartnersPage() {
 
   const partners = useMemo(() => data?.partners ?? [], [data?.partners]);
 
+  // Client-side search / filter / sort over the loaded partner list.
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [tierFilter, setTierFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "deals" | "onboarding">("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  const visiblePartners = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = partners.filter((partner) => {
+      if (statusFilter && partner.status?.key !== statusFilter) return false;
+      if (tierFilter && partner.tier?.key !== tierFilter) return false;
+      if (term) {
+        const haystack = `${partner.name} ${partner.region ?? ""} ${partner.territory ?? ""}`.toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      return true;
+    });
+    const direction = sortOrder === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "deals") return (a.dealCount - b.dealCount) * direction;
+      if (sortBy === "onboarding") return (a.completedOnboardingTaskCount - b.completedOnboardingTaskCount) * direction;
+      return a.name.localeCompare(b.name) * direction;
+    });
+  }, [partners, search, statusFilter, tierFilter, sortBy, sortOrder]);
+
   async function loadList() {
     if (!accessToken) {
       return;
@@ -390,12 +416,42 @@ export function PartnersPage() {
             <CardDescription>Channel partners with type, tier, status, and onboarding progress.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {partners.length === 0 ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                placeholder="Search name, region, territory..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="sm:col-span-2"
+              />
+              <select className={selectClassName} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option value="">All statuses</option>
+                {options.statuses.map((entry) => (
+                  <option key={entry.id} value={entry.key}>{entry.label}</option>
+                ))}
+              </select>
+              <select className={selectClassName} value={tierFilter} onChange={(event) => setTierFilter(event.target.value)}>
+                <option value="">All tiers</option>
+                {options.tiers.map((entry) => (
+                  <option key={entry.id} value={entry.key}>{entry.label}</option>
+                ))}
+              </select>
+              <select className={selectClassName} value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)}>
+                <option value="name">Sort: Name</option>
+                <option value="deals">Sort: Deal count</option>
+                <option value="onboarding">Sort: Onboarding progress</option>
+              </select>
+              <select className={selectClassName} value={sortOrder} onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)}>
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+            <p className="text-xs text-muted-foreground">{visiblePartners.length} of {partners.length} partners</p>
+            {visiblePartners.length === 0 ? (
               <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
-                No partners are currently visible for this role.
+                {partners.length === 0 ? "No partners are currently visible for this role." : "No partners match the current filters."}
               </div>
             ) : (
-              partners.map((partner) => (
+              visiblePartners.map((partner) => (
                 <button
                   key={partner.id}
                   type="button"

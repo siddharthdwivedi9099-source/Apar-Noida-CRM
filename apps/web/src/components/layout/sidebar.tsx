@@ -47,7 +47,7 @@ export function Sidebar({
           width: collapsed ? shellLayout.sidebarCollapsedWidth : shellLayout.sidebarWidth
         }}
       >
-        <div className="flex w-full flex-col gap-6 p-4">
+        <div className="flex w-full min-h-0 flex-col gap-6 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className={cn("space-y-2", collapsed && "md:hidden")}>
               <Badge variant="success">{platformMetadata.currentPhase.split(":")[0]}</Badge>
@@ -78,7 +78,7 @@ export function Sidebar({
             </div>
           </div>
 
-          <nav className="flex flex-1 flex-col gap-2">
+          <nav className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pr-1">
             {navItems.map((item) => {
               const Icon = item.icon;
 
