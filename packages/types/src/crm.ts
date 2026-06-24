@@ -242,6 +242,9 @@ export interface LeadListQuery {
   status?: string;
   source?: string;
   ownerId?: string;
+  leadFor?: string;
+  product?: string;
+  technology?: string;
   sortBy?: LeadSortField;
   sortOrder?: CrmSortOrder;
 }
@@ -316,6 +319,21 @@ export interface LeadOptionsResponse {
   owners: CrmLookupUserSummary[];
   statuses: CrmOptionValueSummary[];
   sources: CrmOptionValueSummary[];
+  // Lead classification: "IT Service Project" vs "Product" (single-select),
+  // plus the multi-select technology / product catalogs that apply to each.
+  leadForOptions: CrmOptionValueSummary[];
+  technologyOptions: CrmOptionValueSummary[];
+  productOptions: CrmOptionValueSummary[];
+}
+
+// Shape stored under a lead's `metadata` for lead classification.
+export interface LeadClassificationMetadata {
+  // "service_project" | "product" (option value key from the "lead-for" set).
+  leadFor?: string | null;
+  // Selected "service-technology" value keys (when leadFor = service_project).
+  technologies?: string[];
+  // Selected "education-product" value keys (when leadFor = product).
+  products?: string[];
 }
 
 export const leadQualificationFrameworks = ["bant", "meddic", "custom"] as const;

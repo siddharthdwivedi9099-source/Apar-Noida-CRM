@@ -31,6 +31,8 @@ export function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [ownerFilter, setOwnerFilter] = useState("");
+  const [leadForFilter, setLeadForFilter] = useState("");
+  const [productFilter, setProductFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
@@ -92,7 +94,9 @@ export function LeadsPage() {
       search: searchInput.trim() || undefined,
       status: statusFilter || undefined,
       source: sourceFilter || undefined,
-      ownerId: ownerFilter || undefined
+      ownerId: ownerFilter || undefined,
+      leadFor: leadForFilter || undefined,
+      product: productFilter || undefined
     }));
   }
 
@@ -101,6 +105,8 @@ export function LeadsPage() {
     setStatusFilter("");
     setSourceFilter("");
     setOwnerFilter("");
+    setLeadForFilter("");
+    setProductFilter("");
     setQuery(defaultQuery);
   }
 
@@ -202,6 +208,28 @@ export function LeadsPage() {
                   {options?.sources.map((source) => (
                     <option key={source.id} value={source.key}>
                       {source.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium">Lead For</span>
+                <select className={selectClassName} value={leadForFilter} onChange={(event) => setLeadForFilter(event.target.value)}>
+                  <option value="">All lead types</option>
+                  {options?.leadForOptions.map((option) => (
+                    <option key={option.id} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium">Product</span>
+                <select className={selectClassName} value={productFilter} onChange={(event) => setProductFilter(event.target.value)}>
+                  <option value="">All products</option>
+                  {options?.productOptions.map((option) => (
+                    <option key={option.id} value={option.key}>
+                      {option.label}
                     </option>
                   ))}
                 </select>

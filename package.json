@@ -25,6 +25,7 @@
     "db:migrate": "npm run db:build && node scripts/database.mjs migrate",
     "db:rollback": "npm run db:build && node scripts/database.mjs rollback",
     "db:seed": "npm run db:build && node scripts/database.mjs seed",
+    "db:seed:education": "node scripts/seed-education.mjs",
     "db:status": "npm run db:build && node scripts/database.mjs status",
     "db:migrate:run": "node scripts/database.mjs migrate",
     "db:rollback:run": "node scripts/database.mjs rollback",

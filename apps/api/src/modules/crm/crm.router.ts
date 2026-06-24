@@ -81,6 +81,9 @@ const leadListQuerySchema = z.object({
   status: z.string().max(160).optional(),
   source: z.string().max(160).optional(),
   ownerId: uuidSchema.optional(),
+  leadFor: z.string().max(80).optional(),
+  product: z.string().max(80).optional(),
+  technology: z.string().max(80).optional(),
   sortBy: z.enum(leadSortFields).optional(),
   sortOrder: z.enum(["asc", "desc"]).optional()
 });

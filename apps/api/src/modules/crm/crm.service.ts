@@ -1651,6 +1651,19 @@ export class CrmService {
         params.push(query.ownerId);
         conditions.push(`leads.owner_id = $${params.length}`);
       }
+      // Lead classification filters (stored in leads.metadata).
+      if (query.leadFor) {
+        params.push(query.leadFor.trim());
+        conditions.push(`leads.metadata->>'leadFor' = $${params.length}`);
+      }
+      if (query.product) {
+        params.push(query.product.trim());
+        conditions.push(`leads.metadata->'products' ? $${params.length}`);
+      }
+      if (query.technology) {
+        params.push(query.technology.trim());
+        conditions.push(`leads.metadata->'technologies' ? $${params.length}`);
+      }
 
       const whereClause = conditions.join(" AND ");
       const countResult = await client.query<{ total: number }>(
@@ -2057,7 +2070,10 @@ export class CrmService {
     return this.databaseService.withClient(async (client) => ({
       owners: await this.loadOwners(client, actor.tenantId),
       statuses: await this.loadOptionSetValues(client, actor.tenantId, "lead-status"),
-      sources: await this.loadOptionSetValues(client, actor.tenantId, "lead-source")
+      sources: await this.loadOptionSetValues(client, actor.tenantId, "lead-source"),
+      leadForOptions: await this.loadOptionSetValues(client, actor.tenantId, "lead-for"),
+      technologyOptions: await this.loadOptionSetValues(client, actor.tenantId, "service-technology"),
+      productOptions: await this.loadOptionSetValues(client, actor.tenantId, "education-product")
     }));
   }
 

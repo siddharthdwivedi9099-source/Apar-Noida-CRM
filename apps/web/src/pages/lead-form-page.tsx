@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type {
   CreateLeadRequestBody,
+  CrmOptionValueSummary,
+  LeadClassificationMetadata,
   LeadOptionsResponse,
   LeadResponse,
   UpdateLeadRequestBody
@@ -26,6 +28,10 @@ interface LeadFormState {
   sourceKey: string;
   score: string;
   ownerId: string;
+  // Lead classification
+  leadFor: string;
+  technologies: string[];
+  products: string[];
 }
 
 const defaultFormState: LeadFormState = {
@@ -37,8 +43,56 @@ const defaultFormState: LeadFormState = {
   statusKey: "",
   sourceKey: "",
   score: "",
-  ownerId: ""
+  ownerId: "",
+  leadFor: "",
+  technologies: [],
+  products: []
 };
+
+const SERVICE_PROJECT_KEY = "service_project";
+const PRODUCT_KEY = "product";
+
+function toggleValue(values: string[], value: string): string[] {
+  return values.includes(value) ? values.filter((entry) => entry !== value) : [...values, value];
+}
+
+// Checkbox-based multi-select that matches the form's styling.
+function MultiSelect({
+  options,
+  selected,
+  onToggle
+}: {
+  options: CrmOptionValueSummary[];
+  selected: string[];
+  onToggle: (value: string) => void;
+}) {
+  if (options.length === 0) {
+    return <p className="text-sm text-muted-foreground">No options configured. Add them in Admin → Option Sets.</p>;
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((option) => {
+        const isChecked = selected.includes(option.key);
+        return (
+          <button
+            type="button"
+            key={option.id}
+            onClick={() => onToggle(option.key)}
+            aria-pressed={isChecked}
+            className={`rounded-full border px-3 py-1.5 text-sm transition ${
+              isChecked
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-background text-foreground hover:bg-muted"
+            }`}
+          >
+            {isChecked ? "✓ " : ""}
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function LeadFormPage() {
   const { leadId } = useParams();
@@ -73,7 +127,8 @@ export function LeadFormPage() {
           setFormState((currentValue) => ({
             ...currentValue,
             statusKey: optionsResponse.statuses.find((status) => status.isDefault)?.key ?? optionsResponse.statuses[0]?.key ?? "",
-            sourceKey: optionsResponse.sources.find((source) => source.isDefault)?.key ?? optionsResponse.sources[0]?.key ?? ""
+            sourceKey: optionsResponse.sources.find((source) => source.isDefault)?.key ?? optionsResponse.sources[0]?.key ?? "",
+            leadFor: optionsResponse.leadForOptions.find((option) => option.isDefault)?.key ?? optionsResponse.leadForOptions[0]?.key ?? ""
           }));
           return;
         }
@@ -83,6 +138,7 @@ export function LeadFormPage() {
           accessToken
         });
         const { lead } = leadResponse;
+        const classification = (lead.metadata ?? {}) as LeadClassificationMetadata;
 
         setFormState({
           firstName: lead.firstName,
@@ -93,7 +149,10 @@ export function LeadFormPage() {
           statusKey: lead.status?.key ?? optionsResponse.statuses[0]?.key ?? "",
           sourceKey: lead.source?.key ?? optionsResponse.sources[0]?.key ?? "",
           score: lead.score !== null ? String(lead.score) : "",
-          ownerId: lead.owner?.id ?? ""
+          ownerId: lead.owner?.id ?? "",
+          leadFor: classification.leadFor ?? optionsResponse.leadForOptions[0]?.key ?? "",
+          technologies: Array.isArray(classification.technologies) ? classification.technologies : [],
+          products: Array.isArray(classification.products) ? classification.products : []
         });
       } catch (error) {
         setErrorMessage(getErrorMessage(error));
@@ -113,6 +172,13 @@ export function LeadFormPage() {
     setIsSaving(true);
     setErrorMessage(null);
 
+    // Only persist the technology/product list relevant to the chosen "Lead For".
+    const classification: LeadClassificationMetadata = {
+      leadFor: formState.leadFor || null,
+      technologies: formState.leadFor === SERVICE_PROJECT_KEY ? formState.technologies : [],
+      products: formState.leadFor === PRODUCT_KEY ? formState.products : []
+    };
+
     const payload = {
       firstName: formState.firstName,
       lastName: formState.lastName,
@@ -122,7 +188,8 @@ export function LeadFormPage() {
       statusKey: formState.statusKey,
       sourceKey: formState.sourceKey,
       score: formState.score ? Number(formState.score) : null,
-      ownerId: formState.ownerId || null
+      ownerId: formState.ownerId || null,
+      metadata: classification as Record<string, unknown>
     } satisfies CreateLeadRequestBody & UpdateLeadRequestBody;
 
     try {
@@ -270,6 +337,47 @@ export function LeadFormPage() {
                 placeholder="Optional"
               />
             </label>
+
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-sm font-medium">Lead For</span>
+              <select
+                className={selectClassName}
+                value={formState.leadFor}
+                onChange={(event) => setFormState((currentValue) => ({ ...currentValue, leadFor: event.target.value }))}
+              >
+                {options?.leadForOptions.map((option) => (
+                  <option key={option.id} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {formState.leadFor === SERVICE_PROJECT_KEY ? (
+              <div className="space-y-2 md:col-span-2">
+                <span className="text-sm font-medium">Technologies (select all that apply)</span>
+                <MultiSelect
+                  options={options?.technologyOptions ?? []}
+                  selected={formState.technologies}
+                  onToggle={(value) =>
+                    setFormState((currentValue) => ({ ...currentValue, technologies: toggleValue(currentValue.technologies, value) }))
+                  }
+                />
+              </div>
+            ) : null}
+
+            {formState.leadFor === PRODUCT_KEY ? (
+              <div className="space-y-2 md:col-span-2">
+                <span className="text-sm font-medium">Products (select all that apply)</span>
+                <MultiSelect
+                  options={options?.productOptions ?? []}
+                  selected={formState.products}
+                  onToggle={(value) =>
+                    setFormState((currentValue) => ({ ...currentValue, products: toggleValue(currentValue.products, value) }))
+                  }
+                />
+              </div>
+            ) : null}
 
             <div className="md:col-span-2 flex flex-wrap items-center gap-3">
               <Button type="submit" disabled={isSaving}>

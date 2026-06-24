@@ -4,6 +4,7 @@ import type {
   CreateCrmNoteRequestBody,
   CreateCrmTaskRequestBody,
   CrmLookupUserSummary,
+  LeadClassificationMetadata,
   LeadOptionsResponse,
   LeadResponse,
   UpdateCrmNoteRequestBody,
@@ -31,6 +32,7 @@ export function LeadDetailPage() {
   const leadLabel = getModuleLabel("leads", "singular");
   const [data, setData] = useState<LeadResponse | null>(null);
   const [owners, setOwners] = useState<CrmLookupUserSummary[]>([]);
+  const [leadOptions, setLeadOptions] = useState<LeadOptionsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -59,6 +61,7 @@ export function LeadDetailPage() {
       ]);
       setData(detailResponse);
       setOwners(optionsResponse.owners);
+      setLeadOptions(optionsResponse);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -230,6 +233,49 @@ export function LeadDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {(() => {
+          const classification = (lead.metadata ?? {}) as LeadClassificationMetadata;
+          if (!classification.leadFor) {
+            return null;
+          }
+          const leadForLabel =
+            leadOptions?.leadForOptions.find((option) => option.key === classification.leadFor)?.label ?? classification.leadFor;
+          const isService = classification.leadFor === "service_project";
+          const selectedKeys = isService ? classification.technologies ?? [] : classification.products ?? [];
+          const catalog = isService ? leadOptions?.technologyOptions ?? [] : leadOptions?.productOptions ?? [];
+          const selectedLabels = selectedKeys.map((key) => catalog.find((option) => option.key === key)?.label ?? key);
+          return (
+            <Card className="xl:col-span-2">
+              <CardHeader>
+                <CardTitle>Lead classification</CardTitle>
+                <CardDescription>
+                  Whether this is an IT service project or a product opportunity, and the {isService ? "technologies" : "products"} involved.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Lead For</p>
+                  <p className="mt-2 font-semibold">{leadForLabel}</p>
+                </div>
+                <div className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{isService ? "Technologies" : "Products"}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedLabels.length > 0 ? (
+                      selectedLabels.map((label) => (
+                        <Badge key={label} variant="muted">
+                          {label}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted-foreground">None selected</span>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         <Card>
           <CardHeader>

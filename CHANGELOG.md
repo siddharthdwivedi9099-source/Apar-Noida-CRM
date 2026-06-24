@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Lead classification for two go-to-market motions: every lead now carries a **Lead For** value (IT Service Project vs Product). Choosing *IT Service Project* reveals a multi-select **Technologies** field; choosing *Product* reveals a multi-select **Products** field. Backed by three admin-editable option sets (`lead-for`, `service-technology`, `education-product`) so the product/technology catalogs can grow with no code change; selections persist in the lead's metadata. The classification is shown on the lead detail, filterable on the lead list and API (`/leads?leadFor=&product=&technology=`), and carried onto the opportunity (shown on opportunity detail). Education product catalog seeded: eLite SIS K12, Learn, Higher Ed, CI, PI.
+- Education demo dataset + seeder (`scripts/seed-education.mjs`, `npm run db:seed:education`): 216 institution leads (27 each across pre-school, K12, college, university, coaching, tuition, professional-studies, vocational) tagged with best-fit products across all 5 eLite products, plus 24 accounts and 24 opportunities. Idempotent (replaces the `education-demo` batch on re-run).
+- `docs/user-guides/EDUCATION_ECOSYSTEM_GUIDE.md`: how to use the CRM for the education ecosystem and IT service projects.
+
 ### Changed
 
 - Code review and refactoring pass (PROMPT 33): consolidated duplicated request-metadata helpers (`getClientIp`/`getAuditMetadata`) into `apps/api/src/common/http/request-metadata.ts` across all module routers, and duplicated pagination helpers (`buildPagination`/`getPositiveNumber`) into `apps/api/src/common/pagination.ts` across all module services.

@@ -3,6 +3,8 @@ import type {
   CreateCrmActivityRequestBody,
   CreateCrmNoteRequestBody,
   CreateCrmTaskRequestBody,
+  LeadClassificationMetadata,
+  LeadOptionsResponse,
   OpportunityOptionsResponse,
   OpportunityResponse,
   UpdateCrmNoteRequestBody,
@@ -31,6 +33,7 @@ export function OpportunityDetailPage() {
   const opportunitiesLabel = getModuleLabel("opportunities");
   const [detailResponse, setDetailResponse] = useState<OpportunityResponse | null>(null);
   const [optionsResponse, setOptionsResponse] = useState<OpportunityOptionsResponse | null>(null);
+  const [leadOptions, setLeadOptions] = useState<LeadOptionsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -58,7 +61,7 @@ export function OpportunityDetailPage() {
     setErrorMessage(null);
 
     try {
-      const [detail, options] = await Promise.all([
+      const [detail, options, leadOptionsResponse] = await Promise.all([
         apiRequest<OpportunityResponse>(`/opportunities/${opportunityId}`, {
           method: "GET",
           accessToken
@@ -66,11 +69,16 @@ export function OpportunityDetailPage() {
         apiRequest<OpportunityOptionsResponse>("/opportunities/options", {
           method: "GET",
           accessToken
+        }),
+        apiRequest<LeadOptionsResponse>("/leads/options", {
+          method: "GET",
+          accessToken
         })
       ]);
 
       setDetailResponse(detail);
       setOptionsResponse(options);
+      setLeadOptions(leadOptionsResponse);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -288,6 +296,42 @@ export function OpportunityDetailPage() {
           </CardContent>
         </Card>
       </section>
+
+      {(() => {
+        const classification = (opportunity.metadata ?? {}) as LeadClassificationMetadata;
+        if (!classification.leadFor) {
+          return null;
+        }
+        const isService = classification.leadFor === "service_project";
+        const leadForLabel =
+          leadOptions?.leadForOptions.find((option) => option.key === classification.leadFor)?.label ?? classification.leadFor;
+        const selectedKeys = isService ? classification.technologies ?? [] : classification.products ?? [];
+        const catalog = isService ? leadOptions?.technologyOptions ?? [] : leadOptions?.productOptions ?? [];
+        const selectedLabels = selectedKeys.map((key) => catalog.find((option) => option.key === key)?.label ?? key);
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle>Lead classification (carried from the lead)</CardTitle>
+              <CardDescription>
+                {leadForLabel} — the {isService ? "technologies" : "products"} this opportunity covers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {selectedLabels.length > 0 ? (
+                  selectedLabels.map((label) => (
+                    <Badge key={label} variant="muted">
+                      {label}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">None recorded</span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
         <Card>
