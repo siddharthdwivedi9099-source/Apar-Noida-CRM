@@ -1,16 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import type {
-  CustomerQueryDashboardResponse,
-  CustomerQuerySession,
-  CustomerQuerySessionDetail,
-  CustomerQuerySessionListResponse,
-  CustomerQuerySessionResponse
+import {
+  customerQueryChannels,
+  customerQuerySessionStatuses,
+  type CustomerQueryDashboardResponse,
+  type CustomerQuerySession,
+  type CustomerQuerySessionDetail,
+  type CustomerQuerySessionListResponse,
+  type CustomerQuerySessionResponse
 } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ListToolbar } from "@/components/crm/list-toolbar";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -23,6 +26,29 @@ export function CustomerQueryReviewPage() {
   const [selected, setSelected] = useState<CustomerQuerySessionDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Client-side search / filter / sort over the loaded query-session list.
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"updated" | "messages" | "confidence">("updated");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const visibleSessions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = sessions.filter((session) => {
+      if (statusFilter && session.status !== statusFilter) return false;
+      if (channelFilter && session.channel !== channelFilter) return false;
+      if (term && !(session.subject ?? "").toLowerCase().includes(term)) return false;
+      return true;
+    });
+    const direction = sortOrder === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "messages") return (a.messageCount - b.messageCount) * direction;
+      if (sortBy === "confidence") return ((a.lastConfidence ?? 0) - (b.lastConfidence ?? 0)) * direction;
+      return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * direction;
+    });
+  }, [sessions, search, statusFilter, channelFilter, sortBy, sortOrder]);
 
   const canResolve = hasAnyPermission(["customer_query.assign", "customer_query.manage_ai", "customer_query.configure", "customer_query.edit"]);
 
@@ -113,9 +139,37 @@ export function CustomerQueryReviewPage() {
         <Card>
           <CardHeader><CardTitle>Sessions</CardTitle><CardDescription>Select a session to review.</CardDescription></CardHeader>
           <CardContent className="space-y-2">
-            {sessions.length === 0 ? <p className="text-sm text-muted-foreground">No query sessions yet.</p> : (
+            <ListToolbar
+              search={search}
+              onSearch={setSearch}
+              searchPlaceholder="Search by subject..."
+              filters={[
+                { label: "statuses", value: statusFilter, onChange: setStatusFilter, options: customerQuerySessionStatuses.map((s) => ({ value: s, label: s })) },
+                { label: "channels", value: channelFilter, onChange: setChannelFilter, options: customerQueryChannels.map((c) => ({ value: c, label: c.replace(/_/g, " ") })) }
+              ]}
+              sortBy={sortBy}
+              onSortBy={(value) => setSortBy(value as typeof sortBy)}
+              sortOptions={[
+                { value: "updated", label: "Recently updated" },
+                { value: "messages", label: "Message count" },
+                { value: "confidence", label: "Confidence" }
+              ]}
+              sortOrder={sortOrder}
+              onSortOrder={setSortOrder}
+              resultCount={visibleSessions.length}
+              totalCount={sessions.length}
+              noun="sessions"
+              onReset={() => {
+                setSearch("");
+                setStatusFilter("");
+                setChannelFilter("");
+                setSortBy("updated");
+                setSortOrder("desc");
+              }}
+            />
+            {visibleSessions.length === 0 ? <p className="text-sm text-muted-foreground">{sessions.length === 0 ? "No query sessions yet." : "No sessions match the current filters."}</p> : (
               <ul className="space-y-2">
-                {sessions.map((session) => (
+                {visibleSessions.map((session) => (
                   <li key={session.id}>
                     <button type="button" onClick={() => void openSession(session.id)} className={`w-full rounded-[1rem] border p-3 text-left ${selected?.id === session.id ? "border-primary bg-primary/5" : "border-border/60 bg-background/75"}`}>
                       <div className="flex flex-wrap items-center gap-2">

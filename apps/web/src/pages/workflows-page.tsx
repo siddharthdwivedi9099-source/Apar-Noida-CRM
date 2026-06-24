@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   CreateWorkflowRequestBody,
   WorkflowActionType,
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState } from "@/components/crm/crm-shell";
+import { ListToolbar } from "@/components/crm/list-toolbar";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateTime, selectClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -37,6 +38,34 @@ export function WorkflowsPage() {
   const [lastRun, setLastRun] = useState<WorkflowRunResponse["run"] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Client-side search / filter / sort over the loaded workflow list.
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [triggerFilter, setTriggerFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "runs" | "updated">("updated");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const workflowStatuses = useMemo(() => Array.from(new Set(workflows.map((workflow) => workflow.status))), [workflows]);
+
+  const visibleWorkflows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = workflows.filter((workflow) => {
+      if (statusFilter && workflow.status !== statusFilter) return false;
+      if (triggerFilter && workflow.triggerType !== triggerFilter) return false;
+      if (term) {
+        const haystack = `${workflow.name} ${workflow.description ?? ""}`.toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      return true;
+    });
+    const direction = sortOrder === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "runs") return (a.runCount - b.runCount) * direction;
+      if (sortBy === "updated") return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * direction;
+      return a.name.localeCompare(b.name) * direction;
+    });
+  }, [workflows, search, statusFilter, triggerFilter, sortBy, sortOrder]);
 
   const [form, setForm] = useState({ name: "", triggerType: "record_created", conditionField: "", conditionOperator: "exists", conditionValue: "" });
   const [actionForm, setActionForm] = useState({ actionType: "create_task", config: "{}" });
@@ -205,9 +234,37 @@ export function WorkflowsPage() {
           <Card>
             <CardHeader><CardTitle>Workflows</CardTitle><CardDescription>{workflows.length} configured.</CardDescription></CardHeader>
             <CardContent className="space-y-2">
-              {workflows.length === 0 ? <p className="text-sm text-muted-foreground">No workflows yet.</p> : (
+              <ListToolbar
+                search={search}
+                onSearch={setSearch}
+                searchPlaceholder="Search name or description..."
+                filters={[
+                  { label: "statuses", value: statusFilter, onChange: setStatusFilter, options: workflowStatuses.map((s) => ({ value: s, label: s })) },
+                  { label: "triggers", value: triggerFilter, onChange: setTriggerFilter, options: (catalog?.triggers ?? []).map((t) => ({ value: t.type, label: t.label })) }
+                ]}
+                sortBy={sortBy}
+                onSortBy={(value) => setSortBy(value as typeof sortBy)}
+                sortOptions={[
+                  { value: "updated", label: "Recently updated" },
+                  { value: "name", label: "Name" },
+                  { value: "runs", label: "Run count" }
+                ]}
+                sortOrder={sortOrder}
+                onSortOrder={setSortOrder}
+                resultCount={visibleWorkflows.length}
+                totalCount={workflows.length}
+                noun="workflows"
+                onReset={() => {
+                  setSearch("");
+                  setStatusFilter("");
+                  setTriggerFilter("");
+                  setSortBy("updated");
+                  setSortOrder("desc");
+                }}
+              />
+              {visibleWorkflows.length === 0 ? <p className="text-sm text-muted-foreground">{workflows.length === 0 ? "No workflows yet." : "No workflows match the current filters."}</p> : (
                 <ul className="space-y-2">
-                  {workflows.map((workflow) => (
+                  {visibleWorkflows.map((workflow) => (
                     <li key={workflow.id}>
                       <button type="button" onClick={() => void openWorkflow(workflow.id)} className={`w-full rounded-[1rem] border p-3 text-left ${selected?.id === workflow.id ? "border-primary bg-primary/5" : "border-border/60 bg-background/75"}`}>
                         <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{workflow.name}</span><Badge variant={workflow.status === "active" ? "default" : "muted"}>{workflow.status}</Badge></div>
