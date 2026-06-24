@@ -88,6 +88,26 @@ function defaultDashboardStorageKey(userId: string | undefined) {
   return `crm:default-dashboard:${userId ?? "anon"}`;
 }
 
+function resolveDashboardSelection(dashboards: DashboardSummary[], currentKey: string | null, savedDefault: string | null) {
+  const currentIsPermitted = currentKey
+    ? dashboards.some((dashboard) => dashboard.key === currentKey && dashboard.permitted)
+    : false;
+
+  if (currentIsPermitted) {
+    return currentKey;
+  }
+
+  const savedIsPermitted = savedDefault
+    ? dashboards.some((dashboard) => dashboard.key === savedDefault && dashboard.permitted)
+    : false;
+
+  if (savedIsPermitted) {
+    return savedDefault;
+  }
+
+  return dashboards.find((dashboard) => dashboard.permitted)?.key ?? null;
+}
+
 export function AnalyticsDashboardsPage() {
   const { accessToken, user } = useAuth();
   const [catalog, setCatalog] = useState<DashboardCatalogResponse | null>(null);
@@ -111,19 +131,9 @@ export function AnalyticsDashboardsPage() {
     try {
       const res = await apiRequest<DashboardCatalogResponse>("/dashboards", { method: "GET", accessToken });
       setCatalog(res);
-      // Resolve the landing dashboard: the user's saved default (if still
-      // permitted), otherwise the first dashboard relevant to their role.
       const savedDefault = typeof window !== "undefined" ? window.localStorage.getItem(defaultDashboardStorageKey(user?.id)) : null;
       setDefaultKey(savedDefault);
-      const savedIsPermitted = res.dashboards.some((d) => d.key === savedDefault && d.permitted);
-      const firstPermitted = res.dashboards.find((d) => d.permitted);
-      if (!selectedKey) {
-        if (savedIsPermitted && savedDefault) {
-          setSelectedKey(savedDefault);
-        } else if (firstPermitted) {
-          setSelectedKey(firstPermitted.key);
-        }
-      }
+      setSelectedKey((currentKey) => resolveDashboardSelection(res.dashboards, currentKey, savedDefault));
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -154,13 +164,25 @@ export function AnalyticsDashboardsPage() {
   }
 
   useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+    setCatalog(null);
+    setSelectedKey(null);
+    setData(null);
+    setViews([]);
+    setDrilldown(null);
     void loadCatalog();
-  }, [accessToken]);
+  }, [accessToken, user?.id]);
 
   useEffect(() => {
     if (selectedKey) {
       void loadDashboard(selectedKey);
+      return;
     }
+    setData(null);
+    setViews([]);
+    setDrilldown(null);
   }, [selectedKey]);
 
   async function openDrilldown(widget: DashboardWidgetData) {
