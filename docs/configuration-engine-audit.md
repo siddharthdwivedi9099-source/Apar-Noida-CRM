@@ -119,4 +119,17 @@ Ordered by impact. Each is an **additive** gap — the foundation exists; the wi
 
 ---
 
-*Next: see [crm-configuration-roadmap.md](./crm-configuration-roadmap.md) for the safe, phased plan to close these gaps.*
+## 8. Implementation update — configuration-versioning phase
+
+The following gaps from §5 have since been **substantially addressed** by an additive configuration engine (`apps/api/src/modules/configuration`, `packages/types/src/configuration.ts`, migration `…phase31_configuration_versioning.sql`) — see [configuration-engine.md](./configuration-engine.md):
+
+- **Gap #11 (versioning/publishing) → delivered.** `configuration_versions` table + draft/published/archived state machine, monotonic versions, publish gating, rollback (new draft from history), and audit (`event_type='configuration'`). One published version per tenant enforced by a partial unique index.
+- **Gap #12 (import/export) → delivered.** JSON snapshot export (with summary + validation), and import with `dryRun` validation, dependency errors, and staging-as-draft — the dev→staging→prod promotion path.
+- **Gap #13 (safety/validation) → delivered.** Pure `validateConfigurationSnapshot` (broken option-set refs, select-without-optionset, duplicate field keys, empty pipelines, multiple defaults, layout→unknown-field, masking sanity, schema-version guard). Publish is blocked on errors. 19 unit tests cover validation + versioning.
+- **Gap #3 (field attributes) → modelled.** A typed `CustomFieldSettings` contract (searchable, filterable, reportable, ai-usable, sensitive, masking, default value, help text, visibility/editability rules) stored in the existing `settings` JSONB — no destructive migration.
+
+**Still open** (see roadmap): applying a published snapshot back onto live tables (guarded writer), custom-field *values* on records, page-layout write/render, dashboards-as-data, BPF, approval matrix, notification templates, workflow auto-dispatch, and an extensible module/object registry.
+
+---
+
+*Next: see [crm-configuration-roadmap.md](./crm-configuration-roadmap.md) for the safe, phased plan to close these gaps, and [configuration-engine.md](./configuration-engine.md) for engine usage.*

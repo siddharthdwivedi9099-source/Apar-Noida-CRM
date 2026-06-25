@@ -4,6 +4,8 @@ A **safe, additive** plan to take the CRM from "configurable core + automations"
 
 ---
 
+> **Delivered since this roadmap was written (configuration-versioning phase):** the cross-cutting backbone — **configuration versioning/publishing/rollback (was a later concern), JSON import/export with dependency validation, and a pure validation/safety engine** — plus a typed **field-attributes contract**. See [configuration-engine.md](./configuration-engine.md). This *precedes* the per-entity work below because it makes every subsequent phase publishable, validatable, and reversible. Phases A–G remain as written; they now plug into the snapshot/version/validate foundation.
+
 ## Guiding principles
 
 1. **Additive only** — new tables and endpoints extend the existing `tenant-config` module; no destructive migrations, no table drops, no rewrites.
