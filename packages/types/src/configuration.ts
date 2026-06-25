@@ -371,3 +371,116 @@ export interface ConfigurationValidationResponse {
   validation: ConfigurationValidationResult;
   summary: ConfigurationSnapshotSummary;
 }
+
+// ---------------------------------------------------------------------------
+// Applying a published snapshot onto live configuration tables
+//
+// `planConfigurationApply` is a pure diff of a target snapshot against the
+// current live snapshot. It powers the dry-run preview and is unit-testable.
+// Apply is upsert-only: it never emits delete operations, so live config is
+// only ever created or updated, never removed.
+// ---------------------------------------------------------------------------
+
+export const configurationApplySections = [
+  "settings",
+  "theme",
+  "modules",
+  "terminology",
+  "optionSets",
+  "customFields"
+] as const;
+export type ConfigurationApplySection = (typeof configurationApplySections)[number];
+
+export type ConfigurationApplyAction = "create" | "update" | "noop";
+
+export interface ConfigurationApplyOperation {
+  section: ConfigurationApplySection;
+  key: string;
+  action: ConfigurationApplyAction;
+}
+
+export interface ConfigurationApplyPlan {
+  operations: ConfigurationApplyOperation[];
+  createCount: number;
+  updateCount: number;
+  noopCount: number;
+}
+
+function sameJson(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function diffAction(existing: unknown, next: unknown): ConfigurationApplyAction {
+  if (existing === undefined) {
+    return "create";
+  }
+  return sameJson(existing, next) ? "noop" : "update";
+}
+
+/** Pure, upsert-only diff of `target` against `current` (no deletes emitted). */
+export function planConfigurationApply(
+  current: ConfigurationSnapshot,
+  target: ConfigurationSnapshot
+): ConfigurationApplyPlan {
+  const operations: ConfigurationApplyOperation[] = [];
+
+  operations.push({ section: "settings", key: "settings", action: diffAction(current.settings, target.settings) });
+  operations.push({ section: "theme", key: "theme", action: diffAction(current.theme, target.theme) });
+
+  const currentModules = new Map((current.modules ?? []).map((module) => [module.moduleKey, module.enabled]));
+  for (const module of target.modules ?? []) {
+    operations.push({
+      section: "modules",
+      key: module.moduleKey,
+      action: diffAction(currentModules.get(module.moduleKey), module.enabled)
+    });
+  }
+
+  const currentTerminology = new Map((current.terminology ?? []).map((entry) => [entry.moduleKey, entry]));
+  for (const entry of target.terminology ?? []) {
+    operations.push({
+      section: "terminology",
+      key: entry.moduleKey,
+      action: diffAction(currentTerminology.get(entry.moduleKey), entry)
+    });
+  }
+
+  const currentSets = new Map((current.optionSets ?? []).map((set) => [set.setKey, set]));
+  for (const set of target.optionSets ?? []) {
+    const existing = currentSets.get(set.setKey);
+    operations.push({
+      section: "optionSets",
+      key: set.setKey,
+      action: existing === undefined ? "create" : sameJson(existing.values, set.values) && sameJson(existing.name, set.name) ? "noop" : "update"
+    });
+  }
+
+  const currentFields = new Map((current.customFields ?? []).map((field) => [`${field.entityKey}.${field.fieldKey}`, field]));
+  for (const field of target.customFields ?? []) {
+    const compositeKey = `${field.entityKey}.${field.fieldKey}`;
+    operations.push({
+      section: "customFields",
+      key: compositeKey,
+      action: diffAction(currentFields.get(compositeKey), field)
+    });
+  }
+
+  return {
+    operations,
+    createCount: operations.filter((operation) => operation.action === "create").length,
+    updateCount: operations.filter((operation) => operation.action === "update").length,
+    noopCount: operations.filter((operation) => operation.action === "noop").length
+  };
+}
+
+export interface ConfigurationApplyResult {
+  versionId: string;
+  versionNumber: number;
+  backupVersionId: string;
+  appliedAt: string;
+  plan: ConfigurationApplyPlan;
+}
+
+export interface ConfigurationApplyPlanResponse {
+  plan: ConfigurationApplyPlan;
+}

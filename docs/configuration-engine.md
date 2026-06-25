@@ -20,6 +20,8 @@ The configuration engine sits **on top of** the existing `tenant-config` surface
 | **Publish** a draft (validation-gated) | `POST /api/v1/configuration/versions/:id/publish` | `admin.configure` / `admin.approve` |
 | **Rollback** (new draft from a historical version) | `POST /api/v1/configuration/versions/:id/rollback` | `admin.configure` / `admin.approve` |
 | **Import** a snapshot (validate / dependency errors / stage) | `POST /api/v1/configuration/import` | `admin.edit` / `admin.configure` |
+| **Apply-plan** (dry-run preview of the upserts) | `GET /api/v1/configuration/versions/:id/apply-plan` | `admin.view` / `admin.configure` |
+| **Apply** a published version onto live config tables | `POST /api/v1/configuration/versions/:id/apply` | `admin.configure` / `admin.approve` |
 
 Everything is **tenant-scoped, soft-deletable, and audited** (events land in `audit_logs` with `event_type = 'configuration'`).
 
@@ -94,6 +96,21 @@ This is the **dev → staging → production promotion** path: export from one e
 
 ---
 
+## Applying a published version onto live config
+
+Publishing approves a snapshot; **applying** writes it onto the live config tables so it actually drives the app. `POST /configuration/versions/:id/apply`:
+
+1. **Gate** — the version must be `published`; its snapshot is re-validated and apply is **blocked on errors**.
+2. **Backup** — current live config is captured as a new **draft** (`"Pre-apply backup before applying v{n}"`) so you can roll back.
+3. **Apply (single transaction, upsert-only)** — settings, theme, modules, terminology (`system_settings`), then option sets/values, then custom fields. **Option sets are applied before custom fields** so option-set references resolve. Apply **never deletes** live config (create/update only); any failure rolls the whole apply back automatically.
+4. **Stamp + audit** — `applied_at`/`applied_by` are recorded and a `configuration.applied` audit event is written with per-section counts.
+
+Preview first with `GET /configuration/versions/:id/apply-plan` — a pure, upsert-only diff returning `{ operations[], createCount, updateCount, noopCount }`.
+
+> **Scope:** apply currently covers settings, theme, modules, terminology, option sets, and custom fields. **Form-layout application is deferred** (form layouts have no writer yet) and is the next sub-phase.
+
+---
+
 ## Configurable field attributes (Category 3)
 
 Richer field behaviour is a typed contract (`CustomFieldSettings`) stored inside the existing `custom_field_definitions.settings` JSONB — **no schema change required**. Set these via the existing `POST/PATCH /api/v1/tenant-config/custom-fields` `settings` object:
@@ -136,4 +153,4 @@ Each change can be **captured as a version, validated, published behind a safety
 
 ## What is intentionally still code (and why)
 
-Publishing records and gates the **approved snapshot**; **applying a published snapshot back onto live config tables** (a guarded writer with per-table diffs) is the next controlled step — see the roadmap. Page-layout authoring UI, data-driven dashboards, business-process flows, approval matrices, and notification templates remain on the roadmap; the engine's snapshot/version/validate/import foundation is designed for them to plug into.
+Applying a published snapshot onto live tables is **now implemented** (upsert-only, transactional, with a backup point) for settings, theme, modules, terminology, option sets, and custom fields. Still on the roadmap: **form-layout application** (needs a layout writer), **guarded orphan removal** (apply is deliberately upsert-only today), page-layout authoring UI, data-driven dashboards, business-process flows, approval matrices, and notification templates. The snapshot/version/validate/apply foundation is designed for them to plug into.

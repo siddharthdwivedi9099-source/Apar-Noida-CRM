@@ -128,7 +128,9 @@ The following gaps from §5 have since been **substantially addressed** by an ad
 - **Gap #13 (safety/validation) → delivered.** Pure `validateConfigurationSnapshot` (broken option-set refs, select-without-optionset, duplicate field keys, empty pipelines, multiple defaults, layout→unknown-field, masking sanity, schema-version guard). Publish is blocked on errors. 19 unit tests cover validation + versioning.
 - **Gap #3 (field attributes) → modelled.** A typed `CustomFieldSettings` contract (searchable, filterable, reportable, ai-usable, sensitive, masking, default value, help text, visibility/editability rules) stored in the existing `settings` JSONB — no destructive migration.
 
-**Still open** (see roadmap): applying a published snapshot back onto live tables (guarded writer), custom-field *values* on records, page-layout write/render, dashboards-as-data, BPF, approval matrix, notification templates, workflow auto-dispatch, and an extensible module/object registry.
+**Apply-to-live → delivered.** A published version can now be **applied onto live config tables** (`POST /configuration/versions/:id/apply`): published-only + validation-gated, captures a pre-apply backup draft, then upserts settings/theme/modules/terminology/option-sets/custom-fields in a **single transaction (upsert-only, no deletes)**, with `applied_at`/`applied_by` + a `configuration.applied` audit event. A dry-run `apply-plan` previews the upserts. 6 unit tests cover the pure diff.
+
+**Still open** (see roadmap): **form-layout application** (needs a layout writer) and **guarded orphan removal** (apply is upsert-only today); custom-field *values* on records, page-layout write/render, dashboards-as-data, BPF, approval matrix, notification templates, workflow auto-dispatch, and an extensible module/object registry.
 
 ---
 

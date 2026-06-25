@@ -117,6 +117,28 @@ export function createConfigurationRouter({ databaseService }: RouterDependencie
     })
   );
 
+  // Dry-run: preview the upsert plan if this version were applied.
+  router.get(
+    "/versions/:versionId/apply-plan",
+    requirePermissions({ oneOf: readPermissions }),
+    validateRequest({ params: versionIdParams }),
+    asyncHandler(async (request, response) => {
+      const plan = await service.getApplyPlan(request.auth!, request.params.versionId);
+      response.status(200).json({ plan });
+    })
+  );
+
+  // Apply a published version onto the live configuration tables.
+  router.post(
+    "/versions/:versionId/apply",
+    requirePermissions({ oneOf: publishPermissions }),
+    validateRequest({ params: versionIdParams }),
+    asyncHandler(async (request, response) => {
+      const result = await service.applyVersion(request.auth!, getAuditMetadata(request), request.params.versionId);
+      response.status(200).json(result);
+    })
+  );
+
   router.post(
     "/import",
     requirePermissions({ oneOf: writePermissions }),

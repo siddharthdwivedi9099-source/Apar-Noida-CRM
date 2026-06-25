@@ -4,7 +4,11 @@ A **safe, additive** plan to take the CRM from "configurable core + automations"
 
 ---
 
-> **Delivered since this roadmap was written (configuration-versioning phase):** the cross-cutting backbone — **configuration versioning/publishing/rollback (was a later concern), JSON import/export with dependency validation, and a pure validation/safety engine** — plus a typed **field-attributes contract**. See [configuration-engine.md](./configuration-engine.md). This *precedes* the per-entity work below because it makes every subsequent phase publishable, validatable, and reversible. Phases A–G remain as written; they now plug into the snapshot/version/validate foundation.
+> **Delivered since this roadmap was written:**
+> - *Configuration-versioning phase* — the cross-cutting backbone: versioning/publishing/rollback, JSON import/export with dependency validation, a pure validation/safety engine, and a typed field-attributes contract.
+> - *Apply-to-live phase* — publishing a version can now be **applied onto live config tables** (upsert-only, single transaction, validation-gated, with a pre-apply backup + audit), so configuration actually drives the app. **Still open here:** form-layout application and guarded orphan removal.
+>
+> See [configuration-engine.md](./configuration-engine.md). These precede the per-entity work below because they make every subsequent phase publishable, validatable, reversible, and live-applicable. Phases A–G remain as written; they now plug into the snapshot/version/validate/apply foundation.
 
 ## Guiding principles
 

@@ -1,8 +1,11 @@
 import {
   CONFIGURATION_SNAPSHOT_SCHEMA_VERSION,
   canTransitionConfigurationVersion,
+  planConfigurationApply,
   summarizeConfigurationSnapshot,
   validateConfigurationSnapshot,
+  type ConfigurationApplyPlan,
+  type ConfigurationApplyResult,
   type ConfigurationExportResponse,
   type ConfigurationSnapshot,
   type ConfigurationValidationResponse,
@@ -53,6 +56,14 @@ interface ConfigurationVersionRow {
   created_at: string;
   updated_at: string;
 }
+
+// Must match the keys used by TenantConfigService so applied config is read back correctly.
+const SETTING_KEYS = {
+  core: "tenant.settings",
+  theme: "tenant.theme",
+  modules: "tenant.modules",
+  terminology: "tenant.terminology"
+} as const;
 
 export class ConfigurationService {
   private readonly tenantConfig: TenantConfigService;
@@ -283,6 +294,241 @@ export class ConfigurationService {
       changeReason: body.changeReason?.trim() || "Imported configuration"
     });
     return { validation, version };
+  }
+
+  /** Dry-run: the upsert plan if this version were applied to live config now. */
+  async getApplyPlan(actor: ActorContext, versionId: string): Promise<ConfigurationApplyPlan> {
+    this.ensureEnabled();
+    const target = await this.getVersion(actor, versionId);
+    const current = await this.assembleSnapshot(actor);
+    return planConfigurationApply(current, target.snapshot);
+  }
+
+  /**
+   * Apply a published version onto the live configuration tables.
+   * Published-only + validation-gated. Captures a pre-apply backup draft for
+   * rollback, then applies all sections in a single transaction (upsert-only),
+   * so a failure rolls everything back automatically.
+   */
+  async applyVersion(actor: ActorContext, audit: AuditMetadata, versionId: string): Promise<ConfigurationApplyResult> {
+    this.ensureEnabled();
+
+    const target = await this.getVersion(actor, versionId);
+    if (target.status !== "published") {
+      throw new AppError(
+        409,
+        "Only a published configuration version can be applied to live tables.",
+        undefined,
+        "CONFIGURATION_NOT_PUBLISHED"
+      );
+    }
+
+    const validation = validateConfigurationSnapshot(target.snapshot);
+    if (!validation.valid) {
+      throw new AppError(
+        422,
+        "Configuration cannot be applied while it has validation errors.",
+        { issues: validation.issues },
+        "CONFIGURATION_INVALID"
+      );
+    }
+
+    // Capture current live config as a rollback point before mutating anything.
+    const currentSnapshot = await this.assembleSnapshot(actor);
+    const backup = await this.createDraft(actor, audit, {
+      snapshot: currentSnapshot,
+      changeReason: `Pre-apply backup before applying v${target.versionNumber}`
+    });
+    const plan = planConfigurationApply(currentSnapshot, target.snapshot);
+
+    const appliedAt = await this.databaseService.withTransaction(async (client) => {
+      await this.applySnapshotToLiveTables(client, actor, target.snapshot);
+      const stamp = await client.query<{ applied_at: Date }>(
+        `UPDATE configuration_versions
+           SET applied_at = NOW(), applied_by = $3, updated_by = $3, updated_at = NOW()
+         WHERE tenant_id = $1 AND id = $2
+         RETURNING applied_at`,
+        [actor.tenantId, versionId, actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, {
+        action: "configuration.applied",
+        resourceId: versionId,
+        status: "success",
+        metadata: {
+          versionNumber: target.versionNumber,
+          backupVersionId: backup.id,
+          createCount: plan.createCount,
+          updateCount: plan.updateCount
+        }
+      });
+      return new Date(stamp.rows[0].applied_at).toISOString();
+    });
+
+    return { versionId, versionNumber: target.versionNumber, backupVersionId: backup.id, appliedAt, plan };
+  }
+
+  /**
+   * Upsert every section of a snapshot onto live config tables within the
+   * caller's transaction. Upsert-only: never deletes. Option sets are applied
+   * before custom fields so option-set references resolve.
+   */
+  private async applySnapshotToLiveTables(client: PoolClient, actor: ActorContext, snapshot: ConfigurationSnapshot) {
+    await this.upsertSetting(client, actor, SETTING_KEYS.core, { ...snapshot.settings });
+    await this.upsertSetting(client, actor, SETTING_KEYS.theme, { ...snapshot.theme });
+
+    const moduleMap = Object.fromEntries(
+      (snapshot.modules ?? []).map((module) => [
+        module.moduleKey,
+        { enabled: module.locked ? true : module.enabled, locked: module.locked, label: module.label }
+      ])
+    );
+    await this.upsertSetting(client, actor, SETTING_KEYS.modules, moduleMap);
+
+    const terminologyMap = Object.fromEntries(
+      (snapshot.terminology ?? []).map((entry) => [
+        entry.moduleKey,
+        { singular: entry.singular, plural: entry.plural, description: entry.description }
+      ])
+    );
+    await this.upsertSetting(client, actor, SETTING_KEYS.terminology, terminologyMap);
+
+    for (const set of snapshot.optionSets ?? []) {
+      const optionSetId = await this.upsertOptionSet(client, actor, set);
+      for (const value of set.values ?? []) {
+        await this.upsertOptionValue(client, actor, optionSetId, value);
+      }
+    }
+
+    for (const field of snapshot.customFields ?? []) {
+      if (field.isSystemField) {
+        continue; // system fields are code-owned; never overwrite them
+      }
+      const optionSetId = field.optionSetKey
+        ? await this.resolveOptionSetId(client, actor.tenantId, field.optionSetKey)
+        : null;
+      await this.upsertCustomField(client, actor, field, optionSetId);
+    }
+  }
+
+  private async upsertSetting(
+    client: PoolClient,
+    actor: ActorContext,
+    settingKey: string,
+    settingValue: Record<string, unknown>
+  ) {
+    const updateResult = await client.query(
+      `UPDATE system_settings
+         SET setting_value = $3::jsonb, owner_id = COALESCE(owner_id, $2), deleted_at = NULL,
+             updated_at = NOW(), updated_by = $2,
+             metadata = system_settings.metadata || jsonb_build_object('appliedVia', 'configuration-apply')
+       WHERE tenant_id = $1 AND setting_key = $4`,
+      [actor.tenantId, actor.userId, JSON.stringify(settingValue), settingKey]
+    );
+    if (updateResult.rowCount === 0) {
+      await client.query(
+        `INSERT INTO system_settings (tenant_id, setting_key, setting_value, owner_id, created_by, updated_by, metadata)
+         VALUES ($1, $2, $3::jsonb, $4, $4, $4, jsonb_build_object('appliedVia', 'configuration-apply'))`,
+        [actor.tenantId, settingKey, JSON.stringify(settingValue), actor.userId]
+      );
+    }
+  }
+
+  private async upsertOptionSet(
+    client: PoolClient,
+    actor: ActorContext,
+    set: ConfigurationSnapshot["optionSets"][number]
+  ): Promise<string> {
+    const result = await client.query<{ id: string }>(
+      `INSERT INTO tenant_option_sets
+         (tenant_id, set_key, module_key, kind, name, description, is_system_set, is_active, owner_id, created_by, updated_by, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $8, $8, jsonb_build_object('appliedVia', 'configuration-apply'))
+       ON CONFLICT (tenant_id, set_key) DO UPDATE SET
+         module_key = EXCLUDED.module_key, kind = EXCLUDED.kind, name = EXCLUDED.name,
+         description = EXCLUDED.description, is_active = true, deleted_at = NULL,
+         updated_at = NOW(), updated_by = $8,
+         metadata = tenant_option_sets.metadata || EXCLUDED.metadata
+       RETURNING id`,
+      [actor.tenantId, set.setKey, set.moduleKey ?? null, set.kind, set.name, set.description ?? null, set.isSystemSet, actor.userId]
+    );
+    const id = result.rows[0]?.id;
+    if (!id) {
+      throw new AppError(500, "Option set could not be applied.", undefined, "OPTION_SET_ERROR");
+    }
+    return id;
+  }
+
+  private async upsertOptionValue(
+    client: PoolClient,
+    actor: ActorContext,
+    optionSetId: string,
+    value: ConfigurationSnapshot["optionSets"][number]["values"][number]
+  ) {
+    await client.query(
+      `INSERT INTO tenant_option_values
+         (tenant_id, option_set_id, value_key, label, description, color, sort_order, is_default, is_active, owner_id, created_by, updated_by, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, true), $10, $10, $10, '{}'::jsonb)
+       ON CONFLICT (tenant_id, option_set_id, value_key) DO UPDATE SET
+         label = EXCLUDED.label, description = EXCLUDED.description, color = EXCLUDED.color,
+         sort_order = EXCLUDED.sort_order, is_default = EXCLUDED.is_default, is_active = EXCLUDED.is_active,
+         deleted_at = NULL, updated_at = NOW(), updated_by = $10`,
+      [
+        actor.tenantId,
+        optionSetId,
+        value.key,
+        value.label,
+        value.description ?? null,
+        value.color ?? null,
+        value.sortOrder ?? 0,
+        value.isDefault ?? false,
+        value.isActive ?? true,
+        actor.userId
+      ]
+    );
+  }
+
+  private async upsertCustomField(
+    client: PoolClient,
+    actor: ActorContext,
+    field: ConfigurationSnapshot["customFields"][number],
+    optionSetId: string | null
+  ) {
+    await client.query(
+      `INSERT INTO custom_field_definitions
+         (tenant_id, module_key, entity_key, field_key, label, description, data_type, placeholder, option_set_id,
+          is_required, is_active, is_system_field, sort_order, settings, owner_id, created_by, updated_by, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, $12, $13::jsonb, $14, $14, $14,
+               jsonb_build_object('appliedVia', 'configuration-apply'))
+       ON CONFLICT (tenant_id, entity_key, field_key) DO UPDATE SET
+         module_key = EXCLUDED.module_key, label = EXCLUDED.label, description = EXCLUDED.description,
+         data_type = EXCLUDED.data_type, placeholder = EXCLUDED.placeholder, option_set_id = EXCLUDED.option_set_id,
+         is_required = EXCLUDED.is_required, is_active = EXCLUDED.is_active, sort_order = EXCLUDED.sort_order,
+         settings = EXCLUDED.settings, deleted_at = NULL, updated_at = NOW(), updated_by = $14,
+         metadata = custom_field_definitions.metadata || EXCLUDED.metadata`,
+      [
+        actor.tenantId,
+        field.moduleKey,
+        field.entityKey,
+        field.fieldKey,
+        field.label,
+        field.description ?? null,
+        field.dataType,
+        field.placeholder ?? null,
+        optionSetId,
+        field.isRequired,
+        field.isActive,
+        field.sortOrder,
+        JSON.stringify(field.settings ?? {}),
+        actor.userId
+      ]
+    );
+  }
+
+  private async resolveOptionSetId(client: PoolClient, tenantId: string, setKey: string): Promise<string | null> {
+    const result = await client.query<{ id: string }>(
+      `SELECT id FROM tenant_option_sets WHERE tenant_id = $1 AND set_key = $2 AND deleted_at IS NULL LIMIT 1`,
+      [tenantId, setKey]
+    );
+    return result.rows[0]?.id ?? null;
   }
 
   private async nextVersionNumber(client: PoolClient, tenantId: string): Promise<number> {
