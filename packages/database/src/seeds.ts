@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
   defaultCustomFormLayoutDefinitions,
+  defaultCoreCrmConfigurationDefinitions,
+  defaultCoreCrmStandardPicklistDefinitions,
   defaultPermissionCatalog,
   defaultRoleTemplateDefinitions,
   defaultTenantCoreSettings,
@@ -8,6 +10,7 @@ import {
   defaultTenantTerminologyEntries,
   defaultTenantThemeSettings,
   tenantModuleDefinitions,
+  type ConfigurationDefinition,
   type CustomFormLayoutSeedDefinition,
   type RoleTemplateDefinition,
   type TenantOptionSetSeedDefinition
@@ -47,6 +50,8 @@ function createSeedChecksum(options: CoreSeedOptions) {
         tenantModuleDefinitions,
         tenantTerminology: defaultTenantTerminologyEntries,
         tenantOptionSets: defaultTenantOptionSetDefinitions,
+        coreCrmStandardPicklists: defaultCoreCrmStandardPicklistDefinitions,
+        coreCrmConfigurationDefinitions: defaultCoreCrmConfigurationDefinitions,
         customFormLayouts: defaultCustomFormLayoutDefinitions
       })
     )
@@ -749,6 +754,65 @@ async function upsertCustomFormLayout(
   }
 }
 
+async function upsertConfigurationDefinition(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    definition: ConfigurationDefinition;
+  }
+) {
+  const { tenantId, actorUserId, definition } = input;
+  await client.query(
+    `
+      INSERT INTO configuration_definitions (
+        tenant_id,
+        definition_type,
+        definition_key,
+        name,
+        description,
+        definition,
+        is_active,
+        created_by,
+        updated_by,
+        metadata
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6::jsonb,
+        $7,
+        $8,
+        $8,
+        jsonb_build_object('seeded', true, 'phase', 'phase-34-core-crm-metadata')
+      )
+      ON CONFLICT (tenant_id, definition_type, definition_key)
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        definition = EXCLUDED.definition,
+        is_active = EXCLUDED.is_active,
+        deleted_at = NULL,
+        updated_at = NOW(),
+        updated_by = $8,
+        metadata = configuration_definitions.metadata || EXCLUDED.metadata
+    `,
+    [
+      tenantId,
+      definition.definitionType,
+      definition.definitionKey,
+      definition.name,
+      definition.description,
+      JSON.stringify(definition.definition),
+      definition.isActive,
+      actorUserId
+    ]
+  );
+}
+
 async function ensureSeedRunsRecord(client: PoolClient, checksum: string) {
   await client.query(
     `
@@ -978,11 +1042,27 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       });
     }
 
+    for (const optionSet of defaultCoreCrmStandardPicklistDefinitions) {
+      await upsertTenantOptionSet(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition: optionSet
+      });
+    }
+
     for (const layoutDefinition of defaultCustomFormLayoutDefinitions) {
       await upsertCustomFormLayout(client, {
         tenantId,
         actorUserId: adminUserId,
         definition: layoutDefinition
+      });
+    }
+
+    for (const definition of defaultCoreCrmConfigurationDefinitions) {
+      await upsertConfigurationDefinition(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition
       });
     }
 
@@ -996,7 +1076,9 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
         adminEmail: normalizedEmail,
         rbacTemplateCount: DEFAULT_ROLE_TEMPLATES.length,
         optionSetCount: defaultTenantOptionSetDefinitions.length,
-        formLayoutCount: defaultCustomFormLayoutDefinitions.length
+        coreCrmStandardPicklistCount: defaultCoreCrmStandardPicklistDefinitions.length,
+        formLayoutCount: defaultCustomFormLayoutDefinitions.length,
+        coreCrmConfigurationDefinitionCount: defaultCoreCrmConfigurationDefinitions.length
       },
       description: "Bootstrap metadata for the default development tenant.",
       metadata: {

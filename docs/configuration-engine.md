@@ -52,6 +52,8 @@ A snapshot is the unit of export, import, and every saved version. It carries a 
 
 `definitions` is the generic registry for newer CRM configuration objects such as module metadata, objects, page layouts, business-process flows, approval matrices, notification rules, and dashboard compositions. These rows can be managed directly through `/configuration/definitions/*`, and they are also versioned, validated, published, imported/exported, and applied like the rest of the snapshot. Runtime execution/rendering for those newer types is intentionally layered on top in later phases.
 
+The core CRM metadata seed registers the baseline CRM module/object catalog through this same registry: module metadata, object labels, ownership models, key fields, relationships, activity/audit/reporting flags, and basic list/detail/create-edit view metadata. It also adds standard picklists through `tenant_option_sets`. This remains metadata-only; business workflow execution and dynamic UI rendering are later phases.
+
 ---
 
 ## Versioning, publishing & rollback (Category 11)

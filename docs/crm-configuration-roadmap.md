@@ -8,6 +8,7 @@ A **safe, additive** plan to take the CRM from "configurable core + automations"
 > - *Configuration-versioning phase* — the cross-cutting backbone: versioning/publishing/rollback, JSON import/export with dependency validation, a pure validation/safety engine, and a typed field-attributes contract.
 > - *Apply-to-live phase* — publishing a version can now be **applied onto live config tables** (upsert-only, single transaction, validation-gated, with a pre-apply backup + audit), so configuration actually drives the app. **Still open here:** form-layout application and guarded orphan removal.
 > - *Configuration-definitions phase* — a generic `configuration_definitions` registry now makes module metadata, objects, page layouts, business-process flows, approval matrices, notification rules, and dashboard compositions versioned, validated, published, and applied as governed configuration. Runtime rendering/execution remains intentionally layered on top in later phases.
+> - *Core CRM metadata phase* — the requested CRM modules, core objects, relationships, flags, baseline views/forms, and standard picklists are seeded as configuration metadata rather than hard-coded UI/business logic.
 >
 > See [configuration-engine.md](./configuration-engine.md). These precede the per-entity work below because they make every subsequent phase publishable, validatable, reversible, and live-applicable. Phases A–G remain as written; they now plug into the snapshot/version/validate/apply foundation.
 
