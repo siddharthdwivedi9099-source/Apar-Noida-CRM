@@ -61,6 +61,8 @@ services:
         value: true
       - key: RUN_SEED
         value: true
+      - key: RUN_EDUCATION_SEED
+        value: true
       - key: RUN_DEMO_SEED
         value: true
 

@@ -62,7 +62,9 @@ async function main() {
   assertIncludes(entrypoint, "RUN_MIGRATIONS", "API entrypoint");
   assertIncludes(entrypoint, "RUN_SEED", "API entrypoint");
   assertIncludes(entrypoint, "RUN_DEMO_SEED", "API entrypoint");
+  assertIncludes(entrypoint, "RUN_EDUCATION_SEED", "API entrypoint");
   assertIncludes(entrypoint, "node scripts/database.mjs migrate", "API entrypoint");
+  assertIncludes(entrypoint, "node scripts/seed-education.mjs", "API entrypoint");
   assertIncludes(entrypoint, "node scripts/seed-demo-users.mjs", "API entrypoint");
   assertIncludes(entrypoint, "exec node apps/api/dist/server.js", "API entrypoint");
 
