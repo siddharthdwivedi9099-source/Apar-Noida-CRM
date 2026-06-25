@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  defaultBpfConfigurationDefinitions,
   defaultCustomFormLayoutDefinitions,
   defaultCoreCrmConfigurationDefinitions,
   defaultCoreCrmStandardPicklistDefinitions,
@@ -1086,6 +1087,14 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       });
     }
 
+    for (const definition of defaultBpfConfigurationDefinitions) {
+      await upsertConfigurationDefinition(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition
+      });
+    }
+
     await upsertTenantSystemSetting(client, {
       tenantId,
       actorUserId: adminUserId,
@@ -1099,7 +1108,8 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
         coreCrmStandardPicklistCount: defaultCoreCrmStandardPicklistDefinitions.length,
         formLayoutCount: defaultCustomFormLayoutDefinitions.length,
         coreCrmConfigurationDefinitionCount: defaultCoreCrmConfigurationDefinitions.length,
-        personaAccessConfigurationDefinitionCount: defaultPersonaAccessConfigurationDefinitions.length
+        personaAccessConfigurationDefinitionCount: defaultPersonaAccessConfigurationDefinitions.length,
+        bpfConfigurationDefinitionCount: defaultBpfConfigurationDefinitions.length
       },
       description: "Bootstrap metadata for the default development tenant.",
       metadata: {

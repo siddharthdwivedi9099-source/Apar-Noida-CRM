@@ -82,17 +82,45 @@ export interface PageLayoutDefinitionPayload {
 export interface BpfStage {
   key: string;
   order: number;
+  label?: string;
+  /** Marks the single entry stage of the flow. */
+  isEntry?: boolean;
+  /** Closed/terminal stage — records here are locked unless overridden. */
+  isTerminal?: boolean;
   requiredFields?: string[];
   entryCriteria?: string[];
   exitCriteria?: string[];
+  /** SLA + aging, all in hours; runtime computes warnings/breaches/aging. */
   slaHours?: number;
+  slaWarningHours?: number;
+  agingThresholdHours?: number;
+  requiresApprovalToEnter?: boolean;
+  /** Keys referencing notification_rule / approval_matrix definitions, etc. */
+  notifications?: string[];
+  tasks?: string[];
+  approvals?: string[];
+  aiTriggers?: string[];
   automations?: string[];
+}
+
+export interface BpfTransition {
+  from: string;
+  to: string;
 }
 
 export interface BusinessProcessFlowPayload {
   object: string;
   stages: BpfStage[];
-  transitions?: Array<{ from: string; to: string }>;
+  /** Allow-list of permitted transitions. */
+  transitions?: BpfTransition[];
+  /** Explicitly blocked transitions (override / documentation of denials). */
+  blockedTransitions?: BpfTransition[];
+  /** When true, any transition not in `transitions` is denied (default-deny). */
+  defaultDenyTransitions?: boolean;
+  auditStageChanges?: boolean;
+  allowBackwardMovement?: boolean;
+  backwardMovementRequiresReason?: boolean;
+  managerOverrideAllowed?: boolean;
 }
 
 export interface ApprovalMatrixPayload {
@@ -314,6 +342,41 @@ export function validateConfigurationDefinition(def: ConfigurationDefinition): C
             path,
             `BPF "${def.definitionKey}" has a transition referencing an unknown stage (${String(from)} -> ${String(to)}).`
           );
+        }
+      }
+
+      // Unique stage keys.
+      if (new Set(typedStages.map((stage) => stage.key)).size !== typedStages.length) {
+        pushIssue(issues, "BPF_DUPLICATE_STAGE_KEY", "error", path, `BPF "${def.definitionKey}" has duplicate stage keys.`);
+      }
+      // At most one entry stage.
+      if (typedStages.filter((stage) => stage.isEntry === true).length > 1) {
+        pushIssue(issues, "BPF_MULTIPLE_ENTRY_STAGES", "error", path, `BPF "${def.definitionKey}" defines more than one entry stage.`);
+      }
+      // Per-stage: terminal stages cannot have outgoing transitions; SLA/aging non-negative.
+      const allowedTransitions = (Array.isArray(transitions) ? transitions : []).filter(isRecord);
+      for (const stage of typedStages) {
+        if (stage.isTerminal === true && allowedTransitions.some((entry) => entry.from === stage.key)) {
+          pushIssue(issues, "BPF_TERMINAL_STAGE_HAS_TRANSITION", "error", path, `BPF "${def.definitionKey}" terminal stage "${stage.key}" must not have outgoing transitions.`);
+        }
+        if (typeof stage.slaHours === "number" && stage.slaHours < 0) {
+          pushIssue(issues, "BPF_NEGATIVE_SLA", "error", path, `BPF "${def.definitionKey}" stage "${stage.key}" has a negative SLA.`);
+        }
+        if (typeof stage.agingThresholdHours === "number" && stage.agingThresholdHours < 0) {
+          pushIssue(issues, "BPF_NEGATIVE_AGING", "error", path, `BPF "${def.definitionKey}" stage "${stage.key}" has a negative aging threshold.`);
+        }
+      }
+      // Blocked transitions must reference known stages.
+      const blockedTransitions = def.definition.blockedTransitions;
+      for (const transition of Array.isArray(blockedTransitions) ? blockedTransitions : []) {
+        if (
+          !isRecord(transition) ||
+          typeof transition.from !== "string" ||
+          typeof transition.to !== "string" ||
+          !stageKeys.has(transition.from) ||
+          !stageKeys.has(transition.to)
+        ) {
+          pushIssue(issues, "BPF_INVALID_BLOCKED_TRANSITION", "error", path, `BPF "${def.definitionKey}" has a blockedTransition referencing an unknown stage.`);
         }
       }
     }
