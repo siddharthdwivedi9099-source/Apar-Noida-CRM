@@ -5,6 +5,7 @@ import {
   defaultTenantThemeSettings,
   normalizeCustomFieldSettings,
   validateConfigurationSnapshot,
+  type ConfigurationDefinition,
   type ConfigurationSnapshot,
   type CustomFieldDefinition,
   type CustomFormLayoutDefinition,
@@ -71,6 +72,28 @@ function layout(overrides: Partial<CustomFormLayoutDefinition> = {}): CustomForm
     metadata: {},
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides
+  };
+}
+
+function definition(overrides: Partial<ConfigurationDefinition> = {}): ConfigurationDefinition {
+  return {
+    definitionType: "object",
+    definitionKey: "lead",
+    name: "Lead",
+    description: null,
+    isActive: true,
+    definition: {
+      objectCode: "lead",
+      singularLabel: "Lead",
+      pluralLabel: "Leads",
+      module: "leads",
+      ownershipModel: "user",
+      auditEnabled: true,
+      activityTimelineEnabled: true,
+      softDeleteEnabled: true,
+      importExportEnabled: true
+    },
     ...overrides
   };
 }
@@ -178,6 +201,77 @@ describe("configuration validation", () => {
     const result = validateConfigurationSnapshot(snapshot({ schemaVersion: CONFIGURATION_SNAPSHOT_SCHEMA_VERSION + 1 }));
     expect(result.valid).toBe(false);
     expect(result.issues.some((i) => i.code === "UNSUPPORTED_SCHEMA_VERSION")).toBe(true);
+  });
+
+  it("accepts valid object and dashboard configuration definitions", () => {
+    const result = validateConfigurationSnapshot(
+      snapshot({
+        definitions: [
+          definition(),
+          definition({
+            definitionType: "dashboard",
+            definitionKey: "sales-manager",
+            name: "Sales Manager Dashboard",
+            definition: {
+              dashboardKey: "sales-manager",
+              role: "sales_manager",
+              widgets: [{ key: "pipeline", label: "Pipeline", metricKey: "pipeline_value" }]
+            }
+          })
+        ]
+      })
+    );
+    expect(result.valid).toBe(true);
+  });
+
+  it("blocks duplicate and incomplete configuration definitions", () => {
+    const result = validateConfigurationSnapshot(
+      snapshot({
+        definitions: [
+          definition(),
+          definition({ name: "Duplicate Lead" }),
+          definition({ definitionKey: "account", name: "Account", definition: { objectCode: "account" } })
+        ]
+      })
+    );
+    expect(result.valid).toBe(false);
+    expect(result.issues.some((i) => i.code === "DUPLICATE_DEFINITION_KEY")).toBe(true);
+    expect(result.issues.some((i) => i.code === "DEFINITION_MISSING_FIELD")).toBe(true);
+  });
+
+  it("blocks invalid business process transitions and notification enums", () => {
+    const result = validateConfigurationSnapshot(
+      snapshot({
+        definitions: [
+          definition({
+            definitionType: "business_process_flow",
+            definitionKey: "lead-lifecycle",
+            name: "Lead Lifecycle",
+            definition: {
+              object: "lead",
+              stages: [{ key: "new", order: 1 }],
+              transitions: [{ from: "new", to: "qualified" }]
+            }
+          }),
+          definition({
+            definitionType: "notification_rule",
+            definitionKey: "lead-created",
+            name: "Lead Created",
+            definition: {
+              event: "lead.created",
+              audience: "owner",
+              channel: "fax",
+              template: "lead-created",
+              frequency: "instant"
+            }
+          })
+        ]
+      })
+    );
+    expect(result.valid).toBe(false);
+    expect(result.issues.some((i) => i.code === "BPF_INVALID_TRANSITION")).toBe(true);
+    expect(result.issues.some((i) => i.code === "NOTIFICATION_INVALID_CHANNEL")).toBe(true);
+    expect(result.issues.some((i) => i.code === "NOTIFICATION_INVALID_FREQUENCY")).toBe(true);
   });
 });
 

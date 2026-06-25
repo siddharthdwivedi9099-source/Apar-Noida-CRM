@@ -4,6 +4,7 @@ import {
   defaultTenantCoreSettings,
   defaultTenantThemeSettings,
   planConfigurationApply,
+  type ConfigurationDefinition,
   type ConfigurationSnapshot,
   type CustomFieldDefinition,
   type TenantOptionSet
@@ -54,6 +55,21 @@ function customField(overrides: Partial<CustomFieldDefinition> = {}): CustomFiel
   };
 }
 
+function definition(overrides: Partial<ConfigurationDefinition> = {}): ConfigurationDefinition {
+  return {
+    definitionType: "dashboard",
+    definitionKey: "sales-manager",
+    name: "Sales Manager Dashboard",
+    description: null,
+    isActive: true,
+    definition: {
+      dashboardKey: "sales-manager",
+      widgets: [{ key: "pipeline", label: "Pipeline", metricKey: "pipeline_value" }]
+    },
+    ...overrides
+  };
+}
+
 function snapshot(overrides: Partial<ConfigurationSnapshot> = {}): ConfigurationSnapshot {
   return {
     schemaVersion: CONFIGURATION_SNAPSHOT_SCHEMA_VERSION,
@@ -64,6 +80,7 @@ function snapshot(overrides: Partial<ConfigurationSnapshot> = {}): Configuration
     optionSets: [optionSet()],
     customFields: [customField()],
     formLayouts: [],
+    definitions: [],
     ...overrides
   };
 }
@@ -117,5 +134,26 @@ describe("planConfigurationApply (upsert-only diff)", () => {
       modules: [{ moduleKey: "leads", label: "Leads", description: "", defaultEnabled: true, locked: false, enabled: false }]
     });
     expect(planConfigurationApply(current, target).operations.find((o) => o.section === "modules")?.action).toBe("update");
+  });
+
+  it("diffs configuration definitions by type and key", () => {
+    const current = snapshot({ definitions: [definition()] });
+    const createTarget = snapshot({
+      definitions: [
+        definition(),
+        definition({
+          definitionType: "business_process_flow",
+          definitionKey: "lead-lifecycle",
+          name: "Lead Lifecycle",
+          definition: { object: "lead", stages: [{ key: "new", order: 1 }] }
+        })
+      ]
+    });
+    const updateTarget = snapshot({
+      definitions: [definition({ name: "Sales Leader Dashboard" })]
+    });
+
+    expect(planConfigurationApply(current, createTarget).operations.find((o) => o.key === "business_process_flow:lead-lifecycle")?.action).toBe("create");
+    expect(planConfigurationApply(current, updateTarget).operations.find((o) => o.key === "dashboard:sales-manager")?.action).toBe("update");
   });
 });

@@ -1,11 +1,18 @@
 import {
   CONFIGURATION_SNAPSHOT_SCHEMA_VERSION,
   canTransitionConfigurationVersion,
+  configurationDefinitionTypes,
   planConfigurationApply,
   summarizeConfigurationSnapshot,
+  validateConfigurationDefinition,
   validateConfigurationSnapshot,
   type ConfigurationApplyPlan,
   type ConfigurationApplyResult,
+  type ConfigurationDefinition,
+  type ConfigurationDefinitionRecord,
+  type ConfigurationDefinitionType,
+  type ConfigurationDefinitionResponse,
+  type ConfigurationDefinitionsResponse,
   type ConfigurationExportResponse,
   type ConfigurationSnapshot,
   type ConfigurationValidationResponse,
@@ -14,7 +21,8 @@ import {
   type ConfigurationVersionSummary,
   type ImportConfigurationRequestBody,
   type RoleSummary,
-  type SaveConfigurationDraftRequestBody
+  type SaveConfigurationDraftRequestBody,
+  type UpsertConfigurationDefinitionRequestBody
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
@@ -57,6 +65,19 @@ interface ConfigurationVersionRow {
   updated_at: string;
 }
 
+interface ConfigurationDefinitionRow {
+  id: string;
+  tenant_id: string;
+  definition_type: string;
+  definition_key: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  definition: Record<string, unknown> | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
 // Must match the keys used by TenantConfigService so applied config is read back correctly.
 const SETTING_KEYS = {
   core: "tenant.settings",
@@ -64,6 +85,14 @@ const SETTING_KEYS = {
   modules: "tenant.modules",
   terminology: "tenant.terminology"
 } as const;
+
+function isConfigurationDefinitionType(value: string): value is ConfigurationDefinitionType {
+  return (configurationDefinitionTypes as readonly string[]).includes(value);
+}
+
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : value;
+}
 
 export class ConfigurationService {
   private readonly tenantConfig: TenantConfigService;
@@ -88,14 +117,15 @@ export class ConfigurationService {
 
   /** Assemble the live tenant configuration into a portable snapshot. */
   async assembleSnapshot(actor: ActorContext): Promise<ConfigurationSnapshot> {
-    const [core, theme, modules, terminology, optionSets, customFields, formLayouts] = await Promise.all([
+    const [core, theme, modules, terminology, optionSets, customFields, formLayouts, definitions] = await Promise.all([
       this.tenantConfig.getCoreSettings(actor),
       this.tenantConfig.getTheme(actor),
       this.tenantConfig.getModules(actor),
       this.tenantConfig.getTerminology(actor),
       this.tenantConfig.listOptionSets(actor),
       this.tenantConfig.listCustomFields(actor, {}),
-      this.tenantConfig.listFormLayouts(actor)
+      this.tenantConfig.listFormLayouts(actor),
+      this.listConfigurationDefinitions(actor)
     ]);
 
     return {
@@ -107,7 +137,8 @@ export class ConfigurationService {
       terminology: terminology.terminology,
       optionSets: optionSets.optionSets,
       customFields: customFields.fields,
-      formLayouts: formLayouts.layouts
+      formLayouts: formLayouts.layouts,
+      definitions
     };
   }
 
@@ -128,6 +159,110 @@ export class ConfigurationService {
       validation: validateConfigurationSnapshot(snapshot),
       summary: summarizeConfigurationSnapshot(snapshot)
     };
+  }
+
+  async listDefinitions(
+    actor: ActorContext,
+    filter: { definitionType?: ConfigurationDefinitionType } = {}
+  ): Promise<ConfigurationDefinitionsResponse> {
+    this.ensureEnabled();
+    return this.databaseService.withClient(async (client) => ({
+      definitions: await this.loadConfigurationDefinitionRecords(client, actor.tenantId, filter.definitionType ?? null)
+    }));
+  }
+
+  async getDefinition(
+    actor: ActorContext,
+    definitionType: ConfigurationDefinitionType,
+    definitionKey: string
+  ): Promise<ConfigurationDefinitionResponse> {
+    this.ensureEnabled();
+    return this.databaseService.withClient(async (client) => ({
+      definition: await this.loadConfigurationDefinitionRecord(client, actor.tenantId, definitionType, definitionKey)
+    }));
+  }
+
+  async upsertDefinition(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    definitionType: ConfigurationDefinitionType,
+    definitionKey: string,
+    body: UpsertConfigurationDefinitionRequestBody
+  ): Promise<ConfigurationDefinitionResponse> {
+    this.ensureEnabled();
+    const candidate: ConfigurationDefinition = {
+      definitionType,
+      definitionKey,
+      name: body.name,
+      description: body.description ?? null,
+      isActive: body.isActive ?? true,
+      definition: body.definition
+    };
+    const issues = validateConfigurationDefinition(candidate);
+    const errors = issues.filter((issue) => issue.severity === "error");
+    if (errors.length > 0) {
+      throw new AppError(
+        422,
+        "Configuration definition has validation errors.",
+        { issues },
+        "CONFIGURATION_DEFINITION_INVALID"
+      );
+    }
+
+    return this.databaseService.withTransaction(async (client) => {
+      const definition = await this.upsertConfigurationDefinition(client, actor, candidate, "configuration-api");
+      await this.recordAuditLog(client, actor, audit, {
+        action: "configuration.definition_upserted",
+        resourceType: "configuration_definition",
+        resourceId: definition.id,
+        status: "success",
+        metadata: {
+          definitionType,
+          definitionKey,
+          warningCount: issues.length - errors.length
+        }
+      });
+      return { definition };
+    });
+  }
+
+  async deleteDefinition(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    definitionType: ConfigurationDefinitionType,
+    definitionKey: string
+  ): Promise<ConfigurationDefinitionResponse> {
+    this.ensureEnabled();
+    return this.databaseService.withTransaction(async (client) => {
+      const result = await client.query<ConfigurationDefinitionRow>(
+        `
+          UPDATE configuration_definitions
+          SET deleted_at = NOW(),
+              updated_at = NOW(),
+              updated_by = $4,
+              metadata = configuration_definitions.metadata || jsonb_build_object('deletedVia', 'configuration-api')
+          WHERE tenant_id = $1
+            AND definition_type = $2
+            AND definition_key = $3
+            AND deleted_at IS NULL
+          RETURNING id, tenant_id, definition_type, definition_key, name, description, is_active, definition, created_at, updated_at
+        `,
+        [actor.tenantId, definitionType, definitionKey, actor.userId]
+      );
+      const row = result.rows[0];
+      if (!row) {
+        throw new AppError(404, "Configuration definition not found.", undefined, "CONFIGURATION_DEFINITION_NOT_FOUND");
+      }
+      const definition = this.mapConfigurationDefinitionRecord(row);
+      await this.recordAuditLog(client, actor, audit, {
+        action: "configuration.definition_deleted",
+        resourceType: "configuration_definition",
+        resourceId: definition.id,
+        status: "success",
+        metadata: { definitionType, definitionKey }
+      });
+      return { definition };
+    });
   }
 
   async listVersions(actor: ActorContext): Promise<ConfigurationVersionSummary[]> {
@@ -408,6 +543,10 @@ export class ConfigurationService {
         : null;
       await this.upsertCustomField(client, actor, field, optionSetId);
     }
+
+    for (const definition of snapshot.definitions ?? []) {
+      await this.upsertConfigurationDefinition(client, actor, definition);
+    }
   }
 
   private async upsertSetting(
@@ -523,12 +662,112 @@ export class ConfigurationService {
     );
   }
 
+  private async upsertConfigurationDefinition(
+    client: PoolClient,
+    actor: ActorContext,
+    definition: ConfigurationDefinition,
+    source = "configuration-apply"
+  ): Promise<ConfigurationDefinitionRecord> {
+    const metadataKey = source === "configuration-apply" ? "appliedVia" : "updatedVia";
+    const result = await client.query<ConfigurationDefinitionRow>(
+      `INSERT INTO configuration_definitions
+         (tenant_id, definition_type, definition_key, name, description, definition, is_active, created_by, updated_by, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, COALESCE($7, true), $8, $8, jsonb_build_object($9::text, $10::text))
+       ON CONFLICT (tenant_id, definition_type, definition_key) DO UPDATE SET
+         name = EXCLUDED.name,
+         description = EXCLUDED.description,
+         definition = EXCLUDED.definition,
+         is_active = EXCLUDED.is_active,
+         deleted_at = NULL,
+         updated_at = NOW(),
+         updated_by = $8,
+         metadata = configuration_definitions.metadata || EXCLUDED.metadata
+       RETURNING id, tenant_id, definition_type, definition_key, name, description, is_active, definition, created_at, updated_at`,
+      [
+        actor.tenantId,
+        definition.definitionType,
+        definition.definitionKey,
+        definition.name,
+        definition.description ?? null,
+        JSON.stringify(definition.definition ?? {}),
+        definition.isActive ?? true,
+        actor.userId,
+        metadataKey,
+        source
+      ]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      throw new AppError(500, "Configuration definition could not be applied.", undefined, "CONFIGURATION_DEFINITION_ERROR");
+    }
+    return this.mapConfigurationDefinitionRecord(row);
+  }
+
   private async resolveOptionSetId(client: PoolClient, tenantId: string, setKey: string): Promise<string | null> {
     const result = await client.query<{ id: string }>(
       `SELECT id FROM tenant_option_sets WHERE tenant_id = $1 AND set_key = $2 AND deleted_at IS NULL LIMIT 1`,
       [tenantId, setKey]
     );
     return result.rows[0]?.id ?? null;
+  }
+
+  private async listConfigurationDefinitions(actor: ActorContext): Promise<ConfigurationDefinition[]> {
+    this.ensureEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const records = await this.loadConfigurationDefinitionRecords(client, actor.tenantId, null);
+      return records.map((record) => ({
+        definitionType: record.definitionType,
+        definitionKey: record.definitionKey,
+        name: record.name,
+        description: record.description,
+        isActive: record.isActive,
+        definition: record.definition
+      }));
+    });
+  }
+
+  private async loadConfigurationDefinitionRecords(
+    client: PoolClient,
+    tenantId: string,
+    definitionType: ConfigurationDefinitionType | null
+  ): Promise<ConfigurationDefinitionRecord[]> {
+    const result = await client.query<ConfigurationDefinitionRow>(
+      `
+        SELECT id, tenant_id, definition_type, definition_key, name, description, is_active, definition, created_at, updated_at
+        FROM configuration_definitions
+        WHERE tenant_id = $1
+          AND deleted_at IS NULL
+          AND ($2::text IS NULL OR definition_type = $2)
+        ORDER BY definition_type ASC, definition_key ASC
+      `,
+      [tenantId, definitionType]
+    );
+    return result.rows.map((row) => this.mapConfigurationDefinitionRecord(row));
+  }
+
+  private async loadConfigurationDefinitionRecord(
+    client: PoolClient,
+    tenantId: string,
+    definitionType: ConfigurationDefinitionType,
+    definitionKey: string
+  ): Promise<ConfigurationDefinitionRecord> {
+    const result = await client.query<ConfigurationDefinitionRow>(
+      `
+        SELECT id, tenant_id, definition_type, definition_key, name, description, is_active, definition, created_at, updated_at
+        FROM configuration_definitions
+        WHERE tenant_id = $1
+          AND definition_type = $2
+          AND definition_key = $3
+          AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [tenantId, definitionType, definitionKey]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      throw new AppError(404, "Configuration definition not found.", undefined, "CONFIGURATION_DEFINITION_NOT_FOUND");
+    }
+    return this.mapConfigurationDefinitionRecord(row);
   }
 
   private async nextVersionNumber(client: PoolClient, tenantId: string): Promise<number> {
@@ -588,12 +827,37 @@ export class ConfigurationService {
     };
   }
 
+  private mapConfigurationDefinitionRecord(row: ConfigurationDefinitionRow): ConfigurationDefinitionRecord {
+    if (!isConfigurationDefinitionType(row.definition_type)) {
+      throw new AppError(
+        500,
+        `Encountered unsupported configuration definition type "${row.definition_type}".`,
+        undefined,
+        "INVALID_CONFIG_DEFINITION"
+      );
+    }
+
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      definitionType: row.definition_type,
+      definitionKey: row.definition_key,
+      name: row.name,
+      description: row.description,
+      isActive: row.is_active,
+      definition: row.definition ?? {},
+      createdAt: toIsoString(row.created_at),
+      updatedAt: toIsoString(row.updated_at)
+    };
+  }
+
   private async recordAuditLog(
     client: PoolClient,
     actor: ActorContext,
     audit: AuditMetadata,
     input: {
       action: string;
+      resourceType?: string;
       resourceId?: string | null;
       status: "success" | "failure" | "denied" | "error";
       metadata?: Record<string, unknown>;
@@ -608,13 +872,14 @@ export class ConfigurationService {
           tenant_id, actor_user_id, session_id, event_type, action, resource_type,
           resource_id, status, ip_address, user_agent, request_id, metadata
         )
-        VALUES ($1, $2, $3, 'configuration', $4, 'configuration_version', $5, $6, NULLIF($7, '')::inet, $8, $9, $10::jsonb)
+        VALUES ($1, $2, $3, 'configuration', $4, $5, $6, $7, NULLIF($8, '')::inet, $9, $10, $11::jsonb)
       `,
       [
         actor.tenantId,
         actor.userId,
         actor.sessionId,
         input.action,
+        input.resourceType ?? "configuration_version",
         input.resourceId ?? null,
         input.status,
         audit.ipAddress ?? "",

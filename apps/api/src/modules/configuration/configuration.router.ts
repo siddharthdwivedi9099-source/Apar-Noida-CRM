@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { ImportConfigurationRequestBody, SaveConfigurationDraftRequestBody } from "@crm/types";
+import {
+  configurationDefinitionTypes,
+  type ConfigurationDefinitionType,
+  type ImportConfigurationRequestBody,
+  type SaveConfigurationDraftRequestBody,
+  type UpsertConfigurationDefinitionRequestBody
+} from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -17,6 +23,20 @@ interface RouterDependencies {
 
 const snapshotSchema = z.record(z.unknown());
 const versionIdParams = z.object({ versionId: z.string().uuid() });
+const definitionKeySchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9_.:-]+$/);
+const definitionParams = z.object({
+  definitionType: z.enum(configurationDefinitionTypes),
+  definitionKey: definitionKeySchema
+});
+const definitionsQuery = z.object({
+  definitionType: z.enum(configurationDefinitionTypes).optional()
+});
+const upsertDefinitionSchema = z.object({
+  name: z.string().min(1).max(160),
+  description: z.string().max(1000).nullable().optional(),
+  isActive: z.boolean().optional(),
+  definition: z.record(z.unknown())
+});
 const saveDraftSchema = z.object({
   changeReason: z.string().max(500).optional(),
   snapshot: snapshotSchema.optional()
@@ -63,6 +83,67 @@ export function createConfigurationRouter({ databaseService }: RouterDependencie
     requirePermissions({ oneOf: readPermissions }),
     asyncHandler(async (request, response) => {
       response.status(200).json(await service.validateCurrent(request.auth!));
+    })
+  );
+
+  router.get(
+    "/definitions",
+    requirePermissions({ oneOf: readPermissions }),
+    validateRequest({ query: definitionsQuery }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await service.listDefinitions(request.auth!, {
+          definitionType: request.query.definitionType as ConfigurationDefinitionType | undefined
+        })
+      );
+    })
+  );
+
+  router.get(
+    "/definitions/:definitionType/:definitionKey",
+    requirePermissions({ oneOf: readPermissions }),
+    validateRequest({ params: definitionParams }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await service.getDefinition(
+          request.auth!,
+          request.params.definitionType as ConfigurationDefinitionType,
+          request.params.definitionKey
+        )
+      );
+    })
+  );
+
+  router.put(
+    "/definitions/:definitionType/:definitionKey",
+    requirePermissions({ oneOf: writePermissions }),
+    validateRequest({ params: definitionParams, body: upsertDefinitionSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await service.upsertDefinition(
+          request.auth!,
+          getAuditMetadata(request),
+          request.params.definitionType as ConfigurationDefinitionType,
+          request.params.definitionKey,
+          request.body as UpsertConfigurationDefinitionRequestBody
+        )
+      );
+    })
+  );
+
+  router.delete(
+    "/definitions/:definitionType/:definitionKey",
+    requirePermissions({ oneOf: ["admin.delete", "admin.configure"] }),
+    validateRequest({ params: definitionParams }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await service.deleteDefinition(
+          request.auth!,
+          getAuditMetadata(request),
+          request.params.definitionType as ConfigurationDefinitionType,
+          request.params.definitionKey
+        )
+      );
     })
   );
 

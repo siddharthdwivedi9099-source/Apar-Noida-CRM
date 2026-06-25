@@ -14,6 +14,10 @@ The configuration engine sits **on top of** the existing `tenant-config` surface
 |------------|----------|------------|
 | **Export** current config as a portable JSON snapshot | `GET /api/v1/configuration/export` | `admin.view` / `admin.configure` |
 | **Validate** the live config (referential integrity + completeness) | `GET /api/v1/configuration/validate` | `admin.view` / `admin.configure` |
+| **List** governed configuration definitions | `GET /api/v1/configuration/definitions?definitionType=dashboard` | `admin.view` / `admin.configure` |
+| **Get** one configuration definition | `GET /api/v1/configuration/definitions/:type/:key` | `admin.view` / `admin.configure` |
+| **Upsert** one configuration definition | `PUT /api/v1/configuration/definitions/:type/:key` | `admin.edit` / `admin.configure` |
+| **Delete** one configuration definition | `DELETE /api/v1/configuration/definitions/:type/:key` | `admin.delete` / `admin.configure` |
 | **List** saved versions | `GET /api/v1/configuration/versions` | `admin.view` / `admin.configure` |
 | **Get** one version (with its full snapshot + issues) | `GET /api/v1/configuration/versions/:id` | `admin.view` / `admin.configure` |
 | **Save a draft** (from current config or a supplied snapshot) | `POST /api/v1/configuration/versions` | `admin.edit` / `admin.configure` |
@@ -41,9 +45,12 @@ A snapshot is the unit of export, import, and every saved version. It carries a 
   "terminology": [ /* TenantTerminologyEntry[] */ ],
   "optionSets":  [ /* TenantOptionSet[] (picklists/pipelines/stages) */ ],
   "customFields":[ /* CustomFieldDefinition[] */ ],
-  "formLayouts": [ /* CustomFormLayoutDefinition[] */ ]
+  "formLayouts": [ /* CustomFormLayoutDefinition[] */ ],
+  "definitions": [ /* ConfigurationDefinition[] */ ]
 }
 ```
+
+`definitions` is the generic registry for newer CRM configuration objects such as module metadata, objects, page layouts, business-process flows, approval matrices, notification rules, and dashboard compositions. These rows can be managed directly through `/configuration/definitions/*`, and they are also versioned, validated, published, imported/exported, and applied like the rest of the snapshot. Runtime execution/rendering for those newer types is intentionally layered on top in later phases.
 
 ---
 
@@ -79,6 +86,12 @@ draft ──► published ──► archived
 | `LAYOUT_UNKNOWN_FIELD` | error | A layout references a missing `custom.<field>` |
 | `MASKING_WITHOUT_SENSITIVE` | warning | Masking set on a non-sensitive field |
 | `UNKNOWN_TERMINOLOGY_MODULE` | warning | Terminology for a module not in the snapshot |
+| `DEFINITION_MISSING_FIELD` | error | A registry definition is missing required payload fields |
+| `DUPLICATE_DEFINITION_KEY` | error | Two registry definitions share the same type/key |
+| `BPF_INVALID_TRANSITION` | error | A business-process flow transition references an unknown stage |
+| `APPROVAL_INVALID_MODE` | error | An approval matrix uses an unsupported approval mode |
+| `NOTIFICATION_INVALID_CHANNEL` | error | A notification rule uses an unsupported channel |
+| `NOTIFICATION_INVALID_FREQUENCY` | error | A notification rule uses an unsupported frequency |
 | `UNSUPPORTED_SCHEMA_VERSION` | error | Imported snapshot newer than this build supports |
 
 **Publishing incomplete configuration is prevented** — errors block publish; warnings are surfaced but allowed.
@@ -102,12 +115,12 @@ Publishing approves a snapshot; **applying** writes it onto the live config tabl
 
 1. **Gate** — the version must be `published`; its snapshot is re-validated and apply is **blocked on errors**.
 2. **Backup** — current live config is captured as a new **draft** (`"Pre-apply backup before applying v{n}"`) so you can roll back.
-3. **Apply (single transaction, upsert-only)** — settings, theme, modules, terminology (`system_settings`), then option sets/values, then custom fields. **Option sets are applied before custom fields** so option-set references resolve. Apply **never deletes** live config (create/update only); any failure rolls the whole apply back automatically.
+3. **Apply (single transaction, upsert-only)** — settings, theme, modules, terminology (`system_settings`), then option sets/values, custom fields, and configuration definitions. **Option sets are applied before custom fields** so option-set references resolve. Apply **never deletes** live config (create/update only); any failure rolls the whole apply back automatically.
 4. **Stamp + audit** — `applied_at`/`applied_by` are recorded and a `configuration.applied` audit event is written with per-section counts.
 
 Preview first with `GET /configuration/versions/:id/apply-plan` — a pure, upsert-only diff returning `{ operations[], createCount, updateCount, noopCount }`.
 
-> **Scope:** apply currently covers settings, theme, modules, terminology, option sets, and custom fields. **Form-layout application is deferred** (form layouts have no writer yet) and is the next sub-phase.
+> **Scope:** apply currently covers settings, theme, modules, terminology, option sets, custom fields, and the generic configuration-definition registry. **Form-layout application is deferred** (form layouts have no writer yet), and runtime enforcement/rendering for the new definition types comes in later phases.
 
 ---
 
@@ -153,4 +166,4 @@ Each change can be **captured as a version, validated, published behind a safety
 
 ## What is intentionally still code (and why)
 
-Applying a published snapshot onto live tables is **now implemented** (upsert-only, transactional, with a backup point) for settings, theme, modules, terminology, option sets, and custom fields. Still on the roadmap: **form-layout application** (needs a layout writer), **guarded orphan removal** (apply is deliberately upsert-only today), page-layout authoring UI, data-driven dashboards, business-process flows, approval matrices, and notification templates. The snapshot/version/validate/apply foundation is designed for them to plug into.
+Applying a published snapshot onto live tables is **now implemented** (upsert-only, transactional, with a backup point) for settings, theme, modules, terminology, option sets, custom fields, and the generic configuration-definition registry. Still on the roadmap: **form-layout application** (needs a layout writer), **guarded orphan removal** (apply is deliberately upsert-only today), page-layout authoring UI/rendering, data-driven dashboard runtime, business-process flow enforcement, approval-matrix execution, and notification dispatch. The snapshot/version/validate/apply foundation is designed for them to plug into.

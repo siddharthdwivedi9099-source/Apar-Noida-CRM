@@ -5,6 +5,7 @@ export * from "./rbac.js";
 export * from "./crm.js";
 export * from "./tenant-config.js";
 export * from "./configuration.js";
+export * from "./configuration-definitions.js";
 export * from "./ai.js";
 export * from "./ai-registry.js";
 export * from "./ai-actions.js";

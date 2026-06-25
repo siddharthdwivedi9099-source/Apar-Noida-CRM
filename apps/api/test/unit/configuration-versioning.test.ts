@@ -52,11 +52,22 @@ describe("configuration snapshot summary", () => {
       terminology: [],
       optionSets: [],
       customFields: [],
-      formLayouts: []
+      formLayouts: [],
+      definitions: [
+        {
+          definitionType: "dashboard",
+          definitionKey: "sales-manager",
+          name: "Sales Manager Dashboard",
+          description: null,
+          isActive: true,
+          definition: { dashboardKey: "sales-manager", widgets: [] }
+        }
+      ]
     };
     const summary = summarizeConfigurationSnapshot(snapshot);
     expect(summary.moduleCount).toBe(2);
     expect(summary.enabledModuleCount).toBe(1);
     expect(summary.optionSetCount).toBe(0);
+    expect(summary.definitionCount).toBe(1);
   });
 });

@@ -7,6 +7,7 @@ import type {
   TenantTerminologyEntry,
   TenantThemeSettings
 } from "./tenant-config.js";
+import { validateConfigurationDefinitions, type ConfigurationDefinition } from "./configuration-definitions.js";
 
 // ---------------------------------------------------------------------------
 // Configuration snapshot
@@ -28,6 +29,7 @@ export interface ConfigurationSnapshot {
   optionSets: TenantOptionSet[];
   customFields: CustomFieldDefinition[];
   formLayouts: CustomFormLayoutDefinition[];
+  definitions?: ConfigurationDefinition[];
 }
 
 export interface ConfigurationSnapshotSummary {
@@ -36,6 +38,7 @@ export interface ConfigurationSnapshotSummary {
   optionSetCount: number;
   customFieldCount: number;
   formLayoutCount: number;
+  definitionCount: number;
 }
 
 export function summarizeConfigurationSnapshot(snapshot: ConfigurationSnapshot): ConfigurationSnapshotSummary {
@@ -45,7 +48,8 @@ export function summarizeConfigurationSnapshot(snapshot: ConfigurationSnapshot):
     enabledModuleCount: modules.filter((module) => module.enabled).length,
     optionSetCount: (snapshot.optionSets ?? []).length,
     customFieldCount: (snapshot.customFields ?? []).length,
-    formLayoutCount: (snapshot.formLayouts ?? []).length
+    formLayoutCount: (snapshot.formLayouts ?? []).length,
+    definitionCount: (snapshot.definitions ?? []).length
   };
 }
 
@@ -333,6 +337,10 @@ export function validateConfigurationSnapshot(snapshot: ConfigurationSnapshot): 
     }
   }
 
+  // Validate the configuration-definitions registry (objects, page layouts,
+  // BPFs, approval matrices, notification rules, dashboards, module metadata).
+  issues.push(...validateConfigurationDefinitions(snapshot.definitions ?? []));
+
   const errorCount = issues.filter((issue) => issue.severity === "error").length;
   const warningCount = issues.length - errorCount;
   return { valid: errorCount === 0, errorCount, warningCount, issues };
@@ -387,7 +395,8 @@ export const configurationApplySections = [
   "modules",
   "terminology",
   "optionSets",
-  "customFields"
+  "customFields",
+  "definitions"
 ] as const;
 export type ConfigurationApplySection = (typeof configurationApplySections)[number];
 
@@ -463,6 +472,12 @@ export function planConfigurationApply(
       key: compositeKey,
       action: diffAction(currentFields.get(compositeKey), field)
     });
+  }
+
+  const currentDefs = new Map((current.definitions ?? []).map((def) => [`${def.definitionType}:${def.definitionKey}`, def]));
+  for (const def of target.definitions ?? []) {
+    const defKey = `${def.definitionType}:${def.definitionKey}`;
+    operations.push({ section: "definitions", key: defKey, action: diffAction(currentDefs.get(defKey), def) });
   }
 
   return {
