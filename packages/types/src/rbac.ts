@@ -329,6 +329,21 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     }
   }),
   createRoleTemplateDefinition({
+    name: "Digital Marketing Executive",
+    description: "Runs digital campaign execution, lead-source tracking, and performance reporting.",
+    permissionCodes: unique([
+      ...permissionsForModules(["marketing", "campaigns", "leads"], contributorActions),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
+      ...dashboardViewerPermissions,
+      ...aiUserPermissions
+    ]),
+    metadata: {
+      department: "marketing",
+      persona: "digital-marketing-executive"
+    }
+  }),
+  createRoleTemplateDefinition({
     name: "Marketing Manager",
     description: "Owns marketing strategy, approvals, and operational configuration.",
     permissionCodes: unique([
@@ -341,6 +356,54 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     ]),
     metadata: {
       department: "marketing"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Campaign Manager",
+    description: "Owns campaign planning, publishing readiness, approvals, and campaign performance.",
+    permissionCodes: unique([
+      ...permissionsForModules(["campaigns", "marketing", "leads"], managerActions),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
+      ...dashboardViewerPermissions,
+      ...workflowManagerPermissions,
+      ...aiManagerPermissions
+    ]),
+    metadata: {
+      department: "marketing",
+      persona: "campaign-manager"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Marketing Operations / RevOps",
+    description: "Governs lifecycle metadata, routing rules, data quality, reporting, and revenue operations configuration.",
+    permissionCodes: unique([
+      ...permissionsForModules(["marketing", "campaigns", "leads", "workflows", "dashboards"], managerActions),
+      ...permissionsForModules(["admin"], ["view", "configure", "import", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
+      ...dashboardViewerPermissions,
+      ...workflowManagerPermissions,
+      ...aiManagerPermissions
+    ]),
+    metadata: {
+      department: "marketing-operations",
+      persona: "marketing-operations-revops"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Inside Sales Representative",
+    description: "Works assigned leads, contacts, and early sales opportunities.",
+    permissionCodes: unique([
+      ...permissionsForModules(["leads", "contacts", "opportunities", "sales"], contributorActions),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
+      ...dashboardViewerPermissions,
+      ...aiUserPermissions
+    ]),
+    metadata: {
+      department: "sales",
+      persona: "inside-sales-representative"
     }
   }),
   createRoleTemplateDefinition({
@@ -419,6 +482,22 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     }
   }),
   createRoleTemplateDefinition({
+    name: "Business Development Representative",
+    description: "Develops target-account pipeline across leads, accounts, contacts, and partner-sourced motions.",
+    permissionCodes: unique([
+      ...permissionsForModules(["business_development", "leads", "accounts", "contacts", "opportunities"], contributorActions),
+      ...permissionsForModules(["partners", "resellers"], ["view", "create", "edit", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
+      ...dashboardViewerPermissions,
+      ...aiUserPermissions
+    ]),
+    metadata: {
+      department: "sales",
+      persona: "business-development-representative"
+    }
+  }),
+  createRoleTemplateDefinition({
     name: "Business Development Manager",
     description: "Leads business development planning, approvals, partner-facing execution, and workflows.",
     permissionCodes: unique([
@@ -448,6 +527,39 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     ]),
     metadata: {
       department: "sales"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Account Executive / Sales Executive",
+    description: "Owns account opportunity execution, close plans, quotes, and revenue-facing customer activity.",
+    permissionCodes: unique([
+      ...permissionsForModules(["sales", "accounts", "contacts", "opportunities"], contributorActions),
+      ...permissionsForModules(["approvals"], ["view", "create", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
+      ...dashboardViewerPermissions,
+      ...aiUserPermissions
+    ]),
+    metadata: {
+      department: "sales",
+      persona: "account-executive-sales-executive"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Enterprise Sales / Strategic Sales",
+    description: "Owns strategic accounts, enterprise opportunities, complex deal collaboration, and executive reporting.",
+    permissionCodes: unique([
+      ...permissionsForModules(["sales", "accounts", "contacts", "opportunities", "presales"], managerActions),
+      ...permissionsForModules(["partners"], ["view", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
+      ...dashboardViewerPermissions,
+      ...workflowManagerPermissions,
+      ...aiManagerPermissions
+    ]),
+    metadata: {
+      department: "sales",
+      persona: "enterprise-sales-strategic-sales"
     }
   }),
   createRoleTemplateDefinition({
@@ -482,6 +594,23 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     }
   }),
   createRoleTemplateDefinition({
+    name: "Sales Head / Revenue Leader",
+    description: "Governs revenue performance, forecasts, approvals, executive drilldowns, and sales operating rhythm.",
+    permissionCodes: unique([
+      ...permissionsForModules(["sales", "accounts", "contacts", "opportunities", "leads"], leadershipActions),
+      ...permissionsForModules(["marketing", "customer_success", "support"], ["view", "export", "view_dashboard"]),
+      ...notificationParticipantPermissions,
+      ...approvalLeaderPermissions,
+      ...dashboardViewerPermissions,
+      ...workflowManagerPermissions,
+      ...aiManagerPermissions
+    ]),
+    metadata: {
+      department: "revenue",
+      persona: "sales-head-revenue-leader"
+    }
+  }),
+  createRoleTemplateDefinition({
     name: "Sales Leader",
     description: "Leads strategic sales oversight with broad reporting and workflow governance.",
     permissionCodes: unique([
@@ -509,6 +638,86 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     ]),
     metadata: {
       department: "presales"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Presales Consultant",
+    description: "Supports discovery, demos, proposals, and technical opportunity validation.",
+    permissionCodes: unique([
+      ...permissionsForModules(["presales", "accounts", "contacts", "opportunities"], contributorActions),
+      ...permissionsForModules(["approvals"], ["view", "create", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
+      ...dashboardViewerPermissions,
+      ...aiUserPermissions
+    ]),
+    metadata: {
+      department: "presales",
+      persona: "presales-consultant"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Solution Architect",
+    description: "Owns technical solution review, architecture validation, risk assessment, and proposal support.",
+    permissionCodes: unique([
+      ...permissionsForModules(["presales", "accounts", "contacts", "opportunities"], managerActions),
+      ...permissionsForModules(["approvals"], ["view", "create", "edit", "approve", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
+      ...dashboardViewerPermissions,
+      ...workflowManagerPermissions,
+      ...aiManagerPermissions
+    ]),
+    metadata: {
+      department: "presales",
+      persona: "solution-architect"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Proposal / Bid Manager",
+    description: "Coordinates proposal, bid, quote package, approval, and submission readiness workflows.",
+    permissionCodes: unique([
+      ...permissionsForModules(["presales", "opportunities", "approvals"], managerActions),
+      ...permissionsForModules(["accounts", "contacts"], ["view", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalOperatorPermissions,
+      ...dashboardViewerPermissions,
+      ...workflowManagerPermissions,
+      ...aiManagerPermissions
+    ]),
+    metadata: {
+      department: "presales",
+      persona: "proposal-bid-manager"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Commercial / Finance Approver",
+    description: "Reviews commercial terms, discounts, margins, quotes, and finance approval requests.",
+    permissionCodes: unique([
+      ...permissionsForModules(["opportunities", "approvals"], ["view", "edit", "approve", "export"]),
+      ...permissionsForModules(["accounts"], ["view", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalLeaderPermissions,
+      ...dashboardViewerPermissions
+    ]),
+    metadata: {
+      department: "finance",
+      persona: "commercial-finance-approver"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Legal / Contract Reviewer",
+    description: "Reviews contracts, legal terms, approval requests, and related account/opportunity context.",
+    permissionCodes: unique([
+      ...permissionsForModules(["opportunities", "approvals"], ["view", "edit", "approve", "export"]),
+      ...permissionsForModules(["accounts", "contacts"], ["view", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalLeaderPermissions,
+      ...dashboardViewerPermissions
+    ]),
+    metadata: {
+      department: "legal",
+      persona: "legal-contract-reviewer"
     }
   }),
   createRoleTemplateDefinition({
@@ -585,6 +794,54 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     }
   }),
   createRoleTemplateDefinition({
+    name: "Reseller / Partner Sales User",
+    description: "External or partner-facing sales user limited to partner-owned records and approved collaboration data.",
+    permissionCodes: unique([
+      ...permissionsForModules(["partners", "resellers", "opportunities"], ["view", "create", "edit", "export"]),
+      ...permissionsForModules(["accounts", "contacts"], ["view"]),
+      ...notificationParticipantPermissions,
+      ...dashboardViewerPermissions,
+      ...aiUserPermissions
+    ]),
+    metadata: {
+      department: "partnerships",
+      audience: "partner",
+      persona: "reseller-partner-sales-user"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Support Agent L1",
+    description: "Handles first-line support tickets, knowledge articles, and customer support context.",
+    permissionCodes: unique([
+      ...permissionsForModules(["support", "customer_query"], contributorActions),
+      ...permissionsForModules(["accounts", "contacts"], ["view"]),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
+      ...dashboardViewerPermissions,
+      ...aiUserPermissions
+    ]),
+    metadata: {
+      department: "support",
+      persona: "support-agent-l1"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Support Agent L2",
+    description: "Handles escalated support, SLA context, knowledge maintenance, and advanced support investigation.",
+    permissionCodes: unique([
+      ...permissionsForModules(["support", "customer_query"], ["view", "create", "edit", "assign", "export"]),
+      ...permissionsForModules(["accounts", "contacts", "customer_success"], ["view", "export"]),
+      ...notificationParticipantPermissions,
+      ...approvalViewerPermissions,
+      ...dashboardViewerPermissions,
+      ...aiUserPermissions
+    ]),
+    metadata: {
+      department: "support",
+      persona: "support-agent-l2"
+    }
+  }),
+  createRoleTemplateDefinition({
     name: "Customer Success Manager - Onboarding",
     description: "Owns onboarding execution, enablement, and initial customer success workflows.",
     permissionCodes: unique([
@@ -649,6 +906,75 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     ]),
     metadata: {
       department: "customer-success"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "CRM Administrator",
+    description: "Administers CRM configuration, roles, module settings, layouts, workflows, and governed metadata.",
+    permissionCodes: unique([
+      ...permissionsForModules(permissionModuleKeys.filter((moduleKey) => moduleKey !== "ai"), [...managerActions, "view_dashboard", "manage_workflow"]),
+      ...adminOperatorPermissions,
+      ...permissionsForModules(["ai"], ["view", "use_ai"])
+    ]),
+    metadata: {
+      department: "operations",
+      persona: "crm-administrator"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "System Administrator",
+    description: "System-level tenant administrator with broad platform, integration, security, and configuration access.",
+    permissionCodes: defaultPermissionCatalog.map((permission) => permission.code),
+    metadata: {
+      department: "it",
+      persona: "system-administrator"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "AI Governance Manager",
+    description: "Governs AI prompts, agents, recommendations, audit logs, approvals, confidence, and feedback loops.",
+    permissionCodes: unique([
+      ...aiManagerPermissions,
+      ...permissionsForModules(["approvals", "workflows", "dashboards"], ["view", "edit", "approve", "configure", "export", "view_dashboard", "manage_workflow"]),
+      ...permissionsForModules(["admin"], ["view", "export"]),
+      ...notificationParticipantPermissions
+    ]),
+    metadata: {
+      department: "governance",
+      persona: "ai-governance-manager"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Data Quality Manager",
+    description: "Manages CRM data quality, deduplication, imports, exports, merge governance, and field visibility policies.",
+    permissionCodes: unique([
+      ...permissionsForModules(["leads", "accounts", "contacts", "opportunities"], ["view", "create", "edit", "delete", "assign", "export", "import"]),
+      ...permissionsForModules(["admin", "workflows"], ["view", "configure", "export", "import", "manage_workflow"]),
+      ...dashboardViewerPermissions,
+      ...notificationParticipantPermissions,
+      ...aiUserPermissions
+    ]),
+    metadata: {
+      department: "operations",
+      persona: "data-quality-manager"
+    }
+  }),
+  createRoleTemplateDefinition({
+    name: "Executive / CEO / CXO",
+    description: "Executive visibility into dashboards, summaries, drilldowns, approvals, and strategic AI-assisted insights.",
+    permissionCodes: unique([
+      ...permissionsForModules(
+        ["dashboards", "sales", "marketing", "customer_success", "support", "accounts", "opportunities"],
+        ["view", "export", "view_dashboard"]
+      ),
+      ...notificationParticipantPermissions,
+      ...approvalLeaderPermissions,
+      ...permissionsForModules(["ai"], ["view", "use_ai"]),
+      ...adminViewerPermissions
+    ]),
+    metadata: {
+      department: "leadership",
+      persona: "executive-ceo-cxo"
     }
   }),
   createRoleTemplateDefinition({

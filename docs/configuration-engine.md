@@ -50,9 +50,11 @@ A snapshot is the unit of export, import, and every saved version. It carries a 
 }
 ```
 
-`definitions` is the generic registry for newer CRM configuration objects such as module metadata, objects, page layouts, business-process flows, approval matrices, notification rules, and dashboard compositions. These rows can be managed directly through `/configuration/definitions/*`, and they are also versioned, validated, published, imported/exported, and applied like the rest of the snapshot. Runtime execution/rendering for those newer types is intentionally layered on top in later phases.
+`definitions` is the generic registry for newer CRM configuration objects such as module metadata, objects, page layouts, business-process flows, approval matrices, notification rules, dashboard compositions, personas, and access policies. These rows can be managed directly through `/configuration/definitions/*`, and they are also versioned, validated, published, imported/exported, and applied like the rest of the snapshot. Runtime execution/rendering for those newer types is intentionally layered on top in later phases.
 
 The core CRM metadata seed registers the baseline CRM module/object catalog through this same registry: module metadata, object labels, ownership models, key fields, relationships, activity/audit/reporting flags, and basic list/detail/create-edit view metadata. It also adds standard picklists through `tenant_option_sets`. This remains metadata-only; business workflow execution and dynamic UI rendering are later phases.
+
+The persona access seed registers 32 CRM personas, role-linked access policies, and role-based page-layout metadata through the registry. These definitions describe object-level actions, field visibility/editability/masking, record scopes, special actions, sensitive-data notes, and per-persona layouts without hard-coding those rules into UI components or business services. Runtime enforcement of the richer field/record rules remains a follow-on phase.
 
 ---
 
@@ -94,6 +96,10 @@ draft ──► published ──► archived
 | `APPROVAL_INVALID_MODE` | error | An approval matrix uses an unsupported approval mode |
 | `NOTIFICATION_INVALID_CHANNEL` | error | A notification rule uses an unsupported channel |
 | `NOTIFICATION_INVALID_FREQUENCY` | error | A notification rule uses an unsupported frequency |
+| `PERSONA_INVALID_OBJECT_PERMISSIONS` | error | A persona definition is missing a valid object-permission map |
+| `PERSONA_INVALID_FIELD_PERMISSIONS` | error | A persona definition is missing a valid field-permission map |
+| `PERSONA_INVALID_RECORD_SCOPES` | error | A persona definition does not define record scopes |
+| `ACCESS_POLICY_INVALID_FIELD_PERMISSIONS` | error | An access policy is missing field-level permissions |
 | `UNSUPPORTED_SCHEMA_VERSION` | error | Imported snapshot newer than this build supports |
 
 **Publishing incomplete configuration is prevented** — errors block publish; warnings are surfaced but allowed.
@@ -122,7 +128,7 @@ Publishing approves a snapshot; **applying** writes it onto the live config tabl
 
 Preview first with `GET /configuration/versions/:id/apply-plan` — a pure, upsert-only diff returning `{ operations[], createCount, updateCount, noopCount }`.
 
-> **Scope:** apply currently covers settings, theme, modules, terminology, option sets, custom fields, and the generic configuration-definition registry. **Form-layout application is deferred** (form layouts have no writer yet), and runtime enforcement/rendering for the new definition types comes in later phases.
+> **Scope:** apply currently covers settings, theme, modules, terminology, option sets, custom fields, and the generic configuration-definition registry, including persona/access-policy metadata. **Form-layout application is deferred** (form layouts have no writer yet), and runtime enforcement/rendering for the new definition types comes in later phases.
 
 ---
 

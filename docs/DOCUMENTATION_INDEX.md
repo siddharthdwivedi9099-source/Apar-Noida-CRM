@@ -95,7 +95,7 @@ Last reconciled with the implementation on **2026-06-24** — see
 
 # Canonical Implementation Reference
 
-Extracted from code on 2026-06-24. Authoritative counts: **26 modules · 287 API routes · 28 roles · 37 AI actions · 40 prompt templates · 16 AI agents · 18 dashboards · 56 config options**.
+Extracted from code on 2026-06-24 and updated for the persona access metadata phase. Authoritative counts: **26 modules · 287 API routes · 49 role templates · 32 persona access definitions · 37 AI actions · 40 prompt templates · 16 AI agents · 18 dashboards · 56 config options**.
 
 ## Modules → API mount
 

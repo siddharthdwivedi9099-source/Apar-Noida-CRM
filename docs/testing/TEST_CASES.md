@@ -1,6 +1,6 @@
 # Comprehensive Test Cases
 
-**Scope:** functional, security, AI-governance, and non-functional test cases for the AI-Native CRM (v1.0.0), covering all 26 modules, 28 roles, the customer portal, and the AI layer. Use alongside [TESTING_STRATEGY.md](./TESTING_STRATEGY.md) and [QA_CHECKLIST.md](./QA_CHECKLIST.md).
+**Scope:** functional, security, AI-governance, and non-functional test cases for the AI-Native CRM (v1.0.0), covering all 26 modules, 49 role templates, 32 persona access definitions, the customer portal, and the AI layer. Use alongside [TESTING_STRATEGY.md](./TESTING_STRATEGY.md) and [QA_CHECKLIST.md](./QA_CHECKLIST.md).
 
 ## How to use this document
 
@@ -44,7 +44,7 @@
 | TC-RBAC-004 | oneOf semantics | F | P2 | Endpoint requiring any-of; actor has one | Allowed ☐ |
 | TC-RBAC-005 | Field-level permission | S | P2 | CRM record action gated by field permission; actor lacks it | Restricted field/action denied ☐ |
 | TC-RBAC-006 | Record-level scope (own vs all) | S | P1 | Request a scope (e.g., resellers "all") the actor can't see | `403` "do not have permission to inspect this scope"; results otherwise owner-scoped ☐ |
-| TC-RBAC-007 | Catalog seeds 28 roles | F | P2 | Inspect seeded roles | All 28 templates present (Super Admin … Executive Leadership) ✅ |
+| TC-RBAC-007 | Catalog seeds role templates | F | P2 | Inspect seeded roles | All seeded templates are present, including persona-linked access roles ✅ |
 | TC-RBAC-008 | Dashboard service-layer authz | S | P1 | Authenticated user without dashboard permission opens a dashboard | Catalog reachable; data path returns `403` via `requirePermission` ☐ |
 | TC-RBAC-009 | Saved-view ownership | S | P2 | User edits another user's saved view | `403` "only modify your own saved views" ☐ |
 

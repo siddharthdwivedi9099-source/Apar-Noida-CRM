@@ -3,6 +3,7 @@ import {
   defaultCustomFormLayoutDefinitions,
   defaultCoreCrmConfigurationDefinitions,
   defaultCoreCrmStandardPicklistDefinitions,
+  defaultPersonaAccessConfigurationDefinitions,
   defaultPermissionCatalog,
   defaultRoleTemplateDefinitions,
   defaultTenantCoreSettings,
@@ -52,6 +53,7 @@ function createSeedChecksum(options: CoreSeedOptions) {
         tenantOptionSets: defaultTenantOptionSetDefinitions,
         coreCrmStandardPicklists: defaultCoreCrmStandardPicklistDefinitions,
         coreCrmConfigurationDefinitions: defaultCoreCrmConfigurationDefinitions,
+        personaAccessConfigurationDefinitions: defaultPersonaAccessConfigurationDefinitions,
         customFormLayouts: defaultCustomFormLayoutDefinitions
       })
     )
@@ -763,6 +765,15 @@ async function upsertConfigurationDefinition(
   }
 ) {
   const { tenantId, actorUserId, definition } = input;
+  const payloadMetadata = definition.definition.metadata;
+  const payloadMetadataRecord =
+    typeof payloadMetadata === "object" && payloadMetadata !== null && !Array.isArray(payloadMetadata)
+      ? (payloadMetadata as { phase?: unknown })
+      : null;
+  const seedPhase =
+    payloadMetadataRecord !== null && typeof payloadMetadataRecord.phase === "string"
+      ? payloadMetadataRecord.phase
+      : "phase-34-core-crm-metadata";
   await client.query(
     `
       INSERT INTO configuration_definitions (
@@ -787,7 +798,7 @@ async function upsertConfigurationDefinition(
         $7,
         $8,
         $8,
-        jsonb_build_object('seeded', true, 'phase', 'phase-34-core-crm-metadata')
+        jsonb_build_object('seeded', true, 'phase', $9)
       )
       ON CONFLICT (tenant_id, definition_type, definition_key)
       DO UPDATE SET
@@ -808,7 +819,8 @@ async function upsertConfigurationDefinition(
       definition.description,
       JSON.stringify(definition.definition),
       definition.isActive,
-      actorUserId
+      actorUserId,
+      seedPhase
     ]
   );
 }
@@ -1066,6 +1078,14 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       });
     }
 
+    for (const definition of defaultPersonaAccessConfigurationDefinitions) {
+      await upsertConfigurationDefinition(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition
+      });
+    }
+
     await upsertTenantSystemSetting(client, {
       tenantId,
       actorUserId: adminUserId,
@@ -1078,7 +1098,8 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
         optionSetCount: defaultTenantOptionSetDefinitions.length,
         coreCrmStandardPicklistCount: defaultCoreCrmStandardPicklistDefinitions.length,
         formLayoutCount: defaultCustomFormLayoutDefinitions.length,
-        coreCrmConfigurationDefinitionCount: defaultCoreCrmConfigurationDefinitions.length
+        coreCrmConfigurationDefinitionCount: defaultCoreCrmConfigurationDefinitions.length,
+        personaAccessConfigurationDefinitionCount: defaultPersonaAccessConfigurationDefinitions.length
       },
       description: "Bootstrap metadata for the default development tenant.",
       metadata: {

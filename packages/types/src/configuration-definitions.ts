@@ -22,7 +22,9 @@ export const configurationDefinitionTypes = [
   "business_process_flow",
   "approval_matrix",
   "notification_rule",
-  "dashboard"
+  "dashboard",
+  "persona",
+  "access_policy"
 ] as const;
 export type ConfigurationDefinitionType = (typeof configurationDefinitionTypes)[number];
 
@@ -129,6 +131,30 @@ export interface DashboardDefinitionPayload {
   aiSummaryEnabled?: boolean;
 }
 
+export interface PersonaPermissionModelPayload {
+  objectPermissions: Record<string, string[]>;
+  fieldPermissions: Record<string, Record<string, "visible" | "hidden" | "read_only" | "editable" | "masked">>;
+  recordScopes: string[];
+  specialActions: string[];
+}
+
+export interface PersonaDefinitionPayload extends PersonaPermissionModelPayload {
+  personaKey: string;
+  roleTemplateSlug: string;
+  label: string;
+  description: string;
+  department: string;
+  audience: "internal" | "partner" | "customer" | "executive";
+  dashboards: string[];
+  securityNotes: string[];
+}
+
+export interface AccessPolicyDefinitionPayload extends PersonaPermissionModelPayload {
+  policyKey: string;
+  personas: string[];
+  sensitiveDataRules: string[];
+}
+
 // ---- Generic registry row + API contracts ----
 
 export interface ConfigurationDefinition {
@@ -171,7 +197,9 @@ const requiredPayloadKeys: Record<ConfigurationDefinitionType, string[]> = {
   business_process_flow: ["object", "stages"],
   approval_matrix: ["approvalType", "object", "mode", "approvers"],
   notification_rule: ["event", "audience", "channel", "template", "frequency"],
-  dashboard: ["dashboardKey", "widgets"]
+  dashboard: ["dashboardKey", "widgets"],
+  persona: ["personaKey", "roleTemplateSlug", "objectPermissions", "fieldPermissions", "recordScopes", "specialActions"],
+  access_policy: ["policyKey", "personas", "objectPermissions", "fieldPermissions", "recordScopes", "specialActions"]
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -324,6 +352,48 @@ export function validateConfigurationDefinition(def: ConfigurationDefinition): C
       pushIssue(issues, "DASHBOARD_INVALID_WIDGETS", "error", path, `Dashboard "${def.definitionKey}" must define widgets as an array.`);
     } else if (widgets.length === 0) {
       pushIssue(issues, "DASHBOARD_NO_WIDGETS", "warning", path, `Dashboard "${def.definitionKey}" has no widgets.`);
+    }
+  }
+
+  if (def.definitionType === "persona") {
+    const objectPermissions = def.definition.objectPermissions;
+    const fieldPermissions = def.definition.fieldPermissions;
+    const recordScopes = def.definition.recordScopes;
+    const specialActions = def.definition.specialActions;
+    if (!isRecord(objectPermissions)) {
+      pushIssue(issues, "PERSONA_INVALID_OBJECT_PERMISSIONS", "error", path, `Persona "${def.definitionKey}" must define objectPermissions as an object.`);
+    }
+    if (!isRecord(fieldPermissions)) {
+      pushIssue(issues, "PERSONA_INVALID_FIELD_PERMISSIONS", "error", path, `Persona "${def.definitionKey}" must define fieldPermissions as an object.`);
+    }
+    if (!Array.isArray(recordScopes) || recordScopes.length === 0) {
+      pushIssue(issues, "PERSONA_INVALID_RECORD_SCOPES", "error", path, `Persona "${def.definitionKey}" must define at least one record scope.`);
+    }
+    if (!Array.isArray(specialActions)) {
+      pushIssue(issues, "PERSONA_INVALID_SPECIAL_ACTIONS", "error", path, `Persona "${def.definitionKey}" specialActions must be an array.`);
+    }
+  }
+
+  if (def.definitionType === "access_policy") {
+    const personas = def.definition.personas;
+    const objectPermissions = def.definition.objectPermissions;
+    const fieldPermissions = def.definition.fieldPermissions;
+    const recordScopes = def.definition.recordScopes;
+    const specialActions = def.definition.specialActions;
+    if (!Array.isArray(personas) || personas.length === 0) {
+      pushIssue(issues, "ACCESS_POLICY_NO_PERSONAS", "error", path, `Access policy "${def.definitionKey}" must reference at least one persona.`);
+    }
+    if (!isRecord(objectPermissions)) {
+      pushIssue(issues, "ACCESS_POLICY_INVALID_OBJECT_PERMISSIONS", "error", path, `Access policy "${def.definitionKey}" must define objectPermissions as an object.`);
+    }
+    if (!isRecord(fieldPermissions)) {
+      pushIssue(issues, "ACCESS_POLICY_INVALID_FIELD_PERMISSIONS", "error", path, `Access policy "${def.definitionKey}" must define fieldPermissions as an object.`);
+    }
+    if (!Array.isArray(recordScopes) || recordScopes.length === 0) {
+      pushIssue(issues, "ACCESS_POLICY_INVALID_RECORD_SCOPES", "error", path, `Access policy "${def.definitionKey}" must define record scopes.`);
+    }
+    if (!Array.isArray(specialActions)) {
+      pushIssue(issues, "ACCESS_POLICY_INVALID_SPECIAL_ACTIONS", "error", path, `Access policy "${def.definitionKey}" specialActions must be an array.`);
     }
   }
 

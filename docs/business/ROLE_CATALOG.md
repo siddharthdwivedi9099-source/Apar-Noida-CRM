@@ -164,9 +164,9 @@ When authorization is implemented:
 
 This document explains the business meaning of roles. The detailed access direction is captured in [RBAC_MATRIX.md](../security/RBAC_MATRIX.md). The two documents should remain synchronized as roles evolve.
 
-## Canonical Seeded Role Templates (2026-06-24 audit)
+## Canonical Seeded Role Templates
 
-The sections above describe roles by business function. For reference, the **28 role templates actually seeded** by the platform are defined in `packages/types/src/rbac.ts`. The narrative names above map onto these canonical templates:
+The sections above describe roles by business function. For reference, the seeded role templates are defined in `packages/types/src/rbac.ts`. The 2026-06-24 audit established the original 28-role baseline below; the persona access metadata phase expanded the catalog to 49 role templates, with 32 persona definitions mapping to either baseline roles or newer persona-specific role templates.
 
 | Administrative | Marketing & Sales | Service & Ecosystem | Customer Success & Leadership |
 |----------------|-------------------|---------------------|-------------------------------|
@@ -185,4 +185,6 @@ The sections above describe roles by business function. For reference, the **28 
 | | Sales Head | | |
 | | Sales Leader | | |
 
-All 28: Super Admin · CRM Admin · Customer Portal User · Social Media Marketing Executive · Social Media Marketing Manager · Marketing Executive · Marketing Manager · Inside Sales Executive · Inside Sales Manager · Sales Development Representative · SDR Manager · Business Development Executive · Business Development Manager · Sales Executive · Sales Manager · Sales Head · Sales Leader · Presales Executive · Presales Manager · Support Executive · Support Manager · Partner Manager · Reseller Manager · Customer Success Manager - Onboarding · Customer Success Manager - Scaled · Customer Success Manager - Enterprise · Customer Success Head · Executive Leadership.
+Original baseline 28: Super Admin · CRM Admin · Customer Portal User · Social Media Marketing Executive · Social Media Marketing Manager · Marketing Executive · Marketing Manager · Inside Sales Executive · Inside Sales Manager · Sales Development Representative · SDR Manager · Business Development Executive · Business Development Manager · Sales Executive · Sales Manager · Sales Head · Sales Leader · Presales Executive · Presales Manager · Support Executive · Support Manager · Partner Manager · Reseller Manager · Customer Success Manager - Onboarding · Customer Success Manager - Scaled · Customer Success Manager - Enterprise · Customer Success Head · Executive Leadership.
+
+Persona access additions include: Digital Marketing Executive · Campaign Manager · Marketing Operations / RevOps · Inside Sales Representative · Business Development Representative · Account Executive / Sales Executive · Enterprise Sales / Strategic Sales · Sales Head / Revenue Leader · Presales Consultant · Solution Architect · Proposal / Bid Manager · Commercial / Finance Approver · Legal / Contract Reviewer · Reseller / Partner Sales User · Support Agent L1 · Support Agent L2 · CRM Administrator · System Administrator · AI Governance Manager · Data Quality Manager · Executive / CEO / CXO.

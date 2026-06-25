@@ -11,7 +11,7 @@
 | API modules | 26 | `apps/api/src/modules/*` |
 | API routes | 287 | `*.router.ts` route declarations |
 | Mounted route prefixes | 23 | `routes/v1.router.ts` |
-| Seeded role templates | 28 | `packages/types/src/rbac.ts` |
+| Seeded role templates | 49 | `packages/types/src/rbac.ts` |
 | AI actions | 37 | `packages/types/src/ai-actions.ts` |
 | AI prompt templates | 40 | `packages/types/src/ai.ts` |
 | AI agents | 16 | `packages/types/src/ai-registry.ts` |
@@ -52,7 +52,7 @@ The module catalog omitted: `customer-portal`, `customer-query`, `rag`, `notific
 `docs/technical/API_DOCUMENTATION.md` covered most modules but omitted: **`/customer-query`**, **`/notifications`**, **`/approvals`**, **`/observability`**. → **Added** route sections for all four.
 
 ### 5. Undocumented roles
-`docs/business/ROLE_CATALOG.md` described the role landscape narratively but did not enumerate the **28 canonical seeded role templates** (e.g. `Sales Head`, `Sales Leader`, `SDR Manager`, `Customer Success Manager - Onboarding/Scaled/Enterprise`, `Customer Portal User`). → **Added** a canonical 28-role table (also in DOCUMENTATION_INDEX).
+`docs/business/ROLE_CATALOG.md` described the role landscape narratively but did not enumerate the original **28 canonical seeded role templates** (e.g. `Sales Head`, `Sales Leader`, `SDR Manager`, `Customer Success Manager - Onboarding/Scaled/Enterprise`, `Customer Portal User`). → **Added** a canonical baseline table (also in DOCUMENTATION_INDEX). The persona access metadata phase later expanded the seeded catalog to 49 role templates.
 
 ### 6. Undocumented AI features
 None material. `docs/ai/AI_USE_CASE_CATALOG.md` enumerates the AI actions by module; `AI_AGENT_REGISTRY.md`, `PROMPT_REGISTRY.md`, `AI_GATEWAY_DESIGN.md`, `RAG_ARCHITECTURE.md`, and `AI_GOVERNANCE.md` cover the gateway, registries, retrieval, and governance. The 2026-06-24 `AI_GOVERNANCE_REVIEW_REPORT.md` provides the latest assessment. Canonical agent/action/template counts are cross-listed in DOCUMENTATION_INDEX.

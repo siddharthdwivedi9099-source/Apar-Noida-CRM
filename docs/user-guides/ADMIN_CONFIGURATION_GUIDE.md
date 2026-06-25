@@ -137,7 +137,7 @@ PUT /api/v1/rbac/users/:userId/roles                    # set a user's roles (ad
 ## 2.4 RBAC tips
 
 - **Least privilege:** start from the narrowest role that does the job; add actions as needed.
-- **Try it instantly:** sign in as any of the 28 demo personas (password `AparDemo@2026!`) to *see* RBAC — the nav and buttons change per role.
+- **Try it instantly:** sign in as an available demo persona (password `AparDemo@2026!`) to *see* RBAC — the nav and buttons change per role.
 - **Everything is audited:** role creation, permission changes, and assignments are logged.
 
 ---
