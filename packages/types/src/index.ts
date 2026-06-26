@@ -8,6 +8,7 @@ export * from "./configuration.js";
 export * from "./configuration-definitions.js";
 export * from "./crm-bpf-definitions.js";
 export * from "./bpf-runtime.js";
+export * from "./lead-scoring.js";
 export * from "./core-crm-metadata.js";
 export * from "./persona-access-metadata.js";
 export * from "./ai.js";

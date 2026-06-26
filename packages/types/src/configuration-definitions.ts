@@ -24,9 +24,46 @@ export const configurationDefinitionTypes = [
   "notification_rule",
   "dashboard",
   "persona",
-  "access_policy"
+  "access_policy",
+  "scoring_model",
+  "mql_rule"
 ] as const;
 export type ConfigurationDefinitionType = (typeof configurationDefinitionTypes)[number];
+
+export const scoringOperators = ["eq", "ne", "gt", "lt", "gte", "lte", "contains", "in", "exists"] as const;
+export type ScoringOperator = (typeof scoringOperators)[number];
+
+export interface ScoringRule {
+  field: string;
+  operator: ScoringOperator;
+  value?: unknown;
+  points: number;
+}
+
+export interface ScoringDimension {
+  key: string;
+  label?: string;
+  weight: number;
+  rules: ScoringRule[];
+}
+
+export interface ScoreGrade {
+  grade: string;
+  minScore: number;
+}
+
+export interface ScoringModelPayload {
+  object: string;
+  dimensions: ScoringDimension[];
+  grades?: ScoreGrade[];
+}
+
+export interface MqlRulePayload {
+  object: string;
+  threshold: number;
+  requiredFields?: string[];
+  criteria?: Array<{ field: string; operator: ScoringOperator; value?: unknown }>;
+}
 
 export const ownershipModels = ["user", "team", "territory", "account", "system"] as const;
 export type OwnershipModel = (typeof ownershipModels)[number];
@@ -227,7 +264,9 @@ const requiredPayloadKeys: Record<ConfigurationDefinitionType, string[]> = {
   notification_rule: ["event", "audience", "channel", "template", "frequency"],
   dashboard: ["dashboardKey", "widgets"],
   persona: ["personaKey", "roleTemplateSlug", "objectPermissions", "fieldPermissions", "recordScopes", "specialActions"],
-  access_policy: ["policyKey", "personas", "objectPermissions", "fieldPermissions", "recordScopes", "specialActions"]
+  access_policy: ["policyKey", "personas", "objectPermissions", "fieldPermissions", "recordScopes", "specialActions"],
+  scoring_model: ["object", "dimensions"],
+  mql_rule: ["object", "threshold"]
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -416,6 +455,25 @@ export function validateConfigurationDefinition(def: ConfigurationDefinition): C
     } else if (widgets.length === 0) {
       pushIssue(issues, "DASHBOARD_NO_WIDGETS", "warning", path, `Dashboard "${def.definitionKey}" has no widgets.`);
     }
+  }
+
+  if (def.definitionType === "scoring_model") {
+    const dimensions = def.definition.dimensions;
+    if (!Array.isArray(dimensions)) {
+      pushIssue(issues, "SCORING_INVALID_DIMENSIONS", "error", path, `Scoring model "${def.definitionKey}" must define dimensions as an array.`);
+    } else if (dimensions.length === 0) {
+      pushIssue(issues, "SCORING_NO_DIMENSIONS", "error", path, `Scoring model "${def.definitionKey}" has no dimensions.`);
+    } else {
+      for (const dimension of dimensions) {
+        if (!isRecord(dimension) || typeof dimension.weight !== "number" || !Array.isArray(dimension.rules)) {
+          pushIssue(issues, "SCORING_INVALID_DIMENSION", "error", path, `Scoring model "${def.definitionKey}" has a malformed dimension.`);
+        }
+      }
+    }
+  }
+
+  if (def.definitionType === "mql_rule" && has(def.definition, "threshold") && typeof def.definition.threshold !== "number") {
+    pushIssue(issues, "MQL_INVALID_THRESHOLD", "error", path, `MQL rule "${def.definitionKey}" threshold must be a number.`);
   }
 
   if (def.definitionType === "persona") {

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   defaultBpfConfigurationDefinitions,
+  defaultLeadScoringConfigurationDefinitions,
   defaultCustomFormLayoutDefinitions,
   defaultCoreCrmConfigurationDefinitions,
   defaultCoreCrmStandardPicklistDefinitions,
@@ -1095,6 +1096,14 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       });
     }
 
+    for (const definition of defaultLeadScoringConfigurationDefinitions) {
+      await upsertConfigurationDefinition(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition
+      });
+    }
+
     await upsertTenantSystemSetting(client, {
       tenantId,
       actorUserId: adminUserId,
@@ -1109,7 +1118,8 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
         formLayoutCount: defaultCustomFormLayoutDefinitions.length,
         coreCrmConfigurationDefinitionCount: defaultCoreCrmConfigurationDefinitions.length,
         personaAccessConfigurationDefinitionCount: defaultPersonaAccessConfigurationDefinitions.length,
-        bpfConfigurationDefinitionCount: defaultBpfConfigurationDefinitions.length
+        bpfConfigurationDefinitionCount: defaultBpfConfigurationDefinitions.length,
+        leadScoringConfigurationDefinitionCount: defaultLeadScoringConfigurationDefinitions.length
       },
       description: "Bootstrap metadata for the default development tenant.",
       metadata: {
