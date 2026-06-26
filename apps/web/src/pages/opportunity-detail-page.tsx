@@ -13,6 +13,7 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BpfStageProgress } from "@/components/crm/bpf-stage-progress";
 import { CrmActivityPanel } from "@/components/crm/crm-activity-panel";
 import { CrmNotesPanel } from "@/components/crm/crm-notes-panel";
 import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
@@ -214,6 +215,8 @@ export function OpportunityDetailPage() {
           </div>
         }
       />
+
+      <BpfStageProgress object="opportunity" recordId={opportunity.id} canEdit={canEdit} />
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>

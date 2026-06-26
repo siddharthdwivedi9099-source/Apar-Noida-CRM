@@ -31,6 +31,7 @@ import { createSupportRouter } from "../modules/support/support.router.js";
 import { createTrainingRouter } from "../modules/training/training.router.js";
 import { createTenantConfigRouter } from "../modules/tenant-config/tenant-config.router.js";
 import { createConfigurationRouter } from "../modules/configuration/configuration.router.js";
+import { createBpfRouter } from "../modules/bpf/bpf.router.js";
 import { DatabaseService } from "../platform/database/database.service.js";
 import { RedisService } from "../platform/redis/redis.service.js";
 import { CacheService } from "../platform/cache/cache.service.js";
@@ -68,6 +69,7 @@ export function createV1Router({
   router.use("/rbac", createRbacRouter({ databaseService }));
   router.use("/tenant-config", createTenantConfigRouter({ databaseService }));
   router.use("/configuration", createConfigurationRouter({ databaseService }));
+  router.use("/bpf", createBpfRouter({ databaseService }));
   router.use("/campaigns", createCampaignRouter({ databaseService }));
   router.use("/opportunities", createOpportunityRouter({ databaseService }));
   router.use("/business-development", createBusinessDevelopmentRouter({ databaseService }));
