@@ -26,9 +26,47 @@ export const configurationDefinitionTypes = [
   "persona",
   "access_policy",
   "scoring_model",
-  "mql_rule"
+  "mql_rule",
+  "assignment_rule",
+  "sla_policy"
 ] as const;
 export type ConfigurationDefinitionType = (typeof configurationDefinitionTypes)[number];
+
+export const assignmentStrategies = ["round_robin", "load_balanced", "named_account", "direct"] as const;
+export type AssignmentStrategy = (typeof assignmentStrategies)[number];
+
+export interface AssignmentTarget {
+  kind: "user" | "team" | "queue";
+  ref: string;
+}
+
+export interface AssignmentRuleEntry {
+  key: string;
+  priority: number;
+  conditions?: Array<{ field: string; operator: ScoringOperator; value?: unknown }>;
+  strategy: AssignmentStrategy;
+  assignTo?: AssignmentTarget;
+  pool?: string[];
+}
+
+export interface AssignmentRulePayload {
+  object: string;
+  rules: AssignmentRuleEntry[];
+  fallback?: AssignmentTarget;
+}
+
+export interface SlaTarget {
+  key: string;
+  label?: string;
+  hours: number;
+  warningHours?: number;
+}
+
+export interface SlaPolicyPayload {
+  object: string;
+  targets: SlaTarget[];
+  escalation?: { afterHours: number; to: string } | null;
+}
 
 export const scoringOperators = ["eq", "ne", "gt", "lt", "gte", "lte", "contains", "in", "exists"] as const;
 export type ScoringOperator = (typeof scoringOperators)[number];
@@ -266,7 +304,9 @@ const requiredPayloadKeys: Record<ConfigurationDefinitionType, string[]> = {
   persona: ["personaKey", "roleTemplateSlug", "objectPermissions", "fieldPermissions", "recordScopes", "specialActions"],
   access_policy: ["policyKey", "personas", "objectPermissions", "fieldPermissions", "recordScopes", "specialActions"],
   scoring_model: ["object", "dimensions"],
-  mql_rule: ["object", "threshold"]
+  mql_rule: ["object", "threshold"],
+  assignment_rule: ["object", "rules"],
+  sla_policy: ["object", "targets"]
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -474,6 +514,36 @@ export function validateConfigurationDefinition(def: ConfigurationDefinition): C
 
   if (def.definitionType === "mql_rule" && has(def.definition, "threshold") && typeof def.definition.threshold !== "number") {
     pushIssue(issues, "MQL_INVALID_THRESHOLD", "error", path, `MQL rule "${def.definitionKey}" threshold must be a number.`);
+  }
+
+  if (def.definitionType === "assignment_rule") {
+    const rules = def.definition.rules;
+    if (!Array.isArray(rules)) {
+      pushIssue(issues, "ASSIGNMENT_INVALID_RULES", "error", path, `Assignment rule "${def.definitionKey}" must define rules as an array.`);
+    } else if (rules.length === 0) {
+      pushIssue(issues, "ASSIGNMENT_NO_RULES", "error", path, `Assignment rule "${def.definitionKey}" has no rules.`);
+    } else {
+      for (const rule of rules) {
+        if (!isRecord(rule) || !isAllowedString(rule.strategy, assignmentStrategies)) {
+          pushIssue(issues, "ASSIGNMENT_INVALID_STRATEGY", "error", path, `Assignment rule "${def.definitionKey}" has a rule with an invalid strategy.`);
+        }
+      }
+    }
+  }
+
+  if (def.definitionType === "sla_policy") {
+    const targets = def.definition.targets;
+    if (!Array.isArray(targets)) {
+      pushIssue(issues, "SLA_INVALID_TARGETS", "error", path, `SLA policy "${def.definitionKey}" must define targets as an array.`);
+    } else if (targets.length === 0) {
+      pushIssue(issues, "SLA_NO_TARGETS", "error", path, `SLA policy "${def.definitionKey}" has no targets.`);
+    } else {
+      for (const target of targets) {
+        if (!isRecord(target) || typeof target.hours !== "number") {
+          pushIssue(issues, "SLA_INVALID_TARGET", "error", path, `SLA policy "${def.definitionKey}" has a target without numeric hours.`);
+        }
+      }
+    }
   }
 
   if (def.definitionType === "persona") {
