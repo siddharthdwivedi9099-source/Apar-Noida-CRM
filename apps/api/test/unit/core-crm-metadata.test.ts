@@ -72,6 +72,12 @@ const requestedObjectKeys = [
 const requestedPicklistKeys = [
   "lead-source",
   "lead-status",
+  "lead-capture-source",
+  "lead-sub-source",
+  "lead-grade",
+  "qualification-status",
+  "disqualification-reason",
+  "consent-status",
   "lifecycle-stage",
   "industry",
   "segment",

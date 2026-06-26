@@ -30,6 +30,9 @@ interface CoreCrmFieldInput {
   searchable?: boolean;
   filterable?: boolean;
   reportable?: boolean;
+  aiUsable?: boolean;
+  sensitive?: boolean;
+  masking?: "none" | "partial" | "full" | "email";
 }
 
 interface CoreCrmRelationshipInput {
@@ -372,14 +375,45 @@ const coreCrmObjectInputs: CoreCrmObjectInput[] = [
     ownershipModel: "user",
     fields: [
       field({ key: "fullName", label: "Full Name", type: "text", required: true }),
-      field({ key: "companyName", label: "Company", type: "text", required: true }),
-      field({ key: "email", label: "Email", type: "email", required: true }),
-      field({ key: "phone", label: "Phone", type: "phone" }),
+      field({ key: "firstName", label: "First Name", type: "text" }),
+      field({ key: "lastName", label: "Last Name", type: "text" }),
+      field({ key: "companyName", label: "Company", type: "text", required: true, aiUsable: true }),
+      field({ key: "email", label: "Email", type: "email", required: true, sensitive: true, masking: "email" }),
+      field({ key: "phone", label: "Phone", type: "phone", sensitive: true, masking: "partial" }),
+      field({ key: "designation", label: "Designation", type: "text", aiUsable: true }),
+      field({ key: "department", label: "Department", type: "text" }),
+      field({ key: "website", label: "Website", type: "url" }),
+      field({ key: "industry", label: "Industry", type: "select", optionSetKey: "industry", aiUsable: true }),
+      field({ key: "region", label: "Region", type: "select", optionSetKey: "region", aiUsable: true }),
+      field({ key: "segment", label: "Segment", type: "select", optionSetKey: "segment", aiUsable: true }),
+      field({ key: "productInterest", label: "Product Interest", type: "multiselect", optionSetKey: "product-interest", aiUsable: true }),
+      field({ key: "captureSource", label: "Capture Source", type: "select", optionSetKey: "lead-capture-source" }),
       field({ key: "leadSource", label: "Lead Source", type: "select", optionSetKey: "lead-source" }),
+      field({ key: "subSource", label: "Sub-source", type: "select", optionSetKey: "lead-sub-source" }),
+      field({ key: "campaign", label: "Campaign", type: "lookup", targetObject: "campaign" }),
+      field({ key: "utmSource", label: "UTM Source", type: "text" }),
+      field({ key: "utmMedium", label: "UTM Medium", type: "text" }),
+      field({ key: "utmCampaign", label: "UTM Campaign", type: "text" }),
+      field({ key: "firstTouchSource", label: "First-touch Source", type: "select", optionSetKey: "lead-source" }),
+      field({ key: "latestTouchSource", label: "Latest-touch Source", type: "select", optionSetKey: "lead-source" }),
+      field({ key: "consentStatus", label: "Consent Status", type: "select", optionSetKey: "consent-status", sensitive: true }),
+      field({ key: "leadScore", label: "Lead Score", type: "number", aiUsable: true }),
+      field({ key: "fitScore", label: "Fit Score", type: "number", aiUsable: true }),
+      field({ key: "engagementScore", label: "Engagement Score", type: "number", aiUsable: true }),
+      field({ key: "intentScore", label: "Intent Score", type: "number", aiUsable: true }),
+      field({ key: "aiScore", label: "AI Score", type: "number", aiUsable: true }),
+      field({ key: "leadGrade", label: "Lead Grade", type: "select", optionSetKey: "lead-grade" }),
       field({ key: "leadStatus", label: "Lead Status", type: "select", optionSetKey: "lead-status" }),
       field({ key: "lifecycleStage", label: "Lifecycle Stage", type: "select", optionSetKey: "lifecycle-stage" }),
-      field({ key: "productInterest", label: "Product Interest", type: "multiselect", optionSetKey: "product-interest" }),
-      field({ key: "region", label: "Region", type: "select", optionSetKey: "region" })
+      field({ key: "owner", label: "Owner", type: "lookup", targetObject: "user" }),
+      field({ key: "assignmentDate", label: "Assignment Date", type: "datetime" }),
+      field({ key: "slaDueDate", label: "SLA Due Date", type: "datetime" }),
+      field({ key: "attemptCount", label: "Attempt Count", type: "number" }),
+      field({ key: "lastActivity", label: "Last Activity", type: "datetime" }),
+      field({ key: "nextFollowUp", label: "Next Follow-up", type: "datetime" }),
+      field({ key: "qualificationStatus", label: "Qualification Status", type: "select", optionSetKey: "qualification-status" }),
+      field({ key: "disqualificationReason", label: "Disqualification Reason", type: "select", optionSetKey: "disqualification-reason" }),
+      field({ key: "revisitDate", label: "Revisit Date", type: "date" })
     ],
     relationships: [
       relationship({ key: "convertedAccount", label: "Converted Account", type: "lookup", targetObject: "account", sourceField: "convertedAccountId" }),
@@ -1111,6 +1145,99 @@ export const defaultCoreCrmStandardPicklistDefinitions: TenantOptionSetSeedDefin
     ]
   }),
   optionSet({
+    setKey: "lead-capture-source",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Capture Source",
+    description: "How a lead was captured into the CRM.",
+    values: [
+      { key: "manual", label: "Manual", sortOrder: 0, isDefault: true },
+      { key: "website", label: "Website / Form", sortOrder: 1 },
+      { key: "social", label: "Social", sortOrder: 2 },
+      { key: "webinar", label: "Webinar / Event", sortOrder: 3 },
+      { key: "campaign", label: "Campaign", sortOrder: 4 },
+      { key: "partner_referral", label: "Partner Referral", sortOrder: 5 },
+      { key: "imported", label: "Imported", sortOrder: 6 },
+      { key: "inbound_call", label: "Inbound Call", sortOrder: 7 },
+      { key: "outbound_prospect", label: "Outbound Prospect", sortOrder: 8 }
+    ]
+  }),
+  optionSet({
+    setKey: "lead-sub-source",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Sub-source",
+    description: "Finer-grained lead intake sub-source.",
+    values: [
+      { key: "web_form", label: "Web Form", sortOrder: 0, isDefault: true },
+      { key: "content_download", label: "Content Download", sortOrder: 1 },
+      { key: "demo_request", label: "Demo Request", sortOrder: 2 },
+      { key: "pricing_request", label: "Pricing Request", sortOrder: 3 },
+      { key: "webinar", label: "Webinar", sortOrder: 4 },
+      { key: "event", label: "Event", sortOrder: 5 },
+      { key: "social_dm", label: "Social DM", sortOrder: 6 },
+      { key: "cold_call", label: "Cold Call", sortOrder: 7 },
+      { key: "email_reply", label: "Email Reply", sortOrder: 8 }
+    ]
+  }),
+  optionSet({
+    setKey: "lead-grade",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Grade",
+    description: "A/B/C/D lead grade derived from fit and engagement.",
+    values: [
+      { key: "a", label: "A", color: "#16a34a", sortOrder: 0 },
+      { key: "b", label: "B", color: "#0ea5e9", sortOrder: 1 },
+      { key: "c", label: "C", color: "#f59e0b", sortOrder: 2 },
+      { key: "d", label: "D", color: "#ef4444", sortOrder: 3, isDefault: true }
+    ]
+  }),
+  optionSet({
+    setKey: "qualification-status",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Qualification Status",
+    description: "Lead qualification progress.",
+    values: [
+      { key: "not_started", label: "Not Started", sortOrder: 0, isDefault: true },
+      { key: "in_progress", label: "In Progress", sortOrder: 1 },
+      { key: "qualified", label: "Qualified", color: "#16a34a", sortOrder: 2 },
+      { key: "not_qualified", label: "Not Qualified", color: "#ef4444", sortOrder: 3 }
+    ]
+  }),
+  optionSet({
+    setKey: "disqualification-reason",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Disqualification Reason",
+    description: "Reason a lead was disqualified.",
+    values: [
+      { key: "no_budget", label: "No Budget", sortOrder: 0 },
+      { key: "no_authority", label: "No Authority", sortOrder: 1 },
+      { key: "invalid_contact", label: "Invalid Contact", sortOrder: 2 },
+      { key: "wrong_geography", label: "Wrong Geography", sortOrder: 3 },
+      { key: "duplicate", label: "Duplicate", sortOrder: 4 },
+      { key: "spam", label: "Spam", sortOrder: 5 },
+      { key: "not_interested", label: "Not Interested", sortOrder: 6 },
+      { key: "future_need", label: "Future Need", sortOrder: 7 },
+      { key: "competitor", label: "Competitor", sortOrder: 8 },
+      { key: "irrelevant", label: "Irrelevant", sortOrder: 9, isDefault: true }
+    ]
+  }),
+  optionSet({
+    setKey: "consent-status",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Consent Status",
+    description: "Marketing/communication consent state.",
+    values: [
+      { key: "unknown", label: "Unknown", sortOrder: 0, isDefault: true },
+      { key: "opted_in", label: "Opted In", color: "#16a34a", sortOrder: 1 },
+      { key: "opted_out", label: "Opted Out", color: "#ef4444", sortOrder: 2 }
+    ]
+  }),
+  optionSet({
     setKey: "lifecycle-stage",
     moduleKey: "marketing",
     kind: "dropdown",
@@ -1430,6 +1557,12 @@ export const coreCrmRequiredObjectKeys = coreCrmObjectInputs.map((object) => obj
 export const coreCrmRequiredPicklistKeys = [
   "lead-source",
   "lead-status",
+  "lead-capture-source",
+  "lead-sub-source",
+  "lead-grade",
+  "qualification-status",
+  "disqualification-reason",
+  "consent-status",
   "lifecycle-stage",
   "industry",
   "segment",
