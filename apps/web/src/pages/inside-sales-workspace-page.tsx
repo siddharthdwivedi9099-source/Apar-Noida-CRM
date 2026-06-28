@@ -5,6 +5,7 @@ import type {
   SalesWorkspaceLeadSummary,
   SalesWorkspaceOptionsResponse,
   SalesWorkspaceTaskSummary,
+  ScheduleLeadMeetingRequestBody,
   UpdateLeadWorkspaceRequestBody
 } from "@crm/types";
 import { Link } from "react-router-dom";
@@ -30,6 +31,24 @@ function getUniqueLeads(leads: SalesWorkspaceLeadSummary[]) {
   }
 
   return Array.from(map.values());
+}
+
+function getPriorityLabel(priority: SalesWorkspaceLeadSummary["priority"]) {
+  switch (priority) {
+    case "hot":
+      return "🔥 Hot";
+    case "high":
+      return "High";
+    case "medium":
+      return "Medium";
+    case "low":
+    default:
+      return "Low";
+  }
+}
+
+function getSlaBadgeVariant(status: NonNullable<SalesWorkspaceLeadSummary["slaStatus"]>) {
+  return status === "met" || status === "ok" ? "success" : "default";
 }
 
 interface LeadQueueCardProps {
@@ -68,19 +87,26 @@ function LeadQueueCard({
               onClick={() => onSelect(lead.id)}
               className={cn(
                 "w-full rounded-[1.25rem] border border-border/70 bg-background/75 p-4 text-left shadow-sm transition hover:border-primary/50",
-                selectedLeadId === lead.id ? "border-primary bg-primary/5" : ""
+                selectedLeadId === lead.id ? "border-primary bg-primary/5" : "",
+                lead.isHot ? "ring-2 ring-rose-400/70" : ""
               )}
             >
               <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={lead.isHot ? "default" : "muted"}>{getPriorityLabel(lead.priority)}</Badge>
                 <Badge>{lead.status?.label ?? "Status missing"}</Badge>
+                {lead.source ? <Badge variant="muted">{lead.source.label}</Badge> : null}
                 {lead.workspace.callDisposition ? <Badge variant="muted">{lead.workspace.callDisposition.label}</Badge> : null}
-                {lead.workspace.handoffStatus ? <Badge variant="muted">{lead.workspace.handoffStatus.label}</Badge> : null}
+                {lead.slaStatus ? <Badge variant={getSlaBadgeVariant(lead.slaStatus)}>SLA {lead.slaStatus}</Badge> : null}
               </div>
               <p className="mt-3 font-semibold">{lead.fullName}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{lead.companyName}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {lead.companyName}
+                {lead.productSummary ? ` • ${lead.productSummary}` : ""}
+              </p>
               <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {lead.workspace.qualificationChecklistCompletionCount}/{lead.workspace.qualificationChecklistTotal} BANT
-                complete • {lead.overdueTaskCount} overdue tasks
+                Score {lead.score ?? "—"}
+                {lead.scoreGrade ? ` (${lead.scoreGrade})` : ""} • SLA due {formatDateTime(lead.slaDueAt)} •{" "}
+                {lead.overdueTaskCount} overdue
               </p>
             </button>
           ))
@@ -232,6 +258,20 @@ export function InsideSalesWorkspacePage() {
     setSelectedLeadId(leadId);
   }
 
+  async function handleScheduleMeeting(leadId: string, payload: ScheduleLeadMeetingRequestBody) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/sales-workspaces/leads/${leadId}/meetings`, {
+      method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
   if (isLoading) {
     return (
       <CrmLoadingState
@@ -342,10 +382,12 @@ export function InsideSalesWorkspacePage() {
           canUpdateWorkflow={canUpdateWorkflow}
           canAssignOwner={canAssignOwner}
           canCreateTask={canCreateTask}
+          canScheduleMeeting={canUpdateWorkflow}
           allowedTaskTypes={["call", "follow_up"]}
           defaultTaskType="follow_up"
           onSaveWorkflow={handleSaveWorkflow}
           onCreateTask={handleCreateTask}
+          onScheduleMeeting={handleScheduleMeeting}
         />
       )}
 

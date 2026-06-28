@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
-import type { UpdateLeadWorkspaceRequestBody } from "@crm/types";
+import type { ScheduleLeadMeetingRequestBody, UpdateLeadWorkspaceRequestBody } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
 import { requirePermissions } from "../../common/middleware/authorize.js";
@@ -44,7 +44,29 @@ const updateLeadWorkspaceSchema = z.object({
     .max(30)
     .optional(),
   qualificationNotes: z.string().max(4000).nullable().optional(),
+  qualificationItems: z.record(z.boolean()).optional(),
+  qualificationOutcome: z.enum(["pending", "qualified", "not_qualified"]).optional(),
+  qualificationOverrideReason: z.string().max(2000).nullable().optional(),
+  disqualificationReasonKey: z.string().min(2).max(160).nullable().optional(),
+  cadence: z
+    .object({
+      paused: z.boolean().optional(),
+      pauseReason: z.string().max(2000).nullable().optional(),
+      completeStepKey: z.string().min(1).max(160).optional(),
+      logFailedAttempt: z.boolean().optional()
+    })
+    .optional(),
   metadata: recordSchema.optional()
+});
+
+const scheduleMeetingSchema = z.object({
+  meetingTypeKey: z.string().min(2).max(160),
+  title: z.string().min(2).max(200),
+  agenda: z.string().max(4000).nullable().optional(),
+  scheduledAt: z.string().min(1).max(40),
+  durationMinutes: z.number().int().positive().max(1440).optional(),
+  participantUserIds: z.array(uuidSchema).max(50).optional(),
+  reminderMinutesBefore: z.number().int().positive().max(10080).optional()
 });
 
 const leadIdSchema = z.object({
@@ -133,6 +155,29 @@ export function createSalesWorkspacesRouter({ databaseService }: SalesWorkspaces
           },
           request.params.leadId,
           request.body as UpdateLeadWorkspaceRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/leads/:leadId/meetings",
+    requirePermissions({ oneOf: salesWorkspaceUpdatePermissions }),
+    validateRequest({
+      params: leadIdSchema,
+      body: scheduleMeetingSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await salesWorkspacesService.scheduleLeadMeeting(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.leadId,
+          request.body as ScheduleLeadMeetingRequestBody
         )
       );
     })

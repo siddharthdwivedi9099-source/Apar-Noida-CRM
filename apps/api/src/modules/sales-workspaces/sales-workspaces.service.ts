@@ -4,18 +4,39 @@ import type {
   CrmOptionValueSummary,
   CrmTaskStatus,
   LeadBantChecklist,
+  LeadCadenceStepDefinition,
+  LeadCadenceStateInput,
+  LeadContactScriptDefinition,
   LeadCustomQualificationField,
   LeadCustomQualificationFieldInput,
+  LeadMeetingTypeDefinition,
+  LeadQualificationChecklistItemDefinition,
   LeadQualificationFramework,
+  LeadQualificationOutcome,
   RoleSummary,
   SalesWorkspaceAiPlaceholderSummary,
   SalesWorkspaceLeadResponse,
   SalesWorkspaceLeadSummary,
   SalesWorkspaceOptionsResponse,
   SalesWorkspaceTaskSummary,
+  ScheduleLeadMeetingRequestBody,
+  ScheduleLeadMeetingResponse,
+  ScoreGrade,
   SdrWorkspaceResponse,
+  SlaPolicyPayload,
+  SlaStatus,
   InsideSalesWorkspaceResponse,
   UpdateLeadWorkspaceRequestBody
+} from "@crm/types";
+import {
+  canMarkLeadQualified,
+  compareLeadQueueEntries,
+  computeLeadWorkspacePriority,
+  computeSlaStatus,
+  DEFAULT_FAILED_ATTEMPTS_BEFORE_NURTURE,
+  evaluateLeadCadence,
+  evaluateQualificationChecklist,
+  resolveContactScript
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
@@ -69,6 +90,7 @@ interface LeadWorkspaceRow {
   note_count: number;
   activity_count: number;
   last_activity_at: Date | null;
+  first_activity_at: Date | null;
   owner_id: string | null;
   owner_display_name: string | null;
   owner_email: string | null;
@@ -136,10 +158,32 @@ interface LeadStateRow {
   metadata: Record<string, unknown> | null;
 }
 
+interface OptionValueMetaRow {
+  key: string;
+  label: string;
+  description: string | null;
+  sort_order: number;
+  metadata: Record<string, unknown> | null;
+}
+
 interface WorkspaceOptionCatalog {
   outreachStatuses: CrmOptionValueSummary[];
   handoffStatuses: CrmOptionValueSummary[];
   callDispositions: CrmOptionValueSummary[];
+  disqualificationReasons: CrmOptionValueSummary[];
+  qualificationChecklistItems: LeadQualificationChecklistItemDefinition[];
+  contactScripts: LeadContactScriptDefinition[];
+  cadenceSteps: LeadCadenceStepDefinition[];
+  slaPolicy: SlaPolicyPayload | null;
+  scoringGrades: ScoreGrade[];
+  nowIso: string;
+}
+
+// Auto next-step hint stored on a call-disposition option value's metadata (ISR-002).
+interface DispositionNextStep {
+  taskType: "call" | "follow_up";
+  offsetHours: number;
+  title: string;
 }
 
 function toIsoString(value: Date | null) {
@@ -313,6 +357,122 @@ function getCompletedCallCount(leads: SalesWorkspaceLeadSummary[]) {
   }).length;
 }
 
+function metaString(metadata: Record<string, unknown> | null | undefined, key: string): string | null {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function metaBool(metadata: Record<string, unknown> | null | undefined, key: string): boolean {
+  if (!metadata || typeof metadata !== "object") {
+    return false;
+  }
+  return (metadata as Record<string, unknown>)[key] === true;
+}
+
+function getDispositionNextStep(metadata: Record<string, unknown> | null | undefined): DispositionNextStep | null {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+  const raw = (metadata as Record<string, unknown>).nextStep;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  const candidate = raw as Partial<Record<keyof DispositionNextStep, unknown>>;
+  const taskType = candidate.taskType === "call" ? "call" : candidate.taskType === "follow_up" ? "follow_up" : null;
+  const title = typeof candidate.title === "string" && candidate.title.trim().length > 0 ? candidate.title.trim() : null;
+  if (!taskType || !title) {
+    return null;
+  }
+  const offsetHours =
+    typeof candidate.offsetHours === "number" && Number.isFinite(candidate.offsetHours) && candidate.offsetHours >= 0
+      ? candidate.offsetHours
+      : 24;
+  return { taskType, offsetHours, title };
+}
+
+// Map a stored lead score to a configured grade band (highest band the score meets). Pure.
+function scoreToGrade(score: number | null, grades: ScoreGrade[]): string | null {
+  if (typeof score !== "number" || !Number.isFinite(score) || grades.length === 0) {
+    return null;
+  }
+  const ordered = [...grades].sort((a, b) => b.minScore - a.minScore);
+  for (const grade of ordered) {
+    if (score >= grade.minScore) {
+      return grade.grade;
+    }
+  }
+  return null;
+}
+
+// Derive a human-readable product/solution summary from the lead classification metadata (ISR-001).
+function getProductSummary(metadata: Record<string, unknown> | null | undefined): string | null {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+  const classification = (metadata as Record<string, unknown>).leadClassification;
+  const source =
+    classification && typeof classification === "object" && !Array.isArray(classification)
+      ? (classification as Record<string, unknown>)
+      : (metadata as Record<string, unknown>);
+
+  const collected: string[] = [];
+  for (const key of ["products", "technologies", "productInterest", "productInterests"]) {
+    const value = source[key];
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (typeof entry === "string" && entry.trim().length > 0) {
+          collected.push(entry.trim());
+        }
+      }
+    }
+  }
+  if (collected.length > 0) {
+    return Array.from(new Set(collected)).join(", ");
+  }
+  return metaString(source, "leadFor");
+}
+
+function getStoredQualificationAnswers(root: Record<string, unknown>): Record<string, boolean> {
+  const raw = root.qualificationItems;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+  const answers: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    answers[key] = value === true;
+  }
+  return answers;
+}
+
+function normalizeQualificationOutcome(value: unknown): LeadQualificationOutcome {
+  if (value === "qualified" || value === "not_qualified") {
+    return value;
+  }
+  return "pending";
+}
+
+function getStoredCadenceState(root: Record<string, unknown>): LeadCadenceStateInput {
+  const raw = root.cadence;
+  const source = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const completedStepKeys = Array.isArray(source.completedStepKeys)
+    ? source.completedStepKeys.filter((value): value is string => typeof value === "string")
+    : [];
+  return {
+    paused: source.paused === true,
+    pauseReason:
+      typeof source.pauseReason === "string" && source.pauseReason.trim().length > 0 ? source.pauseReason.trim() : null,
+    completedStepKeys,
+    failedAttemptCount:
+      typeof source.failedAttemptCount === "number" && Number.isFinite(source.failedAttemptCount)
+        ? source.failedAttemptCount
+        : 0,
+    movedToNurture: source.movedToNurture === true
+  };
+}
+
 export class SalesWorkspacesService {
   constructor(
     private readonly databaseService: DatabaseService,
@@ -448,6 +608,131 @@ export class SalesWorkspacesService {
       isDefault: row.is_default,
       isActive: row.is_active
     }));
+  }
+
+  private async loadOptionValueMetaRows(client: PoolClient, tenantId: string, setKey: string) {
+    const result = await client.query<OptionValueMetaRow>(
+      `
+        SELECT
+          tenant_option_values.value_key AS key,
+          tenant_option_values.label,
+          tenant_option_values.description,
+          tenant_option_values.sort_order,
+          tenant_option_values.metadata
+        FROM tenant_option_sets
+        INNER JOIN tenant_option_values
+          ON tenant_option_values.option_set_id = tenant_option_sets.id
+         AND tenant_option_values.tenant_id = tenant_option_sets.tenant_id
+        WHERE tenant_option_sets.tenant_id = $1
+          AND tenant_option_sets.set_key = $2
+          AND tenant_option_sets.deleted_at IS NULL
+          AND tenant_option_values.deleted_at IS NULL
+          AND tenant_option_values.is_active = true
+        ORDER BY tenant_option_values.sort_order ASC, tenant_option_values.label ASC
+      `,
+      [tenantId, setKey]
+    );
+
+    return result.rows;
+  }
+
+  private async loadQualificationChecklistItems(
+    client: PoolClient,
+    tenantId: string
+  ): Promise<LeadQualificationChecklistItemDefinition[]> {
+    const rows = await this.loadOptionValueMetaRows(client, tenantId, "lead-qualification-checklist");
+    return rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      description: row.description,
+      required: metaBool(row.metadata, "required"),
+      sortOrder: row.sort_order
+    }));
+  }
+
+  private async loadContactScripts(client: PoolClient, tenantId: string): Promise<LeadContactScriptDefinition[]> {
+    const rows = await this.loadOptionValueMetaRows(client, tenantId, "lead-contact-script");
+    return rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      body: metaString(row.metadata, "body") ?? row.description ?? "",
+      leadFor: metaString(row.metadata, "leadFor"),
+      campaignKey: metaString(row.metadata, "campaignKey"),
+      sourceKey: metaString(row.metadata, "sourceKey"),
+      personaKey: metaString(row.metadata, "personaKey")
+    }));
+  }
+
+  private async loadCadenceSteps(client: PoolClient, tenantId: string): Promise<LeadCadenceStepDefinition[]> {
+    const rows = await this.loadOptionValueMetaRows(client, tenantId, "lead-cadence-step");
+    const validChannels = ["call", "email", "sms", "whatsapp", "linkedin", "follow_up"];
+    return rows.map((row, index) => {
+      const channelRaw = metaString(row.metadata, "channel");
+      const offsetRaw = row.metadata && typeof row.metadata === "object" ? (row.metadata as Record<string, unknown>).offsetHours : null;
+      return {
+        key: row.key,
+        label: row.label,
+        channel: (channelRaw && validChannels.includes(channelRaw)
+          ? channelRaw
+          : "follow_up") as LeadCadenceStepDefinition["channel"],
+        offsetHours: typeof offsetRaw === "number" && Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : index * 24,
+        order: row.sort_order
+      };
+    });
+  }
+
+  private async loadInsideSalesRuntimeConfig(
+    client: PoolClient,
+    tenantId: string
+  ): Promise<{ slaPolicy: SlaPolicyPayload | null; scoringGrades: ScoreGrade[] }> {
+    const result = await client.query<{ definition_type: string; definition: Record<string, unknown> }>(
+      `
+        SELECT definition_type, definition
+        FROM configuration_definitions
+        WHERE tenant_id = $1
+          AND deleted_at IS NULL
+          AND is_active = true
+          AND definition_type IN ('scoring_model', 'sla_policy')
+          AND definition->>'object' = 'lead'
+        ORDER BY definition_type ASC, updated_at DESC
+      `,
+      [tenantId]
+    );
+
+    let slaPolicy: SlaPolicyPayload | null = null;
+    let scoringGrades: ScoreGrade[] = [];
+    for (const row of result.rows) {
+      if (row.definition_type === "sla_policy" && !slaPolicy) {
+        slaPolicy = row.definition as unknown as SlaPolicyPayload;
+      }
+      if (row.definition_type === "scoring_model" && scoringGrades.length === 0) {
+        const payload = row.definition as unknown as { grades?: ScoreGrade[] };
+        scoringGrades = Array.isArray(payload.grades) ? payload.grades : [];
+      }
+    }
+
+    return { slaPolicy, scoringGrades };
+  }
+
+  private async buildOptionCatalog(
+    client: PoolClient,
+    actor: ActorContext,
+    options: SalesWorkspaceOptionsResponse
+  ): Promise<WorkspaceOptionCatalog> {
+    const runtime = await this.loadInsideSalesRuntimeConfig(client, actor.tenantId);
+    const contactScripts = await this.loadContactScripts(client, actor.tenantId);
+    return {
+      outreachStatuses: options.outreachStatuses,
+      handoffStatuses: options.handoffStatuses,
+      callDispositions: options.callDispositions,
+      disqualificationReasons: options.disqualificationReasons,
+      qualificationChecklistItems: options.qualificationChecklistItems,
+      contactScripts,
+      cadenceSteps: options.cadenceSteps,
+      slaPolicy: runtime.slaPolicy,
+      scoringGrades: runtime.scoringGrades,
+      nowIso: new Date().toISOString()
+    };
   }
 
   private async resolveOptionValueId(
@@ -617,6 +902,26 @@ export class SalesWorkspacesService {
               key: "qualification_score",
               label: "Qualification score",
               description: "Placeholder entry point for future AI-assisted qualification scoring."
+            },
+            {
+              key: "best_contact_recommendation",
+              label: "Best contact time & channel",
+              description: "Placeholder entry point for future AI recommendations on when and how to reach the lead."
+            },
+            {
+              key: "lead_summary",
+              label: "AI lead summary",
+              description: "Placeholder entry point for future AI lead summaries surfaced from the queue."
+            },
+            {
+              key: "call_note_summary",
+              label: "Summarize call notes",
+              description: "Placeholder entry point for future AI summarization of logged call notes."
+            },
+            {
+              key: "qualification_outcome_suggestion",
+              label: "Suggest qualification outcome",
+              description: "Placeholder entry point for future AI qualification-outcome suggestions with human override."
             }
           ]
         : [],
@@ -632,19 +937,32 @@ export class SalesWorkspacesService {
     return {
       outreachStatuses: new Map(optionCatalog.outreachStatuses.map((option) => [option.key, option])),
       handoffStatuses: new Map(optionCatalog.handoffStatuses.map((option) => [option.key, option])),
-      callDispositions: new Map(optionCatalog.callDispositions.map((option) => [option.key, option]))
+      callDispositions: new Map(optionCatalog.callDispositions.map((option) => [option.key, option])),
+      disqualificationReasons: new Map(optionCatalog.disqualificationReasons.map((option) => [option.key, option]))
     };
   }
 
   private mapLeadWorkspaceState(
     metadata: Record<string, unknown> | null | undefined,
-    optionCatalog: WorkspaceOptionCatalog
+    optionCatalog: WorkspaceOptionCatalog,
+    createdAtIso: string
   ) {
     const root = getSalesWorkspaceRoot(metadata);
     const optionMaps = this.buildOptionMaps(optionCatalog);
     const qualificationChecklist = getBantChecklist(root.qualificationChecklist);
     const qualificationChecklistCompletionCount = Object.values(qualificationChecklist).filter(Boolean).length;
     const customQualificationFields = normalizeCustomQualificationFields(root.customQualificationFields);
+    const checklistEvaluation = evaluateQualificationChecklist(
+      optionCatalog.qualificationChecklistItems,
+      getStoredQualificationAnswers(root)
+    );
+    const cadence = evaluateLeadCadence({
+      steps: optionCatalog.cadenceSteps,
+      state: getStoredCadenceState(root),
+      startIso: createdAtIso,
+      nowIso: optionCatalog.nowIso,
+      failedAttemptsBeforeNurture: DEFAULT_FAILED_ATTEMPTS_BEFORE_NURTURE
+    });
 
     return {
       outreachStatus:
@@ -666,6 +984,21 @@ export class SalesWorkspacesService {
       customQualificationFields,
       qualificationNotes:
         typeof root.qualificationNotes === "string" ? getTrimmedNullableString(root.qualificationNotes) : null,
+      qualificationItems: checklistEvaluation.items,
+      qualificationItemsCompletionCount: checklistEvaluation.completionCount,
+      qualificationItemsTotal: checklistEvaluation.total,
+      qualificationItemsRequiredCount: checklistEvaluation.requiredCount,
+      qualificationItemsRequiredComplete: checklistEvaluation.requiredComplete,
+      qualificationOutcome: normalizeQualificationOutcome(root.qualificationOutcome),
+      qualificationOverrideReason:
+        typeof root.qualificationOverrideReason === "string"
+          ? getTrimmedNullableString(root.qualificationOverrideReason)
+          : null,
+      disqualificationReason:
+        typeof root.disqualificationReasonKey === "string"
+          ? optionMaps.disqualificationReasons.get(root.disqualificationReasonKey.trim()) ?? null
+          : null,
+      cadence,
       handoffUpdatedAt:
         typeof root.handoffUpdatedAt === "string" && root.handoffUpdatedAt.trim().length > 0
           ? root.handoffUpdatedAt.trim()
@@ -685,7 +1018,48 @@ export class SalesWorkspacesService {
     };
   }
 
+  private computeLeadSla(row: LeadWorkspaceRow, optionCatalog: WorkspaceOptionCatalog) {
+    const policy = optionCatalog.slaPolicy;
+    if (!policy || policy.targets.length === 0) {
+      return { slaDueAt: null, slaStatus: null as SlaStatus | null, slaLabel: null, slaRemainingHours: null };
+    }
+    const target = policy.targets.find((entry) => entry.key === "first_response") ?? policy.targets[0];
+    const startIso = row.created_at.toISOString();
+    // First response is "completed" once the lead has its first logged activity.
+    const completionIso = target.key === "first_response" ? toIsoString(row.first_activity_at) : null;
+    const computation = computeSlaStatus(target, startIso, completionIso, optionCatalog.nowIso);
+    return {
+      slaDueAt: computation.dueAt,
+      slaStatus: computation.status,
+      slaLabel: target.label ?? target.key,
+      slaRemainingHours: computation.remainingHours
+    };
+  }
+
   private mapLeadSummary(row: LeadWorkspaceRow, optionCatalog: WorkspaceOptionCatalog): SalesWorkspaceLeadSummary {
+    const metadata = getMetadata(row.metadata);
+    const classification =
+      metadata.leadClassification && typeof metadata.leadClassification === "object"
+        ? (metadata.leadClassification as Record<string, unknown>)
+        : null;
+    const leadFor = metaString(classification, "leadFor") ?? metaString(metadata, "leadFor");
+    const personaKey = metaString(metadata, "personaKey") ?? metaString(metadata, "persona");
+    const campaignKey =
+      metaString(classification, "campaignKey") ??
+      metaString(metadata, "campaignKey") ??
+      metaString(metadata, "campaignType") ??
+      metaString(metadata, "campaignTypeKey");
+    const sla = this.computeLeadSla(row, optionCatalog);
+    // Disqualified leads are excluded from active SLA pressure (ISR-006).
+    const slaStatusForPriority = row.status_key === "disqualified" ? null : sla.slaStatus;
+    const priority = computeLeadWorkspacePriority({ score: row.score, slaStatus: slaStatusForPriority });
+    const firstContactScript = resolveContactScript(optionCatalog.contactScripts, {
+      leadFor,
+      campaignKey,
+      sourceKey: row.source_key,
+      personaKey
+    });
+
     return {
       id: row.id,
       firstName: row.first_name,
@@ -694,6 +1068,16 @@ export class SalesWorkspacesService {
       companyName: row.company_name,
       email: row.email,
       phone: row.phone,
+      priority: priority.priority,
+      isHot: priority.isHot,
+      scoreGrade: scoreToGrade(row.score, optionCatalog.scoringGrades),
+      productSummary: getProductSummary(row.metadata),
+      slaDueAt: row.status_key === "disqualified" ? null : sla.slaDueAt,
+      slaStatus: slaStatusForPriority,
+      slaLabel: row.status_key === "disqualified" ? null : sla.slaLabel,
+      slaRemainingHours: row.status_key === "disqualified" ? null : sla.slaRemainingHours,
+      slaBreachAlert: slaStatusForPriority === "breached",
+      firstContactScript,
       status: mapOptionValue({
         id: row.status_id,
         key: row.status_key,
@@ -726,7 +1110,7 @@ export class SalesWorkspacesService {
       metadata: getMetadata(row.metadata),
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
-      workspace: this.mapLeadWorkspaceState(row.metadata, optionCatalog),
+      workspace: this.mapLeadWorkspaceState(row.metadata, optionCatalog, row.created_at.toISOString()),
       openTaskCount: 0,
       openCallTaskCount: 0,
       overdueTaskCount: 0,
@@ -796,7 +1180,15 @@ export class SalesWorkspacesService {
       outreachStatuses: await this.loadOptionSetValues(client, actor.tenantId, "lead-outreach-status"),
       handoffStatuses: await this.loadOptionSetValues(client, actor.tenantId, "lead-handoff-status"),
       callDispositions: await this.loadOptionSetValues(client, actor.tenantId, "lead-call-disposition"),
-      qualificationFrameworks: [...this.getQualificationFrameworkDefinitions()]
+      qualificationFrameworks: [...this.getQualificationFrameworkDefinitions()],
+      disqualificationReasons: await this.loadOptionSetValues(client, actor.tenantId, "disqualification-reason"),
+      qualificationChecklistItems: await this.loadQualificationChecklistItems(client, actor.tenantId),
+      qualificationOutcomes: await this.loadOptionSetValues(client, actor.tenantId, "qualification-status"),
+      cadenceSteps: await this.loadCadenceSteps(client, actor.tenantId),
+      meetingTypes: (await this.loadOptionSetValues(client, actor.tenantId, "lead-meeting-type")).map((option) => ({
+        key: option.key,
+        label: option.label
+      }))
     };
   }
 
@@ -826,6 +1218,7 @@ export class SalesWorkspacesService {
           COALESCE(note_counts.count, 0)::int AS note_count,
           COALESCE(activity_counts.count, 0)::int AS activity_count,
           activity_counts.last_activity_at,
+          activity_counts.first_activity_at,
           owner_users.id AS owner_id,
           owner_users.display_name AS owner_display_name,
           owner_users.email AS owner_email,
@@ -874,7 +1267,7 @@ export class SalesWorkspacesService {
           ON note_counts.tenant_id = leads.tenant_id
          AND note_counts.entity_id = leads.id
         LEFT JOIN (
-          SELECT tenant_id, entity_id, COUNT(*) AS count, MAX(occurred_at) AS last_activity_at
+          SELECT tenant_id, entity_id, COUNT(*) AS count, MAX(occurred_at) AS last_activity_at, MIN(occurred_at) AS first_activity_at
           FROM crm_activities
           WHERE entity_type = 'lead'
             AND deleted_at IS NULL
@@ -1043,12 +1436,19 @@ export class SalesWorkspacesService {
   }
 
   private getInsideSalesLeadQueue(leads: SalesWorkspaceLeadSummary[]) {
-    return leads.filter((lead) => {
-      const statusKey = lead.status?.key ?? "";
-      const handoffKey = lead.workspace.handoffStatus?.key ?? "";
+    return leads
+      .filter((lead) => {
+        const statusKey = lead.status?.key ?? "";
+        const handoffKey = lead.workspace.handoffStatus?.key ?? "";
 
-      return statusKey !== "disqualified" && handoffKey !== "accepted_by_sales";
-    });
+        return statusKey !== "disqualified" && handoffKey !== "accepted_by_sales";
+      })
+      .sort((a, b) =>
+        compareLeadQueueEntries(
+          { priority: a.priority, slaDueAt: a.slaDueAt, score: a.score },
+          { priority: b.priority, slaDueAt: b.slaDueAt, score: b.score }
+        )
+      );
   }
 
   private assertWorkflowMutation(actor: ActorContext, keys: string[]) {
@@ -1091,6 +1491,57 @@ export class SalesWorkspacesService {
         value: field.value.trim()
       }))
       .filter((field) => field.label.length > 0 || field.value.length > 0);
+  }
+
+  private async createAutoNextStepTask(
+    client: PoolClient,
+    actor: ActorContext,
+    leadId: string,
+    ownerId: string | null,
+    dispositionKey: string,
+    dispositionLabel: string,
+    nextStep: DispositionNextStep
+  ) {
+    const dueAt = new Date(Date.now() + nextStep.offsetHours * 3_600_000);
+    const taskOwnerId = ownerId ?? actor.userId;
+
+    await client.query(
+      `
+        INSERT INTO crm_tasks (
+          tenant_id,
+          entity_type,
+          entity_id,
+          owner_user_id,
+          assignee_user_id,
+          title,
+          description,
+          due_at,
+          priority,
+          status,
+          reminder_at,
+          metadata,
+          created_by,
+          updated_by
+        )
+        VALUES ($1, 'lead', $2, $3, $3, $4, $5, $6, $7, 'open', NULL, $8::jsonb, $9, $9)
+      `,
+      [
+        actor.tenantId,
+        leadId,
+        taskOwnerId,
+        nextStep.title,
+        `Auto-created from the "${dispositionLabel}" call disposition.`,
+        dueAt,
+        nextStep.taskType === "call" ? "high" : "medium",
+        JSON.stringify({
+          phase11TaskType: nextStep.taskType,
+          workspace: "inside_sales_workspace",
+          autoGenerated: true,
+          sourceCallDisposition: dispositionKey
+        }),
+        actor.userId
+      ]
+    );
   }
 
   private async insertLeadWorkflowActivity(
@@ -1148,11 +1599,7 @@ export class SalesWorkspacesService {
 
     return this.databaseService.withClient(async (client) => {
       const options = await this.loadWorkspaceOptions(client, actor);
-      const optionCatalog: WorkspaceOptionCatalog = {
-        outreachStatuses: options.outreachStatuses,
-        handoffStatuses: options.handoffStatuses,
-        callDispositions: options.callDispositions
-      };
+      const optionCatalog = await this.buildOptionCatalog(client, actor, options);
       const leadRows = await this.loadVisibleLeadRows(client, actor);
       const tasks = await this.loadLeadTasks(
         client,
@@ -1189,11 +1636,7 @@ export class SalesWorkspacesService {
 
     return this.databaseService.withClient(async (client) => {
       const options = await this.loadWorkspaceOptions(client, actor);
-      const optionCatalog: WorkspaceOptionCatalog = {
-        outreachStatuses: options.outreachStatuses,
-        handoffStatuses: options.handoffStatuses,
-        callDispositions: options.callDispositions
-      };
+      const optionCatalog = await this.buildOptionCatalog(client, actor, options);
       const leadRows = await this.loadVisibleLeadRows(client, actor);
       const tasks = await this.loadLeadTasks(
         client,
@@ -1239,11 +1682,7 @@ export class SalesWorkspacesService {
       this.assertWorkflowMutation(actor, keys);
 
       const options = await this.loadWorkspaceOptions(client, actor);
-      const optionCatalog: WorkspaceOptionCatalog = {
-        outreachStatuses: options.outreachStatuses,
-        handoffStatuses: options.handoffStatuses,
-        callDispositions: options.callDispositions
-      };
+      const optionCatalog = await this.buildOptionCatalog(client, actor, options);
       const currentLead = await this.getLeadState(client, actor.tenantId, leadId);
       this.assertLeadVisibility(actor, currentLead.owner_id);
       const currentWorkspace = getSalesWorkspaceRoot(currentLead.metadata);
@@ -1284,6 +1723,100 @@ export class SalesWorkspacesService {
         );
       }
 
+      // ISR-006: a structured disqualification reason is mandatory when moving a lead to disqualified.
+      const movingToDisqualified = input.statusKey === "disqualified";
+      const nextDisqualificationReasonKey =
+        input.disqualificationReasonKey !== undefined
+          ? getTrimmedNullableString(input.disqualificationReasonKey)
+          : typeof currentWorkspace.disqualificationReasonKey === "string"
+            ? getTrimmedNullableString(currentWorkspace.disqualificationReasonKey)
+            : null;
+
+      if (input.disqualificationReasonKey) {
+        await this.resolveOptionValueId(
+          client,
+          actor.tenantId,
+          "disqualification-reason",
+          input.disqualificationReasonKey,
+          "Disqualification reason"
+        );
+      }
+
+      if (movingToDisqualified && !nextDisqualificationReasonKey) {
+        throw new AppError(
+          400,
+          "A disqualification reason is required when disqualifying a lead.",
+          undefined,
+          "VALIDATION_ERROR"
+        );
+      }
+
+      // Future-fit leads are routed to nurture rather than fully discarded (ISR-006).
+      const routedToNurture = movingToDisqualified && nextDisqualificationReasonKey === "future_need";
+
+      // ISR-004: required checklist items must be complete before a lead can be marked qualified,
+      // unless an explicit override reason is supplied.
+      const mergedQualificationAnswers = {
+        ...getStoredQualificationAnswers(currentWorkspace),
+        ...(input.qualificationItems ?? {})
+      };
+      const nextQualificationOutcome =
+        input.qualificationOutcome ?? normalizeQualificationOutcome(currentWorkspace.qualificationOutcome);
+      const nextQualificationOverrideReason =
+        input.qualificationOverrideReason !== undefined
+          ? getTrimmedNullableString(input.qualificationOverrideReason)
+          : typeof currentWorkspace.qualificationOverrideReason === "string"
+            ? getTrimmedNullableString(currentWorkspace.qualificationOverrideReason)
+            : null;
+      const markingQualified = nextQualificationOutcome === "qualified" || input.statusKey === "qualified";
+
+      if (
+        markingQualified &&
+        !canMarkLeadQualified(optionCatalog.qualificationChecklistItems, mergedQualificationAnswers) &&
+        !nextQualificationOverrideReason
+      ) {
+        throw new AppError(
+          400,
+          "Complete all required qualification checklist items before marking this lead qualified, or provide an override reason.",
+          undefined,
+          "VALIDATION_ERROR"
+        );
+      }
+
+      // ISR-003: cadence controls (advance a step, pause with reason, log a failed attempt → nurture).
+      const nextCadence = getStoredCadenceState(currentWorkspace);
+      if (input.cadence) {
+        const cadenceInput = input.cadence;
+        if (cadenceInput.completeStepKey) {
+          const stepKey = cadenceInput.completeStepKey.trim();
+          if (stepKey && !nextCadence.completedStepKeys.includes(stepKey)) {
+            nextCadence.completedStepKeys = [...nextCadence.completedStepKeys, stepKey];
+          }
+        }
+        if (cadenceInput.logFailedAttempt) {
+          nextCadence.failedAttemptCount += 1;
+        }
+        if (cadenceInput.paused !== undefined) {
+          nextCadence.paused = cadenceInput.paused;
+          if (cadenceInput.paused) {
+            const reason = getTrimmedNullableString(cadenceInput.pauseReason ?? null);
+            if (!reason) {
+              throw new AppError(400, "A reason is required to pause the cadence.", undefined, "VALIDATION_ERROR");
+            }
+            nextCadence.pauseReason = reason;
+          } else {
+            nextCadence.pauseReason = null;
+          }
+        } else if (cadenceInput.pauseReason !== undefined) {
+          nextCadence.pauseReason = getTrimmedNullableString(cadenceInput.pauseReason);
+        }
+      }
+      const cadenceRoutedToNurture =
+        !nextCadence.movedToNurture && nextCadence.failedAttemptCount >= DEFAULT_FAILED_ATTEMPTS_BEFORE_NURTURE;
+      if (cadenceRoutedToNurture) {
+        nextCadence.movedToNurture = true;
+      }
+
       const qualificationChecklist = input.qualificationChecklist
         ? {
             ...getBantChecklist(currentWorkspace.qualificationChecklist),
@@ -1301,14 +1834,19 @@ export class SalesWorkspacesService {
         typeof currentWorkspace.handoffStatusKey === "string"
           ? getTrimmedNullableString(currentWorkspace.handoffStatusKey)
           : null;
+      const baseOutreachStatusKey =
+        input.outreachStatusKey !== undefined
+          ? getTrimmedNullableString(input.outreachStatusKey)
+          : typeof currentWorkspace.outreachStatusKey === "string"
+            ? getTrimmedNullableString(currentWorkspace.outreachStatusKey)
+            : null;
+      const nextOutreachStatusKey =
+        (routedToNurture || cadenceRoutedToNurture) && input.outreachStatusKey === undefined
+          ? "nurture"
+          : baseOutreachStatusKey;
       const nextWorkspace = {
         ...currentWorkspace,
-        outreachStatusKey:
-          input.outreachStatusKey !== undefined
-            ? getTrimmedNullableString(input.outreachStatusKey)
-            : (typeof currentWorkspace.outreachStatusKey === "string"
-                ? getTrimmedNullableString(currentWorkspace.outreachStatusKey)
-                : null),
+        outreachStatusKey: nextOutreachStatusKey,
         handoffStatusKey: nextHandoffStatusKey,
         callDispositionKey:
           input.callDispositionKey !== undefined
@@ -1331,6 +1869,13 @@ export class SalesWorkspacesService {
             : (typeof currentWorkspace.qualificationNotes === "string"
                 ? getTrimmedNullableString(currentWorkspace.qualificationNotes)
                 : null),
+        qualificationItems: mergedQualificationAnswers,
+        qualificationOutcome: nextQualificationOutcome,
+        qualificationOverrideReason: nextQualificationOverrideReason,
+        disqualificationReasonKey: nextDisqualificationReasonKey,
+        cadence: input.cadence
+          ? { ...nextCadence, updatedAt: new Date().toISOString() }
+          : currentWorkspace.cadence,
         handoffUpdatedAt:
           nextHandoffStatusKey !== previousHandoffStatusKey
             ? new Date().toISOString()
@@ -1391,6 +1936,36 @@ export class SalesWorkspacesService {
         });
       }
 
+      // ISR-002: log call disposition + auto-create the configured next step when the outcome changes.
+      const previousDispositionKey =
+        typeof currentWorkspace.callDispositionKey === "string"
+          ? getTrimmedNullableString(currentWorkspace.callDispositionKey)
+          : null;
+      const nextDispositionKey = nextWorkspace.callDispositionKey;
+      if (input.callDispositionKey !== undefined && nextDispositionKey && nextDispositionKey !== previousDispositionKey) {
+        const dispositionMetaRows = await this.loadOptionValueMetaRows(client, actor.tenantId, "lead-call-disposition");
+        const dispositionRow = dispositionMetaRows.find((entry) => entry.key === nextDispositionKey);
+        const dispositionLabel = dispositionRow?.label ?? nextDispositionKey;
+
+        await this.insertLeadWorkflowActivity(client, actor, leadId, {
+          subject: `Call disposition logged: ${dispositionLabel}`,
+          description: getTrimmedNullableString(
+            typeof nextWorkspace.qualificationNotes === "string" ? `Notes: ${nextWorkspace.qualificationNotes}` : null
+          ),
+          outcome: dispositionLabel,
+          metadata: {
+            fromCallDispositionKey: previousDispositionKey,
+            toCallDispositionKey: nextDispositionKey
+          },
+          ownerId
+        });
+
+        const nextStep = getDispositionNextStep(dispositionRow?.metadata);
+        if (nextStep) {
+          await this.createAutoNextStepTask(client, actor, leadId, ownerId, nextDispositionKey, dispositionLabel, nextStep);
+        }
+      }
+
       await this.recordAuditLog(client, actor, audit, {
         action: "lead.workspace.update",
         resourceType: "lead",
@@ -1401,93 +1976,288 @@ export class SalesWorkspacesService {
         }
       });
 
-      const leadRowResult = await client.query<LeadWorkspaceRow>(
-        `
-          SELECT
-            leads.id,
-            leads.first_name,
-            leads.last_name,
-            leads.company_name,
-            leads.email,
-            leads.phone,
-            leads.score,
-            leads.metadata,
-            leads.created_at,
-            leads.updated_at,
-            COALESCE(note_counts.count, 0)::int AS note_count,
-            COALESCE(activity_counts.count, 0)::int AS activity_count,
-            activity_counts.last_activity_at,
-            owner_users.id AS owner_id,
-            owner_users.display_name AS owner_display_name,
-            owner_users.email AS owner_email,
-            owner_teams.name AS owner_team_name,
-            owner_departments.name AS owner_department_name,
-            status_values.id AS status_id,
-            status_values.value_key AS status_key,
-            status_values.label AS status_label,
-            status_values.description AS status_description,
-            status_values.color AS status_color,
-            status_values.is_default AS status_is_default,
-            status_values.is_active AS status_is_active,
-            source_values.id AS source_id,
-            source_values.value_key AS source_key,
-            source_values.label AS source_label,
-            source_values.description AS source_description,
-            source_values.color AS source_color,
-            source_values.is_default AS source_is_default,
-            source_values.is_active AS source_is_active
-          FROM leads
-          INNER JOIN tenant_option_values AS status_values
-            ON status_values.id = leads.status_option_id
-           AND status_values.tenant_id = leads.tenant_id
-          INNER JOIN tenant_option_values AS source_values
-            ON source_values.id = leads.source_option_id
-           AND source_values.tenant_id = leads.tenant_id
-          LEFT JOIN users AS owner_users
-            ON owner_users.id = leads.owner_id
-           AND owner_users.tenant_id = leads.tenant_id
-           AND owner_users.deleted_at IS NULL
-          LEFT JOIN teams AS owner_teams
-            ON owner_teams.id = owner_users.team_id
-           AND owner_teams.tenant_id = owner_users.tenant_id
-           AND owner_teams.deleted_at IS NULL
-          LEFT JOIN departments AS owner_departments
-            ON owner_departments.id = owner_users.department_id
-           AND owner_departments.tenant_id = owner_users.tenant_id
-           AND owner_departments.deleted_at IS NULL
-          LEFT JOIN (
-            SELECT tenant_id, entity_id, COUNT(*) AS count
-            FROM crm_notes
-            WHERE entity_type = 'lead'
-              AND deleted_at IS NULL
-            GROUP BY tenant_id, entity_id
-          ) AS note_counts
-            ON note_counts.tenant_id = leads.tenant_id
-           AND note_counts.entity_id = leads.id
-          LEFT JOIN (
-            SELECT tenant_id, entity_id, COUNT(*) AS count, MAX(occurred_at) AS last_activity_at
-            FROM crm_activities
-            WHERE entity_type = 'lead'
-              AND deleted_at IS NULL
-            GROUP BY tenant_id, entity_id
-          ) AS activity_counts
-            ON activity_counts.tenant_id = leads.tenant_id
-           AND activity_counts.entity_id = leads.id
-          WHERE leads.tenant_id = $1
-            AND leads.id = $2
-            AND leads.deleted_at IS NULL
-          LIMIT 1
-        `,
-        [actor.tenantId, leadId]
-      );
-
-      const row = leadRowResult.rows[0];
-      const tasks = await this.loadLeadTasks(client, actor, [leadId]);
-      const hydratedLead = this.hydrateLeadMetrics([this.mapLeadSummary(row, optionCatalog)], tasks)[0];
-
       return {
-        lead: hydratedLead
+        lead: await this.reloadWorkspaceLead(client, actor, leadId, optionCatalog)
       };
     });
+  }
+
+  private async reloadWorkspaceLead(
+    client: PoolClient,
+    actor: ActorContext,
+    leadId: string,
+    optionCatalog: WorkspaceOptionCatalog
+  ): Promise<SalesWorkspaceLeadSummary> {
+    const leadRowResult = await client.query<LeadWorkspaceRow>(
+      `
+        SELECT
+          leads.id,
+          leads.first_name,
+          leads.last_name,
+          leads.company_name,
+          leads.email,
+          leads.phone,
+          leads.score,
+          leads.metadata,
+          leads.created_at,
+          leads.updated_at,
+          COALESCE(note_counts.count, 0)::int AS note_count,
+          COALESCE(activity_counts.count, 0)::int AS activity_count,
+          activity_counts.last_activity_at,
+          activity_counts.first_activity_at,
+          owner_users.id AS owner_id,
+          owner_users.display_name AS owner_display_name,
+          owner_users.email AS owner_email,
+          owner_teams.name AS owner_team_name,
+          owner_departments.name AS owner_department_name,
+          status_values.id AS status_id,
+          status_values.value_key AS status_key,
+          status_values.label AS status_label,
+          status_values.description AS status_description,
+          status_values.color AS status_color,
+          status_values.is_default AS status_is_default,
+          status_values.is_active AS status_is_active,
+          source_values.id AS source_id,
+          source_values.value_key AS source_key,
+          source_values.label AS source_label,
+          source_values.description AS source_description,
+          source_values.color AS source_color,
+          source_values.is_default AS source_is_default,
+          source_values.is_active AS source_is_active
+        FROM leads
+        INNER JOIN tenant_option_values AS status_values
+          ON status_values.id = leads.status_option_id
+         AND status_values.tenant_id = leads.tenant_id
+        INNER JOIN tenant_option_values AS source_values
+          ON source_values.id = leads.source_option_id
+         AND source_values.tenant_id = leads.tenant_id
+        LEFT JOIN users AS owner_users
+          ON owner_users.id = leads.owner_id
+         AND owner_users.tenant_id = leads.tenant_id
+         AND owner_users.deleted_at IS NULL
+        LEFT JOIN teams AS owner_teams
+          ON owner_teams.id = owner_users.team_id
+         AND owner_teams.tenant_id = owner_users.tenant_id
+         AND owner_teams.deleted_at IS NULL
+        LEFT JOIN departments AS owner_departments
+          ON owner_departments.id = owner_users.department_id
+         AND owner_departments.tenant_id = owner_users.tenant_id
+         AND owner_departments.deleted_at IS NULL
+        LEFT JOIN (
+          SELECT tenant_id, entity_id, COUNT(*) AS count
+          FROM crm_notes
+          WHERE entity_type = 'lead'
+            AND deleted_at IS NULL
+          GROUP BY tenant_id, entity_id
+        ) AS note_counts
+          ON note_counts.tenant_id = leads.tenant_id
+         AND note_counts.entity_id = leads.id
+        LEFT JOIN (
+          SELECT tenant_id, entity_id, COUNT(*) AS count, MAX(occurred_at) AS last_activity_at, MIN(occurred_at) AS first_activity_at
+          FROM crm_activities
+          WHERE entity_type = 'lead'
+            AND deleted_at IS NULL
+          GROUP BY tenant_id, entity_id
+        ) AS activity_counts
+          ON activity_counts.tenant_id = leads.tenant_id
+         AND activity_counts.entity_id = leads.id
+        WHERE leads.tenant_id = $1
+          AND leads.id = $2
+          AND leads.deleted_at IS NULL
+        LIMIT 1
+      `,
+      [actor.tenantId, leadId]
+    );
+
+    const row = leadRowResult.rows[0];
+    const tasks = await this.loadLeadTasks(client, actor, [leadId]);
+    return this.hydrateLeadMetrics([this.mapLeadSummary(row, optionCatalog)], tasks)[0];
+  }
+
+  async scheduleLeadMeeting(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    leadId: string,
+    input: ScheduleLeadMeetingRequestBody
+  ): Promise<ScheduleLeadMeetingResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withTransaction(async (client) => {
+      // Booking a meeting both changes lead status and creates tasks, so require edit rights.
+      this.assertWorkflowMutation(actor, ["statusKey"]);
+
+      const scheduledDate = new Date(input.scheduledAt);
+      if (Number.isNaN(scheduledDate.getTime())) {
+        throw new AppError(400, "A valid meeting date/time is required.", undefined, "VALIDATION_ERROR");
+      }
+
+      const title = input.title.trim();
+      if (title.length < 2) {
+        throw new AppError(400, "A meeting title is required.", undefined, "VALIDATION_ERROR");
+      }
+
+      const options = await this.loadWorkspaceOptions(client, actor);
+      const optionCatalog = await this.buildOptionCatalog(client, actor, options);
+      const currentLead = await this.getLeadState(client, actor.tenantId, leadId);
+      this.assertLeadVisibility(actor, currentLead.owner_id);
+
+      // Validate the (configurable) meeting type + resolve the meeting-scheduled status.
+      await this.resolveOptionValueId(client, actor.tenantId, "lead-meeting-type", input.meetingTypeKey, "Meeting type");
+      const meetingStatusOptionId = await this.resolveOptionValueId(
+        client,
+        actor.tenantId,
+        "lead-status",
+        "meeting_scheduled",
+        "Lead status"
+      );
+      const meetingTypeLabel =
+        options.meetingTypes.find((type) => type.key === input.meetingTypeKey)?.label ?? input.meetingTypeKey;
+
+      // Validate participants belong to the tenant.
+      const participantIds = Array.from(new Set(input.participantUserIds ?? []));
+      for (const participantId of participantIds) {
+        await this.ensureOwnerId(client, actor.tenantId, participantId);
+      }
+
+      const ownerId = currentLead.owner_id ?? actor.userId;
+      const durationMinutes =
+        typeof input.durationMinutes === "number" && input.durationMinutes > 0 ? input.durationMinutes : 30;
+      const reminderMinutesBefore =
+        typeof input.reminderMinutesBefore === "number" && input.reminderMinutesBefore > 0
+          ? input.reminderMinutesBefore
+          : 60;
+      const agenda = getTrimmedNullableString(input.agenda ?? null);
+      const crmRecordUrl = `/leads/${leadId}`;
+
+      // 1. Meeting activity carrying agenda, participants, and CRM record link.
+      const activityResult = await client.query<{ id: string }>(
+        `
+          INSERT INTO crm_activities (
+            tenant_id, entity_type, entity_id, activity_type, subject, description, occurred_at,
+            owner_user_id, outcome, author_user_id, metadata, created_by, updated_by
+          )
+          VALUES ($1, 'lead', $2, 'meeting', $3, $4, $5, $6, $7, $8, $9::jsonb, $8, $8)
+          RETURNING id
+        `,
+        [
+          actor.tenantId,
+          leadId,
+          `${meetingTypeLabel} booked: ${title}`,
+          agenda,
+          scheduledDate,
+          ownerId,
+          `Meeting scheduled (${meetingTypeLabel})`,
+          actor.userId,
+          JSON.stringify({
+            meetingTypeKey: input.meetingTypeKey,
+            agenda,
+            participantUserIds: participantIds,
+            crmRecordUrl,
+            scheduledAt: scheduledDate.toISOString(),
+            durationMinutes
+          })
+        ]
+      );
+      const activityId = activityResult.rows[0].id;
+
+      // 2. Meeting task at the scheduled time + a reminder task ahead of it.
+      const meetingTaskId = await this.createLeadTask(client, actor, leadId, ownerId, {
+        title: `${meetingTypeLabel}: ${title}`,
+        description: agenda ? `Agenda: ${agenda}\nCRM record: ${crmRecordUrl}` : `CRM record: ${crmRecordUrl}`,
+        dueAt: scheduledDate,
+        reminderAt: null,
+        priority: "high",
+        taskType: "meeting",
+        metadata: { meetingActivityId: activityId, meetingTypeKey: input.meetingTypeKey, participantUserIds: participantIds }
+      });
+      const reminderAt = new Date(scheduledDate.getTime() - reminderMinutesBefore * 60 * 1000);
+      const reminderTaskId = await this.createLeadTask(client, actor, leadId, ownerId, {
+        title: `Reminder: ${meetingTypeLabel} with lead`,
+        description: `Prepare for the upcoming ${meetingTypeLabel.toLowerCase()}. CRM record: ${crmRecordUrl}`,
+        dueAt: reminderAt,
+        reminderAt,
+        priority: "medium",
+        taskType: "follow_up",
+        metadata: { meetingActivityId: activityId, reminder: true }
+      });
+
+      // 3. Move the lead into the meeting-scheduled status.
+      await client.query(
+        `
+          UPDATE leads
+          SET status_option_id = $3, updated_by = $4
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+        `,
+        [leadId, actor.tenantId, meetingStatusOptionId, actor.userId]
+      );
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "lead.meeting.schedule",
+        resourceType: "lead",
+        resourceId: leadId,
+        status: "success",
+        metadata: {
+          meetingTypeKey: input.meetingTypeKey,
+          scheduledAt: scheduledDate.toISOString(),
+          activityId,
+          participantCount: participantIds.length
+        }
+      });
+
+      return {
+        lead: await this.reloadWorkspaceLead(client, actor, leadId, optionCatalog),
+        meeting: {
+          activityId,
+          meetingTaskId,
+          reminderTaskId,
+          deliveryPlaceholder: {
+            available: false as const,
+            message:
+              "The CRM meeting record, status change, and reminder tasks are live. Calendar invite + email delivery connect once the scheduling/outbound runtime is introduced."
+          }
+        }
+      };
+    });
+  }
+
+  private async createLeadTask(
+    client: PoolClient,
+    actor: ActorContext,
+    leadId: string,
+    ownerId: string | null,
+    input: {
+      title: string;
+      description: string | null;
+      dueAt: Date | null;
+      reminderAt: Date | null;
+      priority: "low" | "medium" | "high" | "urgent";
+      taskType: "call" | "follow_up" | "meeting";
+      metadata: Record<string, unknown>;
+    }
+  ): Promise<string> {
+    const taskOwnerId = ownerId ?? actor.userId;
+    const result = await client.query<{ id: string }>(
+      `
+        INSERT INTO crm_tasks (
+          tenant_id, entity_type, entity_id, owner_user_id, assignee_user_id,
+          title, description, due_at, priority, status, reminder_at, metadata, created_by, updated_by
+        )
+        VALUES ($1, 'lead', $2, $3, $3, $4, $5, $6, $7, 'open', $8, $9::jsonb, $10, $10)
+        RETURNING id
+      `,
+      [
+        actor.tenantId,
+        leadId,
+        taskOwnerId,
+        input.title,
+        input.description,
+        input.dueAt,
+        input.priority,
+        input.reminderAt,
+        JSON.stringify({ workspace: "inside_sales_workspace", phase11TaskType: input.taskType, ...input.metadata }),
+        actor.userId
+      ]
+    );
+    return result.rows[0].id;
   }
 }

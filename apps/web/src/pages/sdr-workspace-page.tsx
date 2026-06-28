@@ -5,6 +5,7 @@ import type {
   SalesWorkspaceLeadSummary,
   SalesWorkspaceOptionsResponse,
   SalesWorkspaceTaskSummary,
+  ScheduleLeadMeetingRequestBody,
   UpdateLeadWorkspaceRequestBody
 } from "@crm/types";
 import { Link } from "react-router-dom";
@@ -233,6 +234,20 @@ export function SdrWorkspacePage() {
     setSelectedLeadId(leadId);
   }
 
+  async function handleScheduleMeeting(leadId: string, payload: ScheduleLeadMeetingRequestBody) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/sales-workspaces/leads/${leadId}/meetings`, {
+      method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
   if (isLoading) {
     return (
       <CrmLoadingState
@@ -344,10 +359,12 @@ export function SdrWorkspacePage() {
           canUpdateWorkflow={canUpdateWorkflow}
           canAssignOwner={canAssignOwner}
           canCreateTask={canCreateTask}
+          canScheduleMeeting={canUpdateWorkflow}
           allowedTaskTypes={["call"]}
           defaultTaskType="call"
           onSaveWorkflow={handleSaveWorkflow}
           onCreateTask={handleCreateTask}
+          onScheduleMeeting={handleScheduleMeeting}
         />
       )}
 

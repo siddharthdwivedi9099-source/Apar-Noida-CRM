@@ -1,3 +1,5 @@
+import type { SlaStatus } from "./lead-assignment.js";
+
 export const crmEntityTypes = [
   "lead",
   "account",
@@ -471,6 +473,18 @@ export interface LeadWorkspaceState {
   qualificationChecklistTotal: number;
   customQualificationFields: LeadCustomQualificationField[];
   qualificationNotes: string | null;
+  // ISR-004 configurable qualification checklist (alongside the legacy BANT checklist above).
+  qualificationItems: LeadQualificationItemState[];
+  qualificationItemsCompletionCount: number;
+  qualificationItemsTotal: number;
+  qualificationItemsRequiredCount: number;
+  qualificationItemsRequiredComplete: boolean;
+  qualificationOutcome: LeadQualificationOutcome;
+  qualificationOverrideReason: string | null;
+  // ISR-006 structured disqualification reason.
+  disqualificationReason: CrmOptionValueSummary | null;
+  // ISR-003 configurable contact cadence state + computed view.
+  cadence: LeadCadenceView;
   handoffUpdatedAt: string | null;
   meddicPlaceholder: {
     available: false;
@@ -486,13 +500,115 @@ export interface LeadWorkspaceState {
   };
 }
 
+// First-contact script (ISR-002) resolved from the configurable `lead-contact-script` option set.
+export const leadContactScriptMatchReasons = [
+  "lead_for_and_source",
+  "campaign",
+  "source",
+  "lead_for",
+  "persona",
+  "default"
+] as const;
+export type LeadContactScriptMatchReason = (typeof leadContactScriptMatchReasons)[number];
+
+export interface LeadContactScriptView {
+  key: string;
+  label: string;
+  body: string;
+  matchedOn: LeadContactScriptMatchReason;
+}
+
+// Configurable qualification checklist item (ISR-004) from the `lead-qualification-checklist` option set.
+export interface LeadQualificationChecklistItemDefinition {
+  key: string;
+  label: string;
+  description: string | null;
+  required: boolean;
+  sortOrder: number;
+}
+
+export interface LeadQualificationItemState {
+  key: string;
+  label: string;
+  required: boolean;
+  completed: boolean;
+}
+
+export const leadQualificationOutcomes = ["pending", "qualified", "not_qualified"] as const;
+export type LeadQualificationOutcome = (typeof leadQualificationOutcomes)[number];
+
+export const leadWorkspacePriorities = ["hot", "high", "medium", "low"] as const;
+export type LeadWorkspacePriority = (typeof leadWorkspacePriorities)[number];
+
+// ISR-003: configurable contact cadence from the `lead-cadence-step` option set.
+export const leadCadenceChannels = ["call", "email", "sms", "whatsapp", "linkedin", "follow_up"] as const;
+export type LeadCadenceChannel = (typeof leadCadenceChannels)[number];
+
+export interface LeadCadenceStepDefinition {
+  key: string;
+  label: string;
+  channel: LeadCadenceChannel;
+  offsetHours: number;
+  order: number;
+}
+
+export const leadCadenceStepStatuses = ["completed", "overdue", "due", "upcoming"] as const;
+export type LeadCadenceStepStatus = (typeof leadCadenceStepStatuses)[number];
+
+export interface LeadCadenceStepView extends LeadCadenceStepDefinition {
+  completed: boolean;
+  dueAt: string | null;
+  status: LeadCadenceStepStatus;
+}
+
+export interface LeadCadenceView {
+  configured: boolean;
+  paused: boolean;
+  pauseReason: string | null;
+  steps: LeadCadenceStepView[];
+  currentStep: LeadCadenceStepView | null;
+  nextDueAt: string | null;
+  completedCount: number;
+  totalCount: number;
+  failedAttemptCount: number;
+  failedAttemptsBeforeNurture: number;
+  movedToNurture: boolean;
+}
+
+export interface UpdateLeadCadenceInput {
+  paused?: boolean;
+  pauseReason?: string | null;
+  completeStepKey?: string;
+  logFailedAttempt?: boolean;
+}
+
+// ISR-005: meeting booking.
+export interface LeadMeetingTypeDefinition {
+  key: string;
+  label: string;
+}
+
+export interface ScheduleLeadMeetingRequestBody {
+  meetingTypeKey: string;
+  title: string;
+  agenda?: string | null;
+  scheduledAt: string;
+  durationMinutes?: number;
+  participantUserIds?: string[];
+  reminderMinutesBefore?: number;
+}
+
 export interface SalesWorkspaceAiPlaceholderAction {
   key:
     | "call_script_generator"
     | "objection_handling"
     | "lead_research_summary"
     | "follow_up_email_generator"
-    | "qualification_score";
+    | "qualification_score"
+    | "best_contact_recommendation"
+    | "lead_summary"
+    | "call_note_summary"
+    | "qualification_outcome_suggestion";
   label: string;
   description: string;
 }
@@ -508,6 +624,17 @@ export interface SalesWorkspaceLeadSummary extends LeadSummary {
   openCallTaskCount: number;
   overdueTaskCount: number;
   nextOpenTaskDueAt: string | null;
+  // ISR-001 prioritized lead queue enrichment.
+  priority: LeadWorkspacePriority;
+  isHot: boolean;
+  scoreGrade: string | null;
+  productSummary: string | null;
+  slaDueAt: string | null;
+  slaStatus: SlaStatus | null;
+  slaLabel: string | null;
+  slaRemainingHours: number | null;
+  slaBreachAlert: boolean;
+  firstContactScript: LeadContactScriptView | null;
 }
 
 export interface SalesWorkspaceTaskSummary extends CrmTaskSummary {
@@ -528,6 +655,11 @@ export interface SalesWorkspaceOptionsResponse {
   handoffStatuses: CrmOptionValueSummary[];
   callDispositions: CrmOptionValueSummary[];
   qualificationFrameworks: LeadQualificationFrameworkDefinition[];
+  disqualificationReasons: CrmOptionValueSummary[];
+  qualificationChecklistItems: LeadQualificationChecklistItemDefinition[];
+  qualificationOutcomes: CrmOptionValueSummary[];
+  cadenceSteps: LeadCadenceStepDefinition[];
+  meetingTypes: LeadMeetingTypeDefinition[];
 }
 
 export interface SdrWorkspaceResponse {
@@ -570,11 +702,32 @@ export interface UpdateLeadWorkspaceRequestBody {
   qualificationChecklist?: Partial<LeadBantChecklist>;
   customQualificationFields?: LeadCustomQualificationFieldInput[];
   qualificationNotes?: string | null;
+  // ISR-004 configurable qualification checklist answers keyed by item value_key.
+  qualificationItems?: Record<string, boolean>;
+  qualificationOutcome?: LeadQualificationOutcome;
+  qualificationOverrideReason?: string | null;
+  // ISR-006 structured disqualification reason (mandatory when moving a lead to disqualified).
+  disqualificationReasonKey?: string | null;
+  // ISR-003 cadence controls (advance a step, pause with reason, log a failed attempt).
+  cadence?: UpdateLeadCadenceInput;
   metadata?: Record<string, unknown>;
 }
 
 export interface SalesWorkspaceLeadResponse {
   lead: SalesWorkspaceLeadSummary;
+}
+
+export interface ScheduleLeadMeetingResponse {
+  lead: SalesWorkspaceLeadSummary;
+  meeting: {
+    activityId: string;
+    meetingTaskId: string;
+    reminderTaskId: string;
+    deliveryPlaceholder: {
+      available: false;
+      message: string;
+    };
+  };
 }
 
 export const accountSortFields = ["createdAt", "updatedAt", "name", "accountType", "industry", "owner"] as const;

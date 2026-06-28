@@ -1141,8 +1141,9 @@ export const defaultCoreCrmStandardPicklistDefinitions: TenantOptionSetSeedDefin
       { key: "working", label: "Working", color: "#0ea5e9", sortOrder: 1 },
       { key: "qualified", label: "Qualified", color: "#14b8a6", sortOrder: 2 },
       { key: "nurturing", label: "Nurturing", color: "#a855f7", sortOrder: 3 },
-      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 4 },
-      { key: "converted", label: "Converted", color: "#22c55e", sortOrder: 5 }
+      { key: "meeting_scheduled", label: "Meeting Scheduled", color: "#0ea5e9", sortOrder: 4 },
+      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 5 },
+      { key: "converted", label: "Converted", color: "#22c55e", sortOrder: 6 }
     ]
   }),
   optionSet({
@@ -1224,6 +1225,113 @@ export const defaultCoreCrmStandardPicklistDefinitions: TenantOptionSetSeedDefin
       { key: "future_need", label: "Future Need", sortOrder: 7 },
       { key: "competitor", label: "Competitor", sortOrder: 8 },
       { key: "irrelevant", label: "Irrelevant", sortOrder: 9, isDefault: true }
+    ]
+  }),
+  optionSet({
+    setKey: "lead-qualification-checklist",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Qualification Checklist",
+    description:
+      "Configurable inside-sales qualification checklist items (ISR-004). `metadata.required` items must be completed before a lead can be marked qualified.",
+    values: [
+      { key: "need", label: "Need identified", sortOrder: 0, isDefault: true, metadata: { required: true } },
+      { key: "product_interest", label: "Product interest", sortOrder: 1, metadata: { required: true } },
+      { key: "organization_type", label: "Organization type", sortOrder: 2, metadata: { required: false } },
+      { key: "location", label: "Location", sortOrder: 3, metadata: { required: false } },
+      { key: "decision_authority", label: "Decision authority", sortOrder: 4, metadata: { required: true } },
+      { key: "budget_range", label: "Budget range", sortOrder: 5, metadata: { required: true } },
+      { key: "timeline", label: "Timeline", sortOrder: 6, metadata: { required: true } },
+      { key: "current_solution", label: "Current solution", sortOrder: 7, metadata: { required: false } },
+      { key: "meeting_interest", label: "Meeting interest", sortOrder: 8, metadata: { required: true } }
+    ]
+  }),
+  optionSet({
+    setKey: "lead-contact-script",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead First-Contact Script",
+    description:
+      "Configurable guided first-contact scripts (ISR-002). `metadata.body` holds the script; optional `metadata.leadFor`/`metadata.sourceKey`/`metadata.personaKey` target it. The most specific match wins.",
+    values: [
+      {
+        key: "default",
+        label: "General first-contact script",
+        sortOrder: 0,
+        isDefault: true,
+        metadata: {
+          body: "Introduce yourself and the company, confirm you are speaking with the right person, ask what prompted their interest, and confirm need, timeline, and decision process before proposing a next step.",
+          required: false
+        }
+      },
+      {
+        key: "service_project",
+        label: "IT service project discovery",
+        sortOrder: 1,
+        metadata: {
+          leadFor: "service_project",
+          body: "Confirm the project scope and current technology stack, identify the business outcome they need, ask about budget range and timeline, and qualify decision authority before booking a technical discovery call.",
+          required: false
+        }
+      },
+      {
+        key: "product",
+        label: "Product interest discovery",
+        sortOrder: 2,
+        metadata: {
+          leadFor: "product",
+          body: "Confirm which product caught their attention, ask about team size and current tooling, surface the problem they want to solve, and qualify budget and timeline before booking a product demo.",
+          required: false
+        }
+      },
+      {
+        key: "inbound_website",
+        label: "Inbound website lead",
+        sortOrder: 3,
+        metadata: {
+          sourceKey: "website",
+          body: "Thank them for reaching out through the website, reference the page or content they engaged with, confirm what they are evaluating, and qualify need, timeline, and authority before proposing a meeting.",
+          required: false
+        }
+      },
+      {
+        key: "webinar_followup",
+        label: "Webinar follow-up",
+        sortOrder: 4,
+        metadata: {
+          campaignKey: "webinar",
+          body: "Reference the webinar they attended, ask which topics were most relevant, confirm the problem they want to solve, and qualify timeline and authority before proposing a tailored demo.",
+          required: false
+        }
+      }
+    ]
+  }),
+  optionSet({
+    setKey: "lead-cadence-step",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Contact Cadence",
+    description:
+      "Configurable inside-sales contact cadence (ISR-003). Each value is a step; `metadata.channel` is the touch type and `metadata.offsetHours` is the offset from cadence start. Sort order defines step order.",
+    values: [
+      { key: "call_day0", label: "Day 0 — Call", sortOrder: 0, isDefault: true, metadata: { channel: "call", offsetHours: 0 } },
+      { key: "email_day1", label: "Day 1 — Email", sortOrder: 1, metadata: { channel: "email", offsetHours: 24 } },
+      { key: "whatsapp_day2", label: "Day 2 — WhatsApp", sortOrder: 2, metadata: { channel: "whatsapp", offsetHours: 48 } },
+      { key: "linkedin_day4", label: "Day 4 — LinkedIn touch", sortOrder: 3, metadata: { channel: "linkedin", offsetHours: 96 } },
+      { key: "call_day6", label: "Day 6 — Call", sortOrder: 4, metadata: { channel: "call", offsetHours: 144 } },
+      { key: "follow_up_day8", label: "Day 8 — Follow-up", sortOrder: 5, metadata: { channel: "follow_up", offsetHours: 192 } }
+    ]
+  }),
+  optionSet({
+    setKey: "lead-meeting-type",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Meeting Type",
+    description: "Configurable meeting types an inside-sales rep can book from a lead (ISR-005).",
+    values: [
+      { key: "sales", label: "Sales meeting", sortOrder: 0, isDefault: true },
+      { key: "presales", label: "Presales / technical", sortOrder: 1 },
+      { key: "manager", label: "Manager review", sortOrder: 2 }
     ]
   }),
   optionSet({
@@ -1563,6 +1671,10 @@ export const coreCrmRequiredPicklistKeys = [
   "lead-grade",
   "qualification-status",
   "disqualification-reason",
+  "lead-qualification-checklist",
+  "lead-contact-script",
+  "lead-cadence-step",
+  "lead-meeting-type",
   "consent-status",
   "lifecycle-stage",
   "industry",

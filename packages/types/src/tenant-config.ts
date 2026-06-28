@@ -606,8 +606,9 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "working", label: "Working", color: "#0ea5e9", sortOrder: 1 },
       { key: "qualified", label: "Qualified", color: "#14b8a6", sortOrder: 2 },
       { key: "nurturing", label: "Nurturing", color: "#a855f7", sortOrder: 3 },
-      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 4 },
-      { key: "converted", label: "Converted", color: "#22c55e", sortOrder: 5 }
+      { key: "meeting_scheduled", label: "Meeting Scheduled", color: "#0ea5e9", sortOrder: 4 },
+      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 5 },
+      { key: "converted", label: "Converted", color: "#22c55e", sortOrder: 6 }
     ],
     metadata: {
       seeded: true,
@@ -679,13 +680,57 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     description: "Default call outcomes for SDR and inside-sales call logging.",
     values: [
       { key: "pending", label: "Pending", color: "#64748b", sortOrder: 0, isDefault: true },
-      { key: "connected", label: "Connected", color: "#22c55e", sortOrder: 1 },
-      { key: "voicemail", label: "Voicemail", color: "#0ea5e9", sortOrder: 2 },
-      { key: "no_answer", label: "No Answer", color: "#f59e0b", sortOrder: 3 },
-      { key: "follow_up_needed", label: "Follow-up Needed", color: "#8b5cf6", sortOrder: 4 },
-      { key: "meeting_booked", label: "Meeting Booked", color: "#14b8a6", sortOrder: 5 },
-      { key: "not_interested", label: "Not Interested", color: "#ef4444", sortOrder: 6 },
-      { key: "disqualified", label: "Disqualified", color: "#b91c1c", sortOrder: 7 }
+      {
+        key: "connected",
+        label: "Connected",
+        color: "#22c55e",
+        sortOrder: 1,
+        metadata: { nextStep: { taskType: "follow_up", offsetHours: 48, title: "Post-call follow-up" } }
+      },
+      {
+        key: "voicemail",
+        label: "Voicemail",
+        color: "#0ea5e9",
+        sortOrder: 2,
+        metadata: { nextStep: { taskType: "call", offsetHours: 24, title: "Follow up after voicemail" } }
+      },
+      {
+        key: "no_answer",
+        label: "No Answer",
+        color: "#f59e0b",
+        sortOrder: 3,
+        metadata: { nextStep: { taskType: "call", offsetHours: 4, title: "Retry call — no answer" } }
+      },
+      {
+        key: "wrong_number",
+        label: "Wrong Number",
+        color: "#9ca3af",
+        sortOrder: 4
+      },
+      {
+        key: "follow_up_needed",
+        label: "Follow-up Needed",
+        color: "#8b5cf6",
+        sortOrder: 5,
+        metadata: { nextStep: { taskType: "follow_up", offsetHours: 24, title: "Follow-up needed" } }
+      },
+      {
+        key: "callback_requested",
+        label: "Callback Requested",
+        color: "#a855f7",
+        sortOrder: 6,
+        metadata: { nextStep: { taskType: "call", offsetHours: 24, title: "Callback requested by lead" } }
+      },
+      {
+        key: "interested",
+        label: "Interested",
+        color: "#16a34a",
+        sortOrder: 7,
+        metadata: { nextStep: { taskType: "follow_up", offsetHours: 48, title: "Advance interested lead" } }
+      },
+      { key: "meeting_booked", label: "Meeting Booked", color: "#14b8a6", sortOrder: 8 },
+      { key: "not_interested", label: "Not Interested", color: "#ef4444", sortOrder: 9 },
+      { key: "disqualified", label: "Disqualified", color: "#b91c1c", sortOrder: 10 }
     ],
     metadata: {
       seeded: true,
