@@ -1770,6 +1770,7 @@ export interface PartnerSummary {
 }
 
 export interface PartnerDetail extends PartnerSummary {
+  customFields: Record<string, unknown>;
   contacts: PartnerContactSummary[];
   onboardingTasks: PartnerOnboardingTaskSummary[];
   deals: PartnerDealRegistrationSummary[];
@@ -1797,6 +1798,7 @@ export interface CreatePartnerRequestBody {
   contacts?: PartnerContactInput[];
   onboardingTasks?: PartnerOnboardingTaskInput[];
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdatePartnerRequestBody {
@@ -1816,6 +1818,7 @@ export interface UpdatePartnerRequestBody {
   contacts?: PartnerContactInput[];
   onboardingTasks?: PartnerOnboardingTaskInput[];
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface PartnerResponse {
@@ -1838,6 +1841,8 @@ export interface PartnerOptionsResponse {
   onboardingStatuses: CrmOptionValueSummary[];
   dealStages: CrmOptionValueSummary[];
   availableScopes: PartnerPipelineScope[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
 }
 
 export interface PartnerDealRegistrationResponse {

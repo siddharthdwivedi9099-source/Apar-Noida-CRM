@@ -77,7 +77,8 @@ const partnerCreateSchema = z.object({
   agreementNotes: z.string().max(4000).nullable().optional(),
   contacts: z.array(partnerContactSchema).max(100).optional(),
   onboardingTasks: z.array(onboardingTaskSchema).max(100).optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const partnerUpdateSchema = z.object({
@@ -96,7 +97,8 @@ const partnerUpdateSchema = z.object({
   agreementNotes: z.string().max(4000).nullable().optional(),
   contacts: z.array(partnerContactSchema).max(100).optional(),
   onboardingTasks: z.array(onboardingTaskSchema).max(100).optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const dealCreateSchema = z.object({

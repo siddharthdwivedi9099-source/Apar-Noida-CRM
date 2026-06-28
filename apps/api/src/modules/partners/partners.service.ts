@@ -30,8 +30,15 @@ import type {
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import {
+  loadCustomFieldDefinitions,
+  loadCustomFieldOptions,
+  sanitizeCustomFields
+} from "../../common/custom-fields.js";
 import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+
+const PARTNER_ENTITY_KEY = "partner";
 
 interface AuditMetadata {
   requestId: string;
@@ -527,8 +534,8 @@ export class PartnersService {
   }
 
   private async getPartnerState(client: PoolClient, tenantId: string, partnerId: string) {
-    const result = await client.query<{ id: string; owner_id: string | null }>(
-      `SELECT id, owner_id FROM partners WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+    const result = await client.query<{ id: string; owner_id: string | null; custom_fields: Record<string, unknown> | null }>(
+      `SELECT id, owner_id, custom_fields FROM partners WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
       [partnerId, tenantId]
     );
 
@@ -570,6 +577,7 @@ export class PartnersService {
       partners.agreement_start_date,
       partners.agreement_end_date,
       partners.agreement_notes,
+      partners.custom_fields,
       partners.metadata,
       partners.created_at,
       partners.updated_at,
@@ -1006,18 +1014,25 @@ export class PartnersService {
   async getPartnerOptions(actor: ActorContext): Promise<PartnerOptionsResponse> {
     this.assertEnabled();
 
-    return this.databaseService.withClient(async (client) => ({
-      owners: await this.loadOwners(client, actor.tenantId),
-      accounts: await this.loadAccountsLookup(client, actor.tenantId),
-      contacts: await this.loadContactsLookup(client, actor.tenantId),
-      opportunities: await this.loadOpportunitiesLookup(client, actor.tenantId),
-      types: await this.loadOptionSetValues(client, actor.tenantId, "partner-type"),
-      tiers: await this.loadOptionSetValues(client, actor.tenantId, "partner-tier"),
-      statuses: await this.loadOptionSetValues(client, actor.tenantId, "partner-status"),
-      onboardingStatuses: await this.loadOptionSetValues(client, actor.tenantId, "partner-onboarding-status"),
-      dealStages: await this.loadOptionSetValues(client, actor.tenantId, "partner-deal-stage"),
-      availableScopes: await this.getAvailableScopes(client, actor)
-    }));
+    return this.databaseService.withClient(async (client) => {
+      const fieldDefinitions = await loadCustomFieldDefinitions(client, actor.tenantId, PARTNER_ENTITY_KEY);
+      const customFieldOptions = await loadCustomFieldOptions(client, actor.tenantId, fieldDefinitions);
+
+      return {
+        owners: await this.loadOwners(client, actor.tenantId),
+        accounts: await this.loadAccountsLookup(client, actor.tenantId),
+        contacts: await this.loadContactsLookup(client, actor.tenantId),
+        opportunities: await this.loadOpportunitiesLookup(client, actor.tenantId),
+        types: await this.loadOptionSetValues(client, actor.tenantId, "partner-type"),
+        tiers: await this.loadOptionSetValues(client, actor.tenantId, "partner-tier"),
+        statuses: await this.loadOptionSetValues(client, actor.tenantId, "partner-status"),
+        onboardingStatuses: await this.loadOptionSetValues(client, actor.tenantId, "partner-onboarding-status"),
+        dealStages: await this.loadOptionSetValues(client, actor.tenantId, "partner-deal-stage"),
+        availableScopes: await this.getAvailableScopes(client, actor),
+        fieldDefinitions,
+        customFieldOptions
+      };
+    });
   }
 
   private async buildScopedWhere(client: PoolClient, actor: ActorContext, scope: PartnerPipelineScope) {
@@ -1188,6 +1203,7 @@ export class PartnersService {
 
     return {
       ...summary,
+      customFields: getMetadata(row.custom_fields),
       contacts,
       onboardingTasks,
       deals,
@@ -1242,15 +1258,16 @@ export class PartnersService {
         input.onboardingStatusKey ?? "not_started",
         "Partner onboarding status"
       );
+      const customFields = await sanitizeCustomFields(client, actor.tenantId, PARTNER_ENTITY_KEY, input.customFields);
 
       const result = await client.query<{ id: string }>(
         `
           INSERT INTO partners (
             tenant_id, account_id, owner_id, name, type_option_id, tier_option_id, status_option_id,
             onboarding_status_option_id, region, territory, agreement_reference, agreement_start_date,
-            agreement_end_date, agreement_notes, metadata, created_by, updated_by
+            agreement_end_date, agreement_notes, custom_fields, metadata, created_by, updated_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date, $13::date, $14, $15::jsonb, $16, $16)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date, $13::date, $14, $15::jsonb, $16::jsonb, $17, $17)
           RETURNING id
         `,
         [
@@ -1268,6 +1285,7 @@ export class PartnersService {
           input.agreementStartDate ?? null,
           input.agreementEndDate ?? null,
           getTrimmedNullableString(input.agreementNotes),
+          JSON.stringify(customFields),
           JSON.stringify(input.metadata ?? {}),
           actor.userId
         ]
@@ -1311,7 +1329,7 @@ export class PartnersService {
     await this.databaseService.withTransaction(async (client) => {
       const keys = Object.keys(input).filter((key) => input[key as keyof UpdatePartnerRequestBody] !== undefined);
       this.assertPartnerMutation(actor, keys);
-      await this.getPartnerState(client, actor.tenantId, partnerId);
+      const state = await this.getPartnerState(client, actor.tenantId, partnerId);
 
       const assignments: string[] = [];
       const params: unknown[] = [partnerId, actor.tenantId, actor.userId];
@@ -1365,6 +1383,16 @@ export class PartnersService {
       }
       if (keys.includes("metadata")) {
         pushAssignment("metadata", JSON.stringify(input.metadata ?? {}), "::jsonb");
+      }
+      if (keys.includes("customFields")) {
+        const nextCustomFields = await sanitizeCustomFields(
+          client,
+          actor.tenantId,
+          PARTNER_ENTITY_KEY,
+          input.customFields,
+          getMetadata(state.custom_fields)
+        );
+        pushAssignment("custom_fields", JSON.stringify(nextCustomFields), "::jsonb");
       }
 
       if (assignments.length > 0) {
@@ -1618,6 +1646,7 @@ interface PartnerRow {
   agreement_start_date: string | null;
   agreement_end_date: string | null;
   agreement_notes: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;

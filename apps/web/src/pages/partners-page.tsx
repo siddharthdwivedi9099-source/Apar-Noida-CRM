@@ -15,8 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { CustomFieldInput } from "@/components/crm/custom-field-input";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, formatDateOnly, selectClassName, textareaClassName } from "@/lib/crm";
+import {
+  getActiveCustomFieldDefinitions,
+  getCustomFieldOptionLabels,
+  hasCustomFieldValue,
+  serializeCustomFieldFormValue,
+  type CrmCustomFieldFormValue
+} from "@/lib/crm-custom-fields";
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -40,6 +48,7 @@ interface PartnerFormState {
   territory: string;
   agreementReference: string;
   onboardingTasks: string;
+  customFields: Record<string, CrmCustomFieldFormValue>;
 }
 
 interface DealFormState {
@@ -63,7 +72,8 @@ function buildPartnerFormState(options: PartnerOptionsResponse | null): PartnerF
     region: "",
     territory: "",
     agreementReference: "",
-    onboardingTasks: ""
+    onboardingTasks: "",
+    customFields: {}
   };
 }
 
@@ -174,6 +184,26 @@ export function PartnersPage() {
     void loadDetail(selectedId);
   }, [accessToken, selectedId]);
 
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(options);
+
+  function getPartnerCustomFieldValue(fieldKey: string, dataType: string): CrmCustomFieldFormValue {
+    const value = formState.customFields[fieldKey];
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    return dataType === "multiselect" ? [] : "";
+  }
+
+  function updatePartnerCustomFieldValue(fieldKey: string, value: CrmCustomFieldFormValue) {
+    setFormState((current) => ({
+      ...current,
+      customFields: { ...current.customFields, [fieldKey]: value }
+    }));
+  }
+
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
 
@@ -189,6 +219,16 @@ export function PartnersPage() {
       .filter((line) => line.length > 0)
       .map((label) => ({ label }));
 
+    const customFields =
+      customFieldDefinitions.length > 0
+        ? Object.fromEntries(
+            customFieldDefinitions.map((field) => [
+              field.fieldKey,
+              serializeCustomFieldFormValue(field, getPartnerCustomFieldValue(field.fieldKey, field.dataType))
+            ])
+          )
+        : undefined;
+
     const payload: CreatePartnerRequestBody = {
       name: formState.name.trim(),
       typeKey: formState.typeKey,
@@ -200,7 +240,8 @@ export function PartnersPage() {
       region: formState.region.trim() || null,
       territory: formState.territory.trim() || null,
       agreementReference: formState.agreementReference.trim() || null,
-      onboardingTasks: onboardingTasks.length > 0 ? onboardingTasks : undefined
+      onboardingTasks: onboardingTasks.length > 0 ? onboardingTasks : undefined,
+      customFields
     };
 
     try {
@@ -399,6 +440,25 @@ export function PartnersPage() {
                 <span className="text-sm font-medium">Onboarding checklist (one task per line)</span>
                 <textarea className={textareaClassName} rows={3} value={formState.onboardingTasks} onChange={(event) => setFormState((current) => ({ ...current, onboardingTasks: event.target.value }))} />
               </label>
+
+              {customFieldDefinitions.length > 0 ? (
+                <div className="md:col-span-2">
+                  <p className="text-sm font-medium">Tenant-defined fields</p>
+                  <p className="text-sm text-muted-foreground">
+                    These extra fields come from your workspace configuration and are saved with the partner.
+                  </p>
+                </div>
+              ) : null}
+              {customFieldDefinitions.map((field) => (
+                <CustomFieldInput
+                  key={field.fieldKey}
+                  field={field}
+                  value={getPartnerCustomFieldValue(field.fieldKey, field.dataType)}
+                  options={options}
+                  onChange={(value) => updatePartnerCustomFieldValue(field.fieldKey, value)}
+                />
+              ))}
+
               {formError ? <p className="text-sm text-rose-600 md:col-span-2">{formError}</p> : null}
               <div className="flex gap-3 md:col-span-2">
                 <Button type="submit">Create partner</Button>
@@ -479,6 +539,7 @@ export function PartnersPage() {
 
         <PartnerDetailCard
           detail={detail}
+          options={options}
           dealStages={options.dealStages}
           opportunities={options.opportunities}
           canEdit={canEdit}
@@ -495,6 +556,7 @@ export function PartnersPage() {
 
 interface PartnerDetailCardProps {
   detail: PartnerDetail | null;
+  options: PartnerOptionsResponse;
   dealStages: PartnerOptionsResponse["dealStages"];
   opportunities: PartnerOptionsResponse["opportunities"];
   canEdit: boolean;
@@ -507,6 +569,7 @@ interface PartnerDetailCardProps {
 
 function PartnerDetailCard({
   detail,
+  options,
   dealStages,
   opportunities,
   canEdit,
@@ -528,6 +591,34 @@ function PartnerDetailCard({
         </CardContent>
       </Card>
     );
+  }
+
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(options);
+  const customFieldDefinitionKeys = new Set(customFieldDefinitions.map((field) => field.fieldKey));
+  const configuredCustomFields = customFieldDefinitions.filter((field) => hasCustomFieldValue(detail.customFields[field.fieldKey]));
+  const orphanCustomFields = Object.entries(detail.customFields).filter(
+    ([fieldKey, value]) => !customFieldDefinitionKeys.has(fieldKey) && hasCustomFieldValue(value)
+  );
+
+  function renderPartnerCustomFieldValue(fieldKey: string, rawValue: unknown, dataType?: string) {
+    if (dataType === "select" || dataType === "multiselect") {
+      const labels = getCustomFieldOptionLabels(
+        options,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: dataType ?? "select", optionSetKey: null },
+        rawValue
+      );
+      return labels.length > 0 ? labels.join(", ") : "—";
+    }
+    if (typeof rawValue === "boolean") {
+      return rawValue ? "Yes" : "No";
+    }
+    if (typeof rawValue === "number") {
+      return String(rawValue);
+    }
+    if (typeof rawValue === "string" && rawValue.trim().length > 0) {
+      return rawValue;
+    }
+    return "—";
   }
 
   return (
@@ -563,6 +654,26 @@ function PartnerDetailCard({
             <dd className="font-medium">{detail.agreementReference ?? "—"}</dd>
           </div>
         </dl>
+
+        {configuredCustomFields.length > 0 || orphanCustomFields.length > 0 ? (
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Tenant-defined fields</p>
+            <dl className="mt-2 grid grid-cols-2 gap-3">
+              {configuredCustomFields.map((field) => (
+                <div key={field.fieldKey}>
+                  <dt className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{field.label}</dt>
+                  <dd className="font-medium">{renderPartnerCustomFieldValue(field.fieldKey, detail.customFields[field.fieldKey], field.dataType)}</dd>
+                </div>
+              ))}
+              {orphanCustomFields.map(([fieldKey, value]) => (
+                <div key={fieldKey}>
+                  <dt className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{fieldKey}</dt>
+                  <dd className="font-medium">{renderPartnerCustomFieldValue(fieldKey, value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
 
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Partner contacts</p>

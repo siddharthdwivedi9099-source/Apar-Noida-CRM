@@ -272,6 +272,29 @@ async function main() {
     assert.ok(options.onboardingStatuses.some((entry) => entry.key === "completed"));
     assert.ok(options.dealStages.some((entry) => entry.key === "won"));
 
+    log("Validating partner custom-field definition surfaces in partner options.");
+    const customPartnerFieldKey = `partner_segment_${runToken}`;
+    const customPartnerField = await request("/tenant-config/custom-fields", {
+      method: "POST",
+      accessToken: adminSession.accessToken,
+      expectedStatus: 201,
+      body: {
+        moduleKey: "partners",
+        entityKey: "partner",
+        fieldKey: customPartnerFieldKey,
+        label: `Channel segment ${runToken}`,
+        dataType: "text",
+        isRequired: false,
+        isActive: true,
+        sortOrder: 90
+      }
+    });
+    assert.equal(customPartnerField.field.fieldKey, customPartnerFieldKey);
+
+    const optionsWithCustomField = await request("/partners/options", { accessToken: partnerSession.accessToken });
+    assert.ok(optionsWithCustomField.fieldDefinitions.some((field) => field.fieldKey === customPartnerFieldKey && !field.isSystemField));
+    assert.deepEqual(optionsWithCustomField.customFieldOptions, {});
+
     await expectError("/partners", {
       method: "POST",
       accessToken: viewerSession.accessToken,
@@ -326,10 +349,14 @@ async function main() {
           { label: "Sign partner agreement", status: "completed" },
           { label: "Provision partner portal", status: "in_progress" },
           { label: "Complete enablement training" }
-        ]
+        ],
+        customFields: {
+          [customPartnerFieldKey]: `Segment Created ${runToken}`
+        }
       }
     });
     const partnerId = createdPartner.partner.id;
+    assert.equal(createdPartner.partner.customFields[customPartnerFieldKey], `Segment Created ${runToken}`);
     assert.equal(createdPartner.partner.type?.key, "reseller");
     assert.equal(createdPartner.partner.tier?.key, "gold");
     assert.equal(createdPartner.partner.status?.key, "active");
@@ -401,10 +428,14 @@ async function main() {
           { label: "Sign partner agreement", status: "completed" },
           { label: "Provision partner portal", status: "completed" },
           { label: "Complete enablement training", status: "completed" }
-        ]
+        ],
+        customFields: {
+          [customPartnerFieldKey]: `Segment Updated ${runToken}`
+        }
       }
     });
     assert.equal(advanced.partner.onboardingStatus?.key, "completed");
+    assert.equal(advanced.partner.customFields[customPartnerFieldKey], `Segment Updated ${runToken}`);
     assert.equal(advanced.partner.performance.completedOnboardingTaskCount, 3);
     assert.equal(advanced.partner.performance.onboardingCompletionRate, 1);
 
