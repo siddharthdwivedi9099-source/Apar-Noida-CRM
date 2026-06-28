@@ -10,7 +10,7 @@ const { apiRequestMock } = vi.hoisted(() => ({
 vi.mock("@/providers/auth-provider", () => ({
   useAuth: () => ({
     status: "authenticated",
-    user: { id: "u1", permissionCodes: ["leads.view", "leads.create", "leads.edit"] },
+    user: { id: "u1", permissionCodes: ["accounts.view", "accounts.create", "accounts.edit"] },
     session: { id: "s1" },
     accessToken: "test-token",
     isAuthenticated: true,
@@ -35,7 +35,7 @@ vi.mock("@/providers/tenant-config-provider", () => ({
     summary: {},
     reload: vi.fn(),
     isModuleEnabled: () => true,
-    getModuleLabel: (key: string, count?: "singular" | "plural") => (count === "singular" ? "Lead" : key)
+    getModuleLabel: (key: string, count?: "singular" | "plural") => (count === "singular" ? "Account" : key)
   })
 }));
 
@@ -44,27 +44,27 @@ vi.mock("@/lib/api-client", () => ({
   ApiClientError: class ApiClientError extends Error {}
 }));
 
-import { LeadFormPage } from "@/pages/lead-form-page";
+import { AccountFormPage } from "@/pages/account-form-page";
 
-function buildLeadOptionsResponse() {
+function buildAccountOptionsResponse() {
   return {
     owners: [],
-    statuses: [
+    accountTypes: [
       {
-        id: "status-1",
-        key: "new",
-        label: "New",
+        id: "account-type-1",
+        key: "prospect",
+        label: "Prospect",
         description: null,
         color: null,
         isDefault: true,
         isActive: true
       }
     ],
-    sources: [
+    healthStatuses: [
       {
-        id: "source-1",
-        key: "website",
-        label: "Website",
+        id: "health-1",
+        key: "healthy",
+        label: "Healthy",
         description: null,
         color: null,
         isDefault: true,
@@ -73,11 +73,11 @@ function buildLeadOptionsResponse() {
     ],
     fieldDefinitions: [
       {
-        fieldKey: "district",
-        label: "District",
-        description: "Region-specific routing.",
+        fieldKey: "territory",
+        label: "Territory",
+        description: "Used for regional routing.",
         dataType: "text",
-        placeholder: "District name",
+        placeholder: "Territory name",
         optionSetKey: null,
         targetObject: null,
         isRequired: false,
@@ -119,7 +119,7 @@ function buildLeadOptionsResponse() {
       },
       {
         fieldKey: "strategic",
-        label: "Strategic lead",
+        label: "Strategic account",
         description: null,
         dataType: "boolean",
         placeholder: null,
@@ -174,35 +174,22 @@ function buildLeadOptionsResponse() {
           isActive: true
         }
       ]
-    },
-    leadForOptions: [
-      {
-        id: "lead-for-1",
-        key: "other",
-        label: "Other",
-        description: null,
-        color: null,
-        isDefault: true,
-        isActive: true
-      }
-    ],
-    technologyOptions: [],
-    productOptions: []
+    }
   };
 }
 
-function renderLeadForm(initialEntry: string, path: string) {
+function renderAccountForm(initialEntry: string, path: string) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
-        <Route path={path} element={<LeadFormPage />} />
-        <Route path="/leads/:leadId" element={<div>Lead detail route</div>} />
+        <Route path={path} element={<AccountFormPage />} />
+        <Route path="/accounts/:accountId" element={<div>Account detail route</div>} />
       </Routes>
     </MemoryRouter>
   );
 }
 
-describe("Lead form", () => {
+describe("Account form", () => {
   beforeEach(() => {
     apiRequestMock.mockReset();
   });
@@ -210,21 +197,21 @@ describe("Lead form", () => {
   it("mounts inside the create route and shows its loading/preparation surface", () => {
     apiRequestMock.mockImplementation(() => new Promise(() => {}));
 
-    const { container } = renderLeadForm("/leads/new", "/leads/new");
+    const { container } = renderAccountForm("/accounts/new", "/accounts/new");
 
     expect(container).not.toBeEmptyDOMElement();
     expect(screen.getAllByText(/loading|preparing/i).length).toBeGreaterThan(0);
   });
 
-  it("submits tenant-defined custom field values when creating a lead", async () => {
+  it("submits tenant-defined custom field values when creating an account", async () => {
     apiRequestMock.mockImplementation(async (path: string, init?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === "/leads/options") {
-        return buildLeadOptionsResponse();
+      if (path === "/accounts/options") {
+        return buildAccountOptionsResponse();
       }
-      if (path === "/leads" && init?.method === "POST") {
+      if (path === "/accounts" && init?.method === "POST") {
         return {
-          lead: {
-            id: "lead-created"
+          account: {
+            id: "account-created"
           }
         };
       }
@@ -232,37 +219,34 @@ describe("Lead form", () => {
     });
 
     const user = userEvent.setup();
-    renderLeadForm("/leads/new", "/leads/new");
+    renderAccountForm("/accounts/new", "/accounts/new");
 
-    await screen.findByLabelText(/District/i);
+    await screen.findByLabelText(/Territory/i);
 
-    await user.type(screen.getByLabelText("First name"), "Asha");
-    await user.type(screen.getByLabelText("Last name"), "Singh");
-    await user.type(screen.getByLabelText("Company"), "Apar Demo School");
-    await user.type(screen.getByLabelText(/District/i), "Lucknow");
+    await user.type(screen.getByLabelText("Account name"), "Apar Demo School");
+    await user.type(screen.getByLabelText("Website"), "https://apar.example.test");
+    await user.type(screen.getByLabelText("Industry"), "Education");
+    await user.type(screen.getByLabelText(/Territory/i), "North India");
     await user.selectOptions(screen.getByLabelText("Board"), "cbse");
     await user.click(screen.getByRole("button", { name: "Primary" }));
     await user.click(screen.getByRole("button", { name: "Secondary" }));
-    await user.selectOptions(screen.getByLabelText("Strategic lead"), "true");
-    await user.click(screen.getByRole("button", { name: "Create Lead" }));
+    await user.selectOptions(screen.getByLabelText("Strategic account"), "true");
+    await user.click(screen.getByRole("button", { name: "Create Account" }));
 
     await waitFor(() =>
       expect(apiRequestMock).toHaveBeenCalledWith(
-        "/leads",
+        "/accounts",
         expect.objectContaining({
           method: "POST",
           accessToken: "test-token",
           body: expect.objectContaining({
-            firstName: "Asha",
-            lastName: "Singh",
-            companyName: "Apar Demo School",
-            statusKey: "new",
-            sourceKey: "website",
-            metadata: expect.objectContaining({
-              leadFor: "other"
-            }),
+            name: "Apar Demo School",
+            website: "https://apar.example.test",
+            industry: "Education",
+            accountTypeKey: "prospect",
+            healthStatusKey: "healthy",
             customFields: {
-              district: "Lucknow",
+              territory: "North India",
               board: "cbse",
               campuses: ["primary", "secondary"],
               strategic: true
@@ -273,63 +257,57 @@ describe("Lead form", () => {
     );
   });
 
-  it("loads saved custom field values when editing a lead", async () => {
+  it("loads saved custom field values when editing an account", async () => {
     apiRequestMock.mockImplementation(async (path: string) => {
-      if (path === "/leads/options") {
-        return buildLeadOptionsResponse();
+      if (path === "/accounts/options") {
+        return buildAccountOptionsResponse();
       }
-      if (path === "/leads/lead-1") {
+      if (path === "/accounts/account-1") {
         return {
-          lead: {
-            id: "lead-1",
-            firstName: "Asha",
-            lastName: "Singh",
-            fullName: "Asha Singh",
-            companyName: "Apar Demo School",
-            email: null,
-            phone: null,
-            status: {
-              id: "status-1",
-              key: "new",
-              label: "New",
+          account: {
+            id: "account-1",
+            name: "Apar Demo School",
+            website: "https://apar.example.test",
+            industry: "Education",
+            accountType: {
+              id: "account-type-1",
+              key: "prospect",
+              label: "Prospect",
               description: null,
               color: null,
               isDefault: true,
               isActive: true
             },
-            source: {
-              id: "source-1",
-              key: "website",
-              label: "Website",
+            healthStatus: {
+              id: "health-1",
+              key: "healthy",
+              label: "Healthy",
               description: null,
               color: null,
               isDefault: true,
               isActive: true
             },
-            score: null,
             owner: null,
+            contactCount: 0,
             noteCount: 0,
             activityCount: 0,
-            lastActivityAt: null,
-            metadata: {
-              leadFor: "other"
-            },
+            metadata: {},
             customFields: {
-              district: "Kanpur",
+              territory: "West UP",
               board: "icse",
               campuses: ["secondary"],
               strategic: false
             },
-            createdAt: "2026-06-25T10:00:00.000Z",
-            updatedAt: "2026-06-26T10:00:00.000Z",
+            createdAt: "2026-06-26T10:00:00.000Z",
+            updatedAt: "2026-06-27T10:00:00.000Z",
             notes: [],
             activities: [],
             tasks: [],
             timeline: [],
-            conversion: null,
-            conversionPlaceholder: {
+            relatedContacts: [],
+            relatedOpportunitiesPlaceholder: {
               available: false,
-              message: "Conversion is not available yet."
+              message: "Opportunities are not attached yet."
             }
           }
         };
@@ -337,11 +315,11 @@ describe("Lead form", () => {
       throw new Error(`Unexpected request: ${path}`);
     });
 
-    renderLeadForm("/leads/lead-1/edit", "/leads/:leadId/edit");
+    renderAccountForm("/accounts/account-1/edit", "/accounts/:accountId/edit");
 
-    expect(await screen.findByDisplayValue("Kanpur")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("West UP")).toBeInTheDocument();
     expect(screen.getByLabelText("Board")).toHaveValue("icse");
-    expect(screen.getByLabelText("Strategic lead")).toHaveValue("false");
+    expect(screen.getByLabelText("Strategic account")).toHaveValue("false");
     expect(screen.getByRole("button", { name: /secondary/i })).toHaveAttribute("aria-pressed", "true");
   });
 });

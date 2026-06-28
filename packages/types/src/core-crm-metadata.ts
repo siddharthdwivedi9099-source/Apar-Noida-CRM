@@ -1141,7 +1141,8 @@ export const defaultCoreCrmStandardPicklistDefinitions: TenantOptionSetSeedDefin
       { key: "working", label: "Working", color: "#0ea5e9", sortOrder: 1 },
       { key: "qualified", label: "Qualified", color: "#14b8a6", sortOrder: 2 },
       { key: "nurturing", label: "Nurturing", color: "#a855f7", sortOrder: 3 },
-      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 4 }
+      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 4 },
+      { key: "converted", label: "Converted", color: "#22c55e", sortOrder: 5 }
     ]
   }),
   optionSet({

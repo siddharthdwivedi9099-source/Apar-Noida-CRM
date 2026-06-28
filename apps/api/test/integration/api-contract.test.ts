@@ -10,8 +10,10 @@ const prefix = "/api/v1";
 // so an unauthenticated request to its base path must be rejected before any
 // database access. This is the contract that guarantees route mounting + the auth
 // gate for each API surface (and, by extension, tenant isolation: no token => no data).
-const protectedModuleBases: Array<{ area: string; path: string }> = [
+const protectedModuleBases: Array<{ area: string; method?: "get" | "post"; path: string }> = [
   { area: "Lead API", path: "/leads" },
+  { area: "Lead Runtime API", path: "/leads/00000000-0000-4000-8000-000000000001/runtime" },
+  { area: "Lead Conversion API", method: "post", path: "/leads/00000000-0000-4000-8000-000000000001/convert" },
   { area: "Account API", path: "/accounts" },
   { area: "Contact API", path: "/contacts" },
   { area: "Opportunity API", path: "/opportunities" },
@@ -53,8 +55,8 @@ describe("API contract: service metadata and routing", () => {
 });
 
 describe("API contract: every protected module enforces authentication", () => {
-  it.each(protectedModuleBases)("rejects unauthenticated access to $area ($path)", async ({ path }) => {
-    const response = await request(app).get(`${prefix}${path}`);
+  it.each(protectedModuleBases)("rejects unauthenticated access to $area ($path)", async ({ method = "get", path }) => {
+    const response = await request(app)[method](`${prefix}${path}`);
     expect(response.status).toBe(401);
     expect(response.body.error.code).toBe("AUTHENTICATION_ERROR");
   });

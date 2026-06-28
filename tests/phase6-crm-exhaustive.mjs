@@ -596,6 +596,58 @@ async function main() {
     });
     assert.ok(refreshedLeadOptions.owners.some((owner) => owner.id === transferUser.userId));
 
+    const customLeadFieldKey = `district_${runToken}`;
+    const customLeadField = await request("/tenant-config/custom-fields", {
+      method: "POST",
+      accessToken: adminAccessToken,
+      expectedStatus: 201,
+      body: {
+        moduleKey: "leads",
+        entityKey: "lead",
+        fieldKey: customLeadFieldKey,
+        label: `District ${runToken}`,
+        dataType: "text",
+        isRequired: false,
+        isActive: true,
+        sortOrder: 90
+      }
+    });
+    assert.equal(customLeadField.field.fieldKey, customLeadFieldKey);
+
+    const leadOptionsWithCustomField = await request("/leads/options", {
+      accessToken: adminAccessToken,
+      expectedStatus: 200
+    });
+    assert.ok(leadOptionsWithCustomField.fieldDefinitions.some((field) => field.fieldKey === "companyName" && field.isSystemField));
+    assert.ok(leadOptionsWithCustomField.fieldDefinitions.some((field) => field.fieldKey === customLeadFieldKey && !field.isSystemField));
+    assert.deepEqual(leadOptionsWithCustomField.customFieldOptions, {});
+
+    const customAccountFieldKey = `account_region_${runToken}`;
+    const customAccountField = await request("/tenant-config/custom-fields", {
+      method: "POST",
+      accessToken: adminAccessToken,
+      expectedStatus: 201,
+      body: {
+        moduleKey: "accounts",
+        entityKey: "account",
+        fieldKey: customAccountFieldKey,
+        label: `Region ${runToken}`,
+        dataType: "text",
+        isRequired: false,
+        isActive: true,
+        sortOrder: 90
+      }
+    });
+    assert.equal(customAccountField.field.fieldKey, customAccountFieldKey);
+
+    const accountOptionsWithCustomField = await request("/accounts/options", {
+      accessToken: adminAccessToken,
+      expectedStatus: 200
+    });
+    assert.ok(accountOptionsWithCustomField.fieldDefinitions.some((field) => field.fieldKey === "name" && field.isSystemField));
+    assert.ok(accountOptionsWithCustomField.fieldDefinitions.some((field) => field.fieldKey === customAccountFieldKey && !field.isSystemField));
+    assert.deepEqual(accountOptionsWithCustomField.customFieldOptions, {});
+
     await expectError("/accounts", {
       method: "POST",
       accessToken: adminAccessToken,
@@ -640,6 +692,9 @@ async function main() {
           runToken,
           recordKind: "primary-account",
           stage: "created"
+        },
+        customFields: {
+          [customAccountFieldKey]: `Region Created ${runToken}`
         }
       },
       {
@@ -806,6 +861,9 @@ async function main() {
         metadata: {
           review: "updated",
           mergedFromTest: true
+        },
+        customFields: {
+          [customAccountFieldKey]: `Region Updated ${runToken}`
         }
       }
     });
@@ -815,6 +873,7 @@ async function main() {
     assert.equal(accountUpdate.account.metadata.runToken, runToken);
     assert.equal(accountUpdate.account.metadata.stage, "created");
     assert.equal(accountUpdate.account.metadata.mergedFromTest, true);
+    assert.equal(accountUpdate.account.customFields[customAccountFieldKey], `Region Updated ${runToken}`);
 
     await expectError(`/accounts/${primaryAccountId}`, {
       method: "PATCH",
@@ -1081,6 +1140,7 @@ async function main() {
     assert.ok(refreshedAccount.account.relatedOpportunitiesPlaceholder.message.length > 0);
     assert.ok(refreshedAccount.account.noteCount >= 1);
     assert.ok(refreshedAccount.account.activityCount >= 1);
+    assert.equal(refreshedAccount.account.customFields[customAccountFieldKey], `Region Updated ${runToken}`);
 
     await expectError(`/contacts/${primaryContactId}`, {
       method: "PATCH",
@@ -1164,6 +1224,9 @@ async function main() {
         sourceKey: "website",
         score: 55,
         ownerId: adminUserId,
+        customFields: {
+          [customLeadFieldKey]: `District Created ${runToken}`
+        },
         metadata: {
           runToken,
           recordKind: "primary-lead",
@@ -1220,6 +1283,7 @@ async function main() {
     }
 
     const primaryLead = createdLeads[0];
+    assert.equal(primaryLead.customFields[customLeadFieldKey], `District Created ${runToken}`);
     const primaryLeadId = primaryLead.id;
     const filteredLeads = await request(
       `/leads${buildQueryString({
@@ -1335,6 +1399,9 @@ async function main() {
         sourceKey: "campaign",
         score: 72,
         ownerId: transferUser.userId,
+        customFields: {
+          [customLeadFieldKey]: `District Updated ${runToken}`
+        },
         metadata: {
           review: "updated",
           mergedFromTest: true
@@ -1348,6 +1415,7 @@ async function main() {
     assert.equal(leadUpdate.lead.metadata.runToken, runToken);
     assert.equal(leadUpdate.lead.metadata.stage, "created");
     assert.equal(leadUpdate.lead.metadata.mergedFromTest, true);
+    assert.equal(leadUpdate.lead.customFields[customLeadFieldKey], `District Updated ${runToken}`);
     assert.ok(leadUpdate.lead.conversionPlaceholder.message.length > 0);
     assert.ok(leadUpdate.lead.noteCount >= 1);
     assert.ok(leadUpdate.lead.activityCount >= 1);

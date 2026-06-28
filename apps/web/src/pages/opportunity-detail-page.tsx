@@ -21,6 +21,12 @@ import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
+import {
+  formatFallbackCustomFieldLabel,
+  getActiveCustomFieldDefinitions,
+  getCustomFieldOptionLabels,
+  hasCustomFieldValue
+} from "@/lib/crm-custom-fields";
 import { formatCurrencyAmount, formatDateOnly, formatDateTime, formatShortDate } from "@/lib/crm";
 import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
@@ -81,6 +87,9 @@ export function OpportunityDetailPage() {
       setOptionsResponse(options);
       setLeadOptions(leadOptionsResponse);
     } catch (error) {
+      setDetailResponse(null);
+      setOptionsResponse(null);
+      setLeadOptions(null);
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsLoading(false);
@@ -179,6 +188,67 @@ export function OpportunityDetailPage() {
         </CardContent>
       </Card>
     );
+  }
+
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(optionsResponse);
+  const customFieldDefinitionKeys = new Set(customFieldDefinitions.map((field) => field.fieldKey));
+  const configuredCustomFields = customFieldDefinitions.filter((field) => hasCustomFieldValue(opportunity.customFields[field.fieldKey]));
+  const orphanCustomFields = Object.entries(opportunity.customFields).filter(
+    ([fieldKey, value]) => !customFieldDefinitionKeys.has(fieldKey) && hasCustomFieldValue(value)
+  );
+
+  function renderCustomFieldValue(fieldKey: string, rawValue: unknown, dataType?: string) {
+    if (dataType === "multiselect") {
+      const labels = getCustomFieldOptionLabels(
+        optionsResponse,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: "multiselect", optionSetKey: null },
+        rawValue
+      );
+
+      return labels.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {labels.map((label) => (
+            <Badge key={label} variant="muted">
+              {label}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 font-semibold">Not provided</p>
+      );
+    }
+
+    if (dataType === "select") {
+      const label = getCustomFieldOptionLabels(
+        optionsResponse,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: "select", optionSetKey: null },
+        rawValue
+      )[0];
+      return <p className="mt-2 font-semibold">{label ?? "Not provided"}</p>;
+    }
+
+    if (typeof rawValue === "boolean") {
+      return <p className="mt-2 font-semibold">{rawValue ? "Yes" : "No"}</p>;
+    }
+
+    if (typeof rawValue === "number") {
+      return <p className="mt-2 font-semibold">{rawValue}</p>;
+    }
+
+    if (typeof rawValue === "string") {
+      if (rawValue.trim().length === 0) {
+        return <p className="mt-2 font-semibold">Not provided</p>;
+      }
+      if (dataType === "date") {
+        return <p className="mt-2 font-semibold">{formatDateOnly(rawValue)}</p>;
+      }
+      if (dataType === "datetime") {
+        return <p className="mt-2 font-semibold">{formatDateTime(rawValue)}</p>;
+      }
+      return <p className="mt-2 font-semibold">{rawValue}</p>;
+    }
+
+    return <p className="mt-2 font-semibold">Not provided</p>;
   }
 
   return (
@@ -298,6 +368,31 @@ export function OpportunityDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {configuredCustomFields.length > 0 || orphanCustomFields.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tenant-defined fields</CardTitle>
+              <CardDescription>
+                Extra workspace-configured opportunity attributes are stored with the core deal record.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              {configuredCustomFields.map((field) => (
+                <div key={field.fieldKey} className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{field.label}</p>
+                  {renderCustomFieldValue(field.fieldKey, opportunity.customFields[field.fieldKey], field.dataType)}
+                </div>
+              ))}
+              {orphanCustomFields.map(([fieldKey, value]) => (
+                <div key={fieldKey} className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{formatFallbackCustomFieldLabel(fieldKey)}</p>
+                  {renderCustomFieldValue(fieldKey, value)}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
       </section>
 
       {(() => {

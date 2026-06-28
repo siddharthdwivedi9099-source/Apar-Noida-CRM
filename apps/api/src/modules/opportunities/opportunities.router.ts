@@ -58,7 +58,8 @@ const opportunityCreateSchema = z.object({
   nextStep: z.string().max(4000).nullable().optional(),
   outcomeStatusKey: z.string().min(2).max(160).nullable().optional(),
   outcomeReason: z.string().max(4000).nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const opportunityUpdateSchema = z.object({
@@ -76,7 +77,8 @@ const opportunityUpdateSchema = z.object({
   nextStep: z.string().max(4000).nullable().optional(),
   outcomeStatusKey: z.string().min(2).max(160).nullable().optional(),
   outcomeReason: z.string().max(4000).nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const opportunityIdSchema = z.object({

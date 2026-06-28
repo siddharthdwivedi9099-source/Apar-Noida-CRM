@@ -10,6 +10,8 @@ export * from "./crm-bpf-definitions.js";
 export * from "./bpf-runtime.js";
 export * from "./lead-scoring.js";
 export * from "./lead-assignment.js";
+export * from "./lead-conversion.js";
+export * from "./lead-runtime.js";
 export * from "./core-crm-metadata.js";
 export * from "./persona-access-metadata.js";
 export * from "./ai.js";

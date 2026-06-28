@@ -19,7 +19,13 @@ import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
-import { formatDateTime, formatShortDate } from "@/lib/crm";
+import {
+  formatFallbackCustomFieldLabel,
+  getActiveCustomFieldDefinitions,
+  getCustomFieldOptionLabels,
+  hasCustomFieldValue
+} from "@/lib/crm-custom-fields";
+import { formatDateOnly, formatDateTime, formatShortDate } from "@/lib/crm";
 import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
 import { Link, useParams } from "react-router-dom";
@@ -32,6 +38,7 @@ export function AccountDetailPage() {
   const contactLabel = getModuleLabel("contacts", "singular");
   const [data, setData] = useState<AccountResponse | null>(null);
   const [owners, setOwners] = useState<CrmLookupUserSummary[]>([]);
+  const [accountOptions, setAccountOptions] = useState<AccountOptionsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -60,7 +67,11 @@ export function AccountDetailPage() {
       ]);
       setData(detailResponse);
       setOwners(optionsResponse.owners);
+      setAccountOptions(optionsResponse);
     } catch (error) {
+      setData(null);
+      setOwners([]);
+      setAccountOptions(null);
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsLoading(false);
@@ -161,6 +172,67 @@ export function AccountDetailPage() {
     );
   }
 
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(accountOptions);
+  const customFieldDefinitionKeys = new Set(customFieldDefinitions.map((field) => field.fieldKey));
+  const configuredCustomFields = customFieldDefinitions.filter((field) => hasCustomFieldValue(account.customFields[field.fieldKey]));
+  const orphanCustomFields = Object.entries(account.customFields).filter(
+    ([fieldKey, value]) => !customFieldDefinitionKeys.has(fieldKey) && hasCustomFieldValue(value)
+  );
+
+  function renderCustomFieldValue(fieldKey: string, rawValue: unknown, dataType?: string) {
+    if (dataType === "multiselect") {
+      const labels = getCustomFieldOptionLabels(
+        accountOptions,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: "multiselect", optionSetKey: null },
+        rawValue
+      );
+
+      return labels.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {labels.map((label) => (
+            <Badge key={label} variant="muted">
+              {label}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 font-semibold">Not provided</p>
+      );
+    }
+
+    if (dataType === "select") {
+      const label = getCustomFieldOptionLabels(
+        accountOptions,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: "select", optionSetKey: null },
+        rawValue
+      )[0];
+      return <p className="mt-2 font-semibold">{label ?? "Not provided"}</p>;
+    }
+
+    if (typeof rawValue === "boolean") {
+      return <p className="mt-2 font-semibold">{rawValue ? "Yes" : "No"}</p>;
+    }
+
+    if (typeof rawValue === "number") {
+      return <p className="mt-2 font-semibold">{rawValue}</p>;
+    }
+
+    if (typeof rawValue === "string") {
+      if (rawValue.trim().length === 0) {
+        return <p className="mt-2 font-semibold">Not provided</p>;
+      }
+      if (dataType === "date") {
+        return <p className="mt-2 font-semibold">{formatDateOnly(rawValue)}</p>;
+      }
+      if (dataType === "datetime") {
+        return <p className="mt-2 font-semibold">{formatDateTime(rawValue)}</p>;
+      }
+      return <p className="mt-2 font-semibold">{rawValue}</p>;
+    }
+
+    return <p className="mt-2 font-semibold">Not provided</p>;
+  }
+
   return (
     <div className="space-y-6">
       <CrmHero
@@ -223,6 +295,31 @@ export function AccountDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {configuredCustomFields.length > 0 || orphanCustomFields.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tenant-defined fields</CardTitle>
+              <CardDescription>
+                Extra workspace-configured account attributes are stored alongside the core customer record.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              {configuredCustomFields.map((field) => (
+                <div key={field.fieldKey} className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{field.label}</p>
+                  {renderCustomFieldValue(field.fieldKey, account.customFields[field.fieldKey], field.dataType)}
+                </div>
+              ))}
+              {orphanCustomFields.map(([fieldKey, value]) => (
+                <div key={fieldKey} className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{formatFallbackCustomFieldLabel(fieldKey)}</p>
+                  {renderCustomFieldValue(fieldKey, value)}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardHeader>
@@ -294,7 +391,7 @@ export function AccountDetailPage() {
             {[
               "Opportunity relationships now live in the dedicated Opportunities workspace with account and contact linkage.",
               "Support and customer-success stages can reuse this shared account identity without duplication.",
-              "Custom fields and layouts from the tenant configuration engine can extend account forms next."
+              "Tenant-defined custom fields now extend account create, edit, and detail workflows without hard-coded schema changes."
             ].map((message) => (
               <div key={message} className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
                 {message}

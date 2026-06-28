@@ -89,6 +89,7 @@ interface OpportunityRecordRow {
   competitor: string | null;
   next_step: string | null;
   win_loss_reason: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
@@ -159,6 +160,7 @@ interface OpportunityStateRow {
   competitor: string | null;
   next_step: string | null;
   win_loss_reason: string | null;
+  custom_fields: Record<string, unknown> | null;
   last_stage_changed_at: Date;
   metadata: Record<string, unknown> | null;
 }
@@ -888,6 +890,7 @@ export class OpportunityService {
           opportunities.competitor,
           opportunities.next_step,
           opportunities.win_loss_reason,
+          opportunities.custom_fields,
           opportunities.last_stage_changed_at,
           opportunities.metadata
         FROM opportunities
@@ -1359,6 +1362,7 @@ export class OpportunityService {
           opportunities.competitor,
           opportunities.next_step,
           opportunities.win_loss_reason,
+          opportunities.custom_fields,
           opportunities.metadata,
           opportunities.created_at,
           opportunities.updated_at,
@@ -1489,15 +1493,32 @@ export class OpportunityService {
   async getOpportunityOptions(actor: ActorContext): Promise<OpportunityOptionsResponse> {
     this.assertEnabled();
 
-    return this.databaseService.withClient(async (client) => ({
-      owners: await this.loadOwners(client, actor.tenantId),
-      accounts: await this.loadAccountsLookup(client, actor.tenantId),
-      contacts: await this.loadContactsLookup(client, actor.tenantId),
-      stages: await this.loadOptionSetValues(client, actor.tenantId, "opportunity-pipeline"),
-      sources: await this.loadOptionSetValues(client, actor.tenantId, "opportunity-source"),
-      outcomeStatuses: await this.loadOptionSetValues(client, actor.tenantId, "opportunity-outcome-status"),
-      availableScopes: await this.getAvailableScopes(client, actor)
-    }));
+    return this.databaseService.withClient(async (client) => {
+      const fieldDefinitions = await this.crmService.loadFieldDefinitions(client, actor.tenantId, "opportunity");
+      const customFieldOptionsPromise = this.crmService.loadCustomFieldOptions(client, actor.tenantId, fieldDefinitions);
+      const [owners, accounts, contacts, stages, sources, outcomeStatuses, availableScopes, customFieldOptions] = await Promise.all([
+        this.loadOwners(client, actor.tenantId),
+        this.loadAccountsLookup(client, actor.tenantId),
+        this.loadContactsLookup(client, actor.tenantId),
+        this.loadOptionSetValues(client, actor.tenantId, "opportunity-pipeline"),
+        this.loadOptionSetValues(client, actor.tenantId, "opportunity-source"),
+        this.loadOptionSetValues(client, actor.tenantId, "opportunity-outcome-status"),
+        this.getAvailableScopes(client, actor),
+        customFieldOptionsPromise
+      ]);
+
+      return {
+        owners,
+        accounts,
+        contacts,
+        stages,
+        sources,
+        outcomeStatuses,
+        availableScopes,
+        fieldDefinitions,
+        customFieldOptions
+      };
+    });
   }
 
   async listOpportunities(actor: ActorContext, query: OpportunityListQuery): Promise<OpportunitiesResponse> {
@@ -1702,6 +1723,7 @@ export class OpportunityService {
 
       return {
         ...this.mapOpportunity(row),
+        customFields: getMetadata(row.custom_fields),
         stakeholders: stakeholdersByOpportunityId.get(opportunityId) ?? [],
         productsServicesPlaceholder: {
           available: false as const,
@@ -1934,6 +1956,12 @@ export class OpportunityService {
         resolvedOutcomeStatusKey,
         "Opportunity outcome status"
       );
+      const customFields = await this.crmService.sanitizeCustomFields(
+        client,
+        actor.tenantId,
+        "opportunity",
+        input.customFields
+      );
 
       const result = await client.query<{ id: string }>(
         `
@@ -1952,11 +1980,12 @@ export class OpportunityService {
             competitor,
             next_step,
             win_loss_reason,
+            custom_fields,
             metadata,
             created_by,
             updated_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::date, $12, $13, $14, $15::jsonb, $16, $16)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::date, $12, $13, $14, $15::jsonb, $16::jsonb, $17, $17)
           RETURNING id
         `,
         [
@@ -1974,6 +2003,7 @@ export class OpportunityService {
           getTrimmedNullableString(input.competitor),
           getTrimmedNullableString(input.nextStep),
           getTrimmedNullableString(input.outcomeReason),
+          JSON.stringify(customFields),
           JSON.stringify(input.metadata ?? {}),
           actor.userId
         ]
@@ -2064,6 +2094,16 @@ export class OpportunityService {
       const metadata = input.metadata
         ? { ...getMetadata(currentOpportunity.metadata), ...input.metadata }
         : getMetadata(currentOpportunity.metadata);
+      const customFields =
+        input.customFields !== undefined
+          ? await this.crmService.sanitizeCustomFields(
+              client,
+              actor.tenantId,
+              "opportunity",
+              input.customFields,
+              getMetadata(currentOpportunity.custom_fields)
+            )
+          : getMetadata(currentOpportunity.custom_fields);
       const stageChanged = stageOptionId !== currentOpportunity.stage_option_id;
 
       await client.query(
@@ -2084,8 +2124,9 @@ export class OpportunityService {
             next_step = $14,
             win_loss_reason = $15,
             last_stage_changed_at = CASE WHEN $16 THEN NOW() ELSE last_stage_changed_at END,
-            metadata = $17::jsonb,
-            updated_by = $18
+            custom_fields = $17::jsonb,
+            metadata = $18::jsonb,
+            updated_by = $19
           WHERE id = $1
             AND tenant_id = $2
             AND deleted_at IS NULL
@@ -2107,6 +2148,7 @@ export class OpportunityService {
           input.nextStep !== undefined ? getTrimmedNullableString(input.nextStep) : currentOpportunity.next_step,
           input.outcomeReason !== undefined ? getTrimmedNullableString(input.outcomeReason) : currentOpportunity.win_loss_reason,
           stageChanged,
+          JSON.stringify(customFields),
           JSON.stringify(metadata),
           actor.userId
         ]

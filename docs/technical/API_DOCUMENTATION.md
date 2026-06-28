@@ -172,6 +172,7 @@ Permission checks map to module families:
 `GET /opportunities/:opportunityId` now returns:
 - base commercial fields
 - account, primary contact, owner, stage, source, and outcome references
+- `customFields`
 - `stakeholders`
 - `productsServicesPlaceholder`
 - `forecastPlaceholder`
@@ -215,6 +216,15 @@ Permission checks map to module families:
   "nextStep": "Review commercial proposal with procurement"
 }
 ```
+
+### Opportunity options and custom fields
+
+`GET /opportunities/options` now returns:
+- the existing owner, relationship, pipeline, and scope catalogs
+- `fieldDefinitions`, the effective opportunity field set (system + active custom fields)
+- `customFieldOptions`, keyed by option-set key for active custom opportunity `select` / `multiselect` fields
+
+`POST /opportunities` and `PATCH /opportunities/:opportunityId` also accept an optional `customFields` object. Unknown keys are ignored. Known keys are sanitized against active opportunity `custom_field_definitions`, and option-backed fields must reference active tenant option values.
 
 Stage updates through `PATCH /opportunities/:opportunityId` write both standard CRM audit events and an `opportunity.stage_change` audit log when the pipeline stage changes.
 
@@ -299,7 +309,9 @@ Campaign notes, activities, tasks, and timeline items are read through the share
 - `GET /leads/options`
 - `GET /leads`
 - `POST /leads`
+- `GET /leads/:leadId/runtime`
 - `GET /leads/:leadId`
+- `POST /leads/:leadId/convert`
 - `PATCH /leads/:leadId`
 - `DELETE /leads/:leadId`
 
@@ -323,7 +335,7 @@ Campaign notes, activities, tasks, and timeline items are read through the share
 
 ### Detail payload behavior
 
-`GET /leads/:leadId`, `GET /accounts/:accountId`, and `GET /contacts/:contactId` now return:
+`GET /leads/:leadId`, `GET /accounts/:accountId`, `GET /contacts/:contactId`, and `GET /opportunities/:opportunityId` now return:
 - base record fields
 - `notes`
 - `activities`
@@ -331,11 +343,74 @@ Campaign notes, activities, tasks, and timeline items are read through the share
 - `timeline`
 
 Accounts also return:
+- `customFields`
 - `relatedContacts`
 - `relatedOpportunitiesPlaceholder`
 
+Opportunities also return:
+- `customFields`
+- `stakeholders`
+- AI/forecast/deal placeholder surfaces
+
 Leads also return:
+- `customFields`
+- `conversion` when the lead has already been converted
 - `conversionPlaceholder`
+
+### Lead options and custom fields
+
+`GET /leads/options` now returns:
+- the existing owner and option catalogs
+- `fieldDefinitions`, the effective lead field set (system + active custom fields)
+- `customFieldOptions`, keyed by option-set key for active custom lead `select` / `multiselect` fields
+
+`POST /leads` and `PATCH /leads/:leadId` also accept an optional `customFields` object. Unknown keys are ignored. Known keys are sanitized against active lead `custom_field_definitions`, and option-backed fields must reference active tenant option values.
+
+### Account options and custom fields
+
+`GET /accounts/options` now returns:
+- the existing owner and option catalogs
+- `fieldDefinitions`, the effective account field set (system + active custom fields)
+- `customFieldOptions`, keyed by option-set key for active custom account `select` / `multiselect` fields
+
+`POST /accounts` and `PATCH /accounts/:accountId` also accept an optional `customFields` object. Unknown keys are ignored. Known keys are sanitized against active account `custom_field_definitions`, and option-backed fields must reference active tenant option values.
+
+### Lead runtime guidance
+
+`GET /leads/:leadId/runtime` returns read-only runtime guidance computed from active configuration definitions:
+- scoring via `scoring_model`
+- MQL decision via `mql_rule`
+- assignment recommendation via `assignment_rule`
+- SLA status via `sla_policy`
+
+The endpoint deliberately does not assign owners, persist score history, or dispatch SLA escalation notifications; those remain worker/runtime-history responsibilities.
+
+### Lead conversion
+
+`POST /leads/:leadId/convert` converts a qualified lead into sales pipeline records.
+
+Request body:
+- `stageKey`
+- `amount`
+- `expectedCloseDate`
+- `nextStep`
+- optional `opportunityName`
+- optional `sourceKey` (defaults from lead source mapping)
+- optional `ownerId` (defaults from the lead owner)
+- optional `probability`
+- optional `competitor`
+- optional `handoverNotes`
+- optional `taskDueAt`
+- optional `accountId` and `contactId` to force linking instead of auto-create / auto-link
+
+Behavior:
+- runs duplicate detection against account and contact records
+- auto-links strong exact matches when unambiguous
+- creates missing account/contact records when safe
+- creates the opportunity
+- creates a handoff task on the opportunity
+- marks the lead status as `converted`
+- stores a conversion summary on the lead detail payload under `lead.conversion`
 
 ## Shared Productivity Routes
 

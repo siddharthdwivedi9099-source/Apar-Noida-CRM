@@ -7,6 +7,7 @@ import type {
   LeadClassificationMetadata,
   LeadOptionsResponse,
   LeadResponse,
+  LeadRuntimeResponse,
   UpdateCrmNoteRequestBody,
   UpdateCrmTaskRequestBody
 } from "@crm/types";
@@ -21,7 +22,13 @@ import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
-import { formatDateTime, formatShortDate } from "@/lib/crm";
+import {
+  formatFallbackCustomFieldLabel,
+  getActiveCustomFieldDefinitions,
+  getCustomFieldOptionLabels,
+  hasCustomFieldValue
+} from "@/lib/crm-custom-fields";
+import { formatDateOnly, formatDateTime, formatShortDate } from "@/lib/crm";
 import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
 import { Link, useParams } from "react-router-dom";
@@ -32,6 +39,8 @@ export function LeadDetailPage() {
   const { getModuleLabel } = useTenantConfig();
   const leadLabel = getModuleLabel("leads", "singular");
   const [data, setData] = useState<LeadResponse | null>(null);
+  const [runtimeData, setRuntimeData] = useState<LeadRuntimeResponse | null>(null);
+  const [runtimeErrorMessage, setRuntimeErrorMessage] = useState<string | null>(null);
   const [owners, setOwners] = useState<CrmLookupUserSummary[]>([]);
   const [leadOptions, setLeadOptions] = useState<LeadOptionsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,13 +50,32 @@ export function LeadDetailPage() {
   const canDelete = hasAnyPermission(["leads.delete", "leads.configure"]);
   const canManageProductivity = hasAnyPermission(["leads.create", "leads.edit", "leads.assign", "leads.configure"]);
 
+  async function loadRuntime() {
+    if (!accessToken || !leadId) {
+      return;
+    }
+
+    try {
+      const runtimeResponse = await apiRequest<LeadRuntimeResponse>(`/leads/${leadId}/runtime`, {
+        method: "GET",
+        accessToken
+      });
+      setRuntimeData(runtimeResponse);
+    } catch (error) {
+      setRuntimeData(null);
+      setRuntimeErrorMessage(getErrorMessage(error));
+    }
+  }
+
   async function loadLead() {
     if (!accessToken || !leadId) {
       return;
     }
 
     setIsLoading(true);
+    setRuntimeData(null);
     setErrorMessage(null);
+    setRuntimeErrorMessage(null);
 
     try {
       const [detailResponse, optionsResponse] = await Promise.all([
@@ -63,7 +91,12 @@ export function LeadDetailPage() {
       setData(detailResponse);
       setOwners(optionsResponse.owners);
       setLeadOptions(optionsResponse);
+      void loadRuntime();
     } catch (error) {
+      setData(null);
+      setRuntimeData(null);
+      setLeadOptions(null);
+      setOwners([]);
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsLoading(false);
@@ -164,6 +197,67 @@ export function LeadDetailPage() {
     );
   }
 
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(leadOptions);
+  const customFieldDefinitionKeys = new Set(customFieldDefinitions.map((field) => field.fieldKey));
+  const configuredCustomFields = customFieldDefinitions.filter((field) => hasCustomFieldValue(lead.customFields[field.fieldKey]));
+  const orphanCustomFields = Object.entries(lead.customFields).filter(
+    ([fieldKey, value]) => !customFieldDefinitionKeys.has(fieldKey) && hasCustomFieldValue(value)
+  );
+
+  function renderCustomFieldValue(fieldKey: string, rawValue: unknown, dataType?: string) {
+    if (dataType === "multiselect") {
+      const labels = getCustomFieldOptionLabels(
+        leadOptions,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: "multiselect", optionSetKey: null },
+        rawValue
+      );
+
+      return labels.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {labels.map((label) => (
+            <Badge key={label} variant="muted">
+              {label}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 font-semibold">Not provided</p>
+      );
+    }
+
+    if (dataType === "select") {
+      const label = getCustomFieldOptionLabels(
+        leadOptions,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: "select", optionSetKey: null },
+        rawValue
+      )[0];
+      return <p className="mt-2 font-semibold">{label ?? "Not provided"}</p>;
+    }
+
+    if (typeof rawValue === "boolean") {
+      return <p className="mt-2 font-semibold">{rawValue ? "Yes" : "No"}</p>;
+    }
+
+    if (typeof rawValue === "number") {
+      return <p className="mt-2 font-semibold">{rawValue}</p>;
+    }
+
+    if (typeof rawValue === "string") {
+      if (rawValue.trim().length === 0) {
+        return <p className="mt-2 font-semibold">Not provided</p>;
+      }
+      if (dataType === "date") {
+        return <p className="mt-2 font-semibold">{formatDateOnly(rawValue)}</p>;
+      }
+      if (dataType === "datetime") {
+        return <p className="mt-2 font-semibold">{formatDateTime(rawValue)}</p>;
+      }
+      return <p className="mt-2 font-semibold">{rawValue}</p>;
+    }
+
+    return <p className="mt-2 font-semibold">Not provided</p>;
+  }
+
   return (
     <div className="space-y-6">
       <CrmHero
@@ -200,6 +294,89 @@ export function LeadDetailPage() {
       />
 
       <BpfStageProgress object="lead" recordId={lead.id} canEdit={canEdit} />
+
+      {runtimeData ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuration-driven runtime guidance</CardTitle>
+            <CardDescription>
+              Scoring, MQL, assignment, and SLA guidance is computed from governed configuration definitions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 lg:grid-cols-4">
+            <div className="rounded-[1.25rem] bg-background/75 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Score</p>
+              <p className="mt-2 text-2xl font-semibold">{runtimeData.scoring?.result.finalScore ?? "Config missing"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Grade {runtimeData.scoring?.result.grade?.toUpperCase() ?? "not available"}
+              </p>
+            </div>
+            <div className="rounded-[1.25rem] bg-background/75 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">MQL</p>
+              <div className="mt-2">
+                <Badge variant={runtimeData.mql?.result.isMql ? "default" : "muted"}>
+                  {runtimeData.mql ? (runtimeData.mql.result.isMql ? "Qualified" : "Not MQL") : "Config missing"}
+                </Badge>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {runtimeData.mql?.result.reasons[0] ?? "No MQL rule is active for this tenant."}
+              </p>
+            </div>
+            <div className="rounded-[1.25rem] bg-background/75 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Assignment</p>
+              <p className="mt-2 font-semibold">{runtimeData.assignment?.resolution.strategy ?? "Config missing"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {runtimeData.assignment?.resolution.reason ?? "No assignment rule is active for this tenant."}
+              </p>
+            </div>
+            <div className="rounded-[1.25rem] bg-background/75 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">SLA</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {runtimeData.sla?.targets.map((target) => (
+                  <Badge
+                    key={target.key}
+                    variant="muted"
+                    className={
+                      target.status === "breached"
+                        ? "border-rose-200 bg-rose-50 text-rose-700"
+                        : target.status === "warning"
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : undefined
+                    }
+                  >
+                    {target.label}: {target.status}
+                  </Badge>
+                )) ?? <Badge variant="muted">Config missing</Badge>}
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {runtimeData.sla?.targets[0] ? `Next due: ${formatDateTime(runtimeData.sla.targets[0].dueAt)}` : "No SLA policy is active."}
+              </p>
+            </div>
+            {runtimeData.configGaps.length > 0 ? (
+              <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 lg:col-span-4">
+                {runtimeData.configGaps.join(" ")}
+              </div>
+            ) : null}
+            {runtimeData.assignment?.requiresRuntimeSelection || runtimeData.sla?.breachDispatchRecommended ? (
+              <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-4">
+                Runtime worker note: {runtimeData.deferredRuntimeActions.join(" ")}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {runtimeErrorMessage ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuration-driven runtime guidance</CardTitle>
+            <CardDescription>Runtime guidance is temporarily unavailable for this lead.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{runtimeErrorMessage}</p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
@@ -279,6 +456,98 @@ export function LeadDetailPage() {
             </Card>
           );
         })()}
+
+        {configuredCustomFields.length > 0 || orphanCustomFields.length > 0 ? (
+          <Card className="xl:col-span-2">
+            <CardHeader>
+              <CardTitle>Tenant-defined fields</CardTitle>
+              <CardDescription>
+                Extra workspace-configured lead attributes are stored alongside the core record.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              {configuredCustomFields.map((field) => (
+                <div key={field.fieldKey} className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{field.label}</p>
+                  {renderCustomFieldValue(field.fieldKey, lead.customFields[field.fieldKey], field.dataType)}
+                </div>
+              ))}
+              {orphanCustomFields.map(([fieldKey, value]) => (
+                <div key={fieldKey} className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{formatFallbackCustomFieldLabel(fieldKey)}</p>
+                  {renderCustomFieldValue(fieldKey, value)}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {lead.conversion ? (
+          <Card className="xl:col-span-2">
+            <CardHeader>
+              <CardTitle>Conversion summary</CardTitle>
+              <CardDescription>
+                This lead has been converted into pipeline entities with duplicate checks and a handoff task recorded.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-[1.25rem] bg-background/75 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Converted at</p>
+                <p className="mt-2 font-semibold">{formatDateTime(lead.conversion.convertedAt)}</p>
+              </div>
+              <div className="rounded-[1.25rem] bg-background/75 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Qualification summary</p>
+                <p className="mt-2 text-sm leading-6">{lead.conversion.qualificationSummary ?? "No handoff notes were captured."}</p>
+              </div>
+              <div className="rounded-[1.25rem] bg-background/75 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Account</p>
+                {lead.conversion.account ? (
+                  <Link className="mt-2 block font-semibold text-primary underline-offset-4 hover:underline" to={`/accounts/${lead.conversion.account.id}`}>
+                    {lead.conversion.account.name}
+                  </Link>
+                ) : (
+                  <p className="mt-2 font-semibold">Not linked</p>
+                )}
+                <p className="mt-1 text-sm text-muted-foreground">Linked via {lead.conversion.accountLinkMode} account record.</p>
+              </div>
+              <div className="rounded-[1.25rem] bg-background/75 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Contact</p>
+                {lead.conversion.contact ? (
+                  <Link className="mt-2 block font-semibold text-primary underline-offset-4 hover:underline" to={`/contacts/${lead.conversion.contact.id}`}>
+                    {lead.conversion.contact.fullName}
+                  </Link>
+                ) : (
+                  <p className="mt-2 font-semibold">Not linked</p>
+                )}
+                <p className="mt-1 text-sm text-muted-foreground">Linked via {lead.conversion.contactLinkMode} contact record.</p>
+              </div>
+              <div className="rounded-[1.25rem] bg-background/75 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Opportunity</p>
+                {lead.conversion.opportunity ? (
+                  <Link
+                    className="mt-2 block font-semibold text-primary underline-offset-4 hover:underline"
+                    to={`/opportunities/${lead.conversion.opportunity.id}`}
+                  >
+                    {lead.conversion.opportunity.name}
+                  </Link>
+                ) : (
+                  <p className="mt-2 font-semibold">Not linked</p>
+                )}
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Stage {lead.conversion.opportunity?.stage?.label ?? "not available"}
+                </p>
+              </div>
+              <div className="rounded-[1.25rem] bg-background/75 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Handoff task</p>
+                <p className="mt-2 font-semibold">{lead.conversion.handoffTask?.title ?? "No handoff task created"}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {lead.conversion.handoffTask?.status ?? "Unknown"} · duplicate check completed{" "}
+                  {formatDateTime(lead.conversion.duplicateCheckCompletedAt)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardHeader>

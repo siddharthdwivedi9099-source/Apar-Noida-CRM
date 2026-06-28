@@ -21,6 +21,7 @@ import {
   type CrmEntityType,
   type CrmTimelineQuery,
   type ContactListQuery,
+  type ConvertLeadRequestBody,
   type LeadListQuery,
   type UpdateCrmNoteRequestBody,
   type UpdateAccountRequestBody,
@@ -170,7 +171,8 @@ const leadCreateSchema = z.object({
   sourceKey: z.string().min(2).max(160),
   score: z.coerce.number().int().min(0).max(100).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const leadUpdateSchema = z.object({
@@ -183,7 +185,24 @@ const leadUpdateSchema = z.object({
   sourceKey: z.string().min(2).max(160).optional(),
   score: z.coerce.number().int().min(0).max(100).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
+});
+
+const leadConvertSchema = z.object({
+  accountId: uuidSchema.nullable().optional(),
+  contactId: uuidSchema.nullable().optional(),
+  opportunityName: z.string().min(2).max(160).nullable().optional(),
+  ownerId: uuidSchema.nullable().optional(),
+  stageKey: z.string().min(2).max(160),
+  amount: z.coerce.number().min(0),
+  probability: z.coerce.number().int().min(0).max(100).nullable().optional(),
+  expectedCloseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  sourceKey: z.string().min(2).max(160).nullable().optional(),
+  nextStep: z.string().min(2).max(4000),
+  competitor: z.string().max(200).nullable().optional(),
+  handoverNotes: z.string().max(4000).nullable().optional(),
+  taskDueAt: z.string().datetime().nullable().optional()
 });
 
 const accountCreateSchema = z.object({
@@ -193,7 +212,8 @@ const accountCreateSchema = z.object({
   accountTypeKey: z.string().min(2).max(160).nullable().optional(),
   healthStatusKey: z.string().min(2).max(160).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const accountUpdateSchema = z.object({
@@ -203,7 +223,8 @@ const accountUpdateSchema = z.object({
   accountTypeKey: z.string().min(2).max(160).nullable().optional(),
   healthStatusKey: z.string().min(2).max(160).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const contactCreateSchema = z.object({
@@ -537,6 +558,17 @@ export function createCrmRouter({ databaseService }: CrmRouterDependencies) {
   );
 
   router.get(
+    "/leads/:leadId/runtime",
+    requirePermissions({ oneOf: leadReadPermissions }),
+    validateRequest({
+      params: leadIdSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await crmService.getLeadRuntime(request.auth!, request.params.leadId));
+    })
+  );
+
+  router.get(
     "/leads/:leadId",
     requirePermissions({ oneOf: leadReadPermissions }),
     validateRequest({
@@ -586,6 +618,29 @@ export function createCrmRouter({ databaseService }: CrmRouterDependencies) {
             userAgent: request.header("user-agent") ?? null
           },
           request.params.leadId
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/leads/:leadId/convert",
+    requirePermissions({ oneOf: leadMutationPermissions.update }),
+    validateRequest({
+      params: leadIdSchema,
+      body: leadConvertSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.convertLead(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.leadId,
+          request.body as ConvertLeadRequestBody
         )
       );
     })

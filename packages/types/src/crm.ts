@@ -75,6 +75,41 @@ export interface CrmOptionValueSummary {
   isActive: boolean;
 }
 
+export const crmFieldDataTypes = [
+  "text",
+  "textarea",
+  "number",
+  "currency",
+  "percent",
+  "date",
+  "datetime",
+  "email",
+  "phone",
+  "url",
+  "select",
+  "multiselect",
+  "boolean",
+  "lookup",
+  "json"
+] as const;
+export type CrmFieldDataType = (typeof crmFieldDataTypes)[number];
+
+export interface CrmFieldDefinition {
+  fieldKey: string;
+  label: string;
+  description: string | null;
+  dataType: CrmFieldDataType;
+  placeholder: string | null;
+  optionSetKey: string | null;
+  targetObject: string | null;
+  isRequired: boolean;
+  isActive: boolean;
+  isSystemField: boolean;
+  sortOrder: number;
+  settings: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+}
+
 export interface CrmRecordLinkSummary {
   entityType: CrmEntityType;
   entityId: string;
@@ -269,11 +304,40 @@ export interface LeadSummary {
   updatedAt: string;
 }
 
+export const leadDuplicateMatchReasons = ["company_name", "email_domain", "email", "phone", "full_name"] as const;
+export type LeadDuplicateMatchReason = (typeof leadDuplicateMatchReasons)[number];
+
+export interface LeadDuplicateMatchSummary {
+  id: string;
+  label: string;
+  secondaryLabel: string | null;
+  reasons: LeadDuplicateMatchReason[];
+}
+
+export interface LeadConversionSummary {
+  convertedAt: string;
+  convertedByUserId: string;
+  account: AccountLookupSummary | null;
+  accountLinkMode: "created" | "existing";
+  contact: ContactRelationshipSummary | null;
+  contactLinkMode: "created" | "existing";
+  opportunity: OpportunityLookupSummary | null;
+  handoffTask: CrmTaskSummary | null;
+  duplicateCheckCompletedAt: string;
+  duplicateMatches: {
+    accountMatches: LeadDuplicateMatchSummary[];
+    contactMatches: LeadDuplicateMatchSummary[];
+  };
+  qualificationSummary: string | null;
+}
+
 export interface LeadDetail extends LeadSummary {
+  customFields: Record<string, unknown>;
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
   tasks: CrmTaskSummary[];
   timeline: CrmTimelineItem[];
+  conversion: LeadConversionSummary | null;
   conversionPlaceholder: {
     available: false;
     message: string;
@@ -291,6 +355,7 @@ export interface CreateLeadRequestBody {
   score?: number | null;
   ownerId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateLeadRequestBody {
@@ -304,10 +369,39 @@ export interface UpdateLeadRequestBody {
   score?: number | null;
   ownerId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface LeadResponse {
   lead: LeadDetail;
+}
+
+export interface ConvertLeadRequestBody {
+  accountId?: string | null;
+  contactId?: string | null;
+  opportunityName?: string | null;
+  ownerId?: string | null;
+  stageKey: string;
+  amount: number;
+  probability?: number | null;
+  expectedCloseDate: string;
+  sourceKey?: string | null;
+  nextStep: string;
+  competitor?: string | null;
+  handoverNotes?: string | null;
+  taskDueAt?: string | null;
+}
+
+export interface LeadConversionResponse {
+  lead: LeadDetail;
+  account: AccountLookupSummary | null;
+  contact: ContactRelationshipSummary | null;
+  opportunity: OpportunityLookupSummary | null;
+  handoffTask: CrmTaskSummary | null;
+  duplicateMatches: {
+    accountMatches: LeadDuplicateMatchSummary[];
+    contactMatches: LeadDuplicateMatchSummary[];
+  };
 }
 
 export interface LeadsResponse {
@@ -319,6 +413,8 @@ export interface LeadOptionsResponse {
   owners: CrmLookupUserSummary[];
   statuses: CrmOptionValueSummary[];
   sources: CrmOptionValueSummary[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
   // Lead classification: "IT Service Project" vs "Product" (single-select),
   // plus the multi-select technology / product catalogs that apply to each.
   leadForOptions: CrmOptionValueSummary[];
@@ -525,6 +621,7 @@ export interface AccountSummary {
 }
 
 export interface AccountDetail extends AccountSummary {
+  customFields: Record<string, unknown>;
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
   tasks: CrmTaskSummary[];
@@ -544,6 +641,7 @@ export interface CreateAccountRequestBody {
   healthStatusKey?: string | null;
   ownerId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateAccountRequestBody {
@@ -554,6 +652,7 @@ export interface UpdateAccountRequestBody {
   healthStatusKey?: string | null;
   ownerId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface AccountResponse {
@@ -569,6 +668,8 @@ export interface AccountOptionsResponse {
   owners: CrmLookupUserSummary[];
   accountTypes: CrmOptionValueSummary[];
   healthStatuses: CrmOptionValueSummary[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
 }
 
 export const contactSortFields = [
@@ -747,6 +848,7 @@ export interface OpportunitySummary {
 }
 
 export interface OpportunityDetail extends OpportunitySummary {
+  customFields: Record<string, unknown>;
   stakeholders: OpportunityStakeholderSummary[];
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
@@ -774,6 +876,7 @@ export interface CreateOpportunityRequestBody {
   outcomeStatusKey?: string | null;
   outcomeReason?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateOpportunityRequestBody {
@@ -792,6 +895,7 @@ export interface UpdateOpportunityRequestBody {
   outcomeStatusKey?: string | null;
   outcomeReason?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface OpportunityResponse {
@@ -811,6 +915,8 @@ export interface OpportunityOptionsResponse {
   sources: CrmOptionValueSummary[];
   outcomeStatuses: CrmOptionValueSummary[];
   availableScopes: OpportunityPipelineScope[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
 }
 
 export interface OpportunityDashboardResponse {
