@@ -33,8 +33,15 @@ import type {
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import {
+  loadCustomFieldDefinitions,
+  loadCustomFieldOptions,
+  sanitizeCustomFields
+} from "../../common/custom-fields.js";
 import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+
+const SUPPORT_TICKET_ENTITY_KEY = "support_ticket";
 
 interface AuditMetadata {
   requestId: string;
@@ -491,10 +498,11 @@ export class SupportService {
       first_response_at: Date | null;
       resolved_at: Date | null;
       status_key: string;
+      custom_fields: Record<string, unknown> | null;
     }>(
       `
         SELECT support_tickets.id, support_tickets.assignee_id, support_tickets.owner_id,
-          support_tickets.first_response_at, support_tickets.resolved_at, status_values.value_key AS status_key
+          support_tickets.first_response_at, support_tickets.resolved_at, support_tickets.custom_fields, status_values.value_key AS status_key
         FROM support_tickets
         INNER JOIN tenant_option_values AS status_values
           ON status_values.id = support_tickets.status_option_id AND status_values.tenant_id = support_tickets.tenant_id
@@ -564,6 +572,7 @@ export class SupportService {
       support_tickets.resolution_due_at,
       support_tickets.first_response_at,
       support_tickets.resolved_at,
+      support_tickets.custom_fields,
       support_tickets.metadata,
       support_tickets.created_at,
       support_tickets.updated_at,
@@ -775,18 +784,25 @@ export class SupportService {
   async getSupportOptions(actor: ActorContext): Promise<SupportTicketOptionsResponse> {
     this.assertEnabled();
 
-    return this.databaseService.withClient(async (client) => ({
-      owners: await this.loadOwners(client, actor.tenantId),
-      accounts: await this.loadAccountsLookup(client, actor.tenantId),
-      contacts: await this.loadContactsLookup(client, actor.tenantId),
-      statuses: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-status"),
-      priorities: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-priority"),
-      categories: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-category"),
-      sources: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-source"),
-      knowledgeCategories: await this.loadOptionSetValues(client, actor.tenantId, "support-knowledge-category"),
-      slaPolicies: (await this.loadSlaPolicies(client, actor.tenantId)).policies,
-      availableScopes: await this.getAvailableScopes(client, actor)
-    }));
+    return this.databaseService.withClient(async (client) => {
+      const fieldDefinitions = await loadCustomFieldDefinitions(client, actor.tenantId, SUPPORT_TICKET_ENTITY_KEY);
+      const customFieldOptions = await loadCustomFieldOptions(client, actor.tenantId, fieldDefinitions);
+
+      return {
+        owners: await this.loadOwners(client, actor.tenantId),
+        accounts: await this.loadAccountsLookup(client, actor.tenantId),
+        contacts: await this.loadContactsLookup(client, actor.tenantId),
+        statuses: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-status"),
+        priorities: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-priority"),
+        categories: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-category"),
+        sources: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-source"),
+        knowledgeCategories: await this.loadOptionSetValues(client, actor.tenantId, "support-knowledge-category"),
+        slaPolicies: (await this.loadSlaPolicies(client, actor.tenantId)).policies,
+        availableScopes: await this.getAvailableScopes(client, actor),
+        fieldDefinitions,
+        customFieldOptions
+      };
+    });
   }
 
   private async buildScopedWhere(client: PoolClient, actor: ActorContext, scope: SupportTicketScope) {
@@ -965,6 +981,7 @@ export class SupportService {
 
     return {
       ...summary,
+      customFields: getMetadata(row.custom_fields),
       description: row.description,
       rootCause: row.root_cause,
       resolutionNotes: row.resolution_notes,
@@ -998,6 +1015,7 @@ export class SupportService {
       const priorityOptionId = await this.resolveOptionValueId(client, actor.tenantId, "support-ticket-priority", input.priorityKey ?? "medium", "Ticket priority");
       const categoryOptionId = await this.resolveOptionValueId(client, actor.tenantId, "support-ticket-category", input.categoryKey ?? "technical", "Ticket category");
       const sourceOptionId = await this.resolveOptionValueId(client, actor.tenantId, "support-ticket-source", input.sourceKey ?? "email", "Ticket source");
+      const customFields = await sanitizeCustomFields(client, actor.tenantId, SUPPORT_TICKET_ENTITY_KEY, input.customFields);
 
       let firstResponseMinutes: number | null = null;
       let resolutionMinutes: number | null = null;
@@ -1015,13 +1033,13 @@ export class SupportService {
           INSERT INTO support_tickets (
             tenant_id, account_id, contact_id, customer_success_account_id, owner_id, assignee_id, sla_policy_id,
             subject, description, status_option_id, priority_option_id, category_option_id, source_option_id,
-            escalation_status, root_cause, resolution_notes, first_response_due_at, resolution_due_at, metadata, created_by, updated_by
+            escalation_status, root_cause, resolution_notes, first_response_due_at, resolution_due_at, custom_fields, metadata, created_by, updated_by
           )
           VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
             CASE WHEN $17::int IS NULL THEN NULL ELSE NOW() + ($17::int * INTERVAL '1 minute') END,
             CASE WHEN $18::int IS NULL THEN NULL ELSE NOW() + ($18::int * INTERVAL '1 minute') END,
-            $19::jsonb, $20, $20
+            $19::jsonb, $20::jsonb, $21, $21
           )
           RETURNING id
         `,
@@ -1044,6 +1062,7 @@ export class SupportService {
           getTrimmedNullableString(input.resolutionNotes),
           firstResponseMinutes,
           resolutionMinutes,
+          JSON.stringify(customFields),
           JSON.stringify(input.metadata ?? {}),
           actor.userId
         ]
@@ -1134,6 +1153,16 @@ export class SupportService {
       }
       if (keys.includes("metadata")) {
         pushAssignment("metadata", JSON.stringify(input.metadata ?? {}), "::jsonb");
+      }
+      if (keys.includes("customFields")) {
+        const nextCustomFields = await sanitizeCustomFields(
+          client,
+          actor.tenantId,
+          SUPPORT_TICKET_ENTITY_KEY,
+          input.customFields,
+          getMetadata(state.custom_fields)
+        );
+        pushAssignment("custom_fields", JSON.stringify(nextCustomFields), "::jsonb");
       }
 
       // Maintain resolved_at based on status transitions.
@@ -1451,6 +1480,7 @@ interface SupportTicketRow {
   resolution_due_at: Date | null;
   first_response_at: Date | null;
   resolved_at: Date | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;

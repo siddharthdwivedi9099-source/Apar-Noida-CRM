@@ -2295,6 +2295,7 @@ export interface SupportTicketSummary {
 }
 
 export interface SupportTicketDetail extends SupportTicketSummary {
+  customFields: Record<string, unknown>;
   description: string | null;
   rootCause: string | null;
   resolutionNotes: string | null;
@@ -2323,6 +2324,7 @@ export interface CreateSupportTicketRequestBody {
   rootCause?: string | null;
   resolutionNotes?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateSupportTicketRequestBody {
@@ -2342,6 +2344,7 @@ export interface UpdateSupportTicketRequestBody {
   rootCause?: string | null;
   resolutionNotes?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface SupportTicketResponse {
@@ -2364,6 +2367,8 @@ export interface SupportTicketOptionsResponse {
   knowledgeCategories: CrmOptionValueSummary[];
   slaPolicies: SupportSlaPolicySummary[];
   availableScopes: SupportTicketScope[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
 }
 
 export interface SupportDashboardResponse {

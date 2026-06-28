@@ -15,8 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { CustomFieldInput } from "@/components/crm/custom-field-input";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateTime, selectClassName, textareaClassName } from "@/lib/crm";
+import {
+  getActiveCustomFieldDefinitions,
+  getCustomFieldOptionLabels,
+  hasCustomFieldValue,
+  serializeCustomFieldFormValue,
+  type CrmCustomFieldFormValue
+} from "@/lib/crm-custom-fields";
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -31,6 +39,7 @@ interface TicketFormState {
   contactId: string;
   assigneeId: string;
   slaPolicyId: string;
+  customFields: Record<string, CrmCustomFieldFormValue>;
 }
 
 interface ArticleFormState {
@@ -49,7 +58,8 @@ function buildTicketFormState(options: SupportTicketOptionsResponse | null): Tic
     accountId: "",
     contactId: "",
     assigneeId: "",
-    slaPolicyId: ""
+    slaPolicyId: "",
+    customFields: {}
   };
 }
 
@@ -76,6 +86,7 @@ export function SupportPage() {
   const canMessage = hasAnyPermission(["support.edit", "support.create", "support.configure", "support.manage_workflow"]);
 
   const tickets = useMemo(() => data?.tickets ?? [], [data?.tickets]);
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(options);
 
   // Client-side search / filter / sort over the loaded ticket list.
   const [search, setSearch] = useState("");
@@ -167,6 +178,24 @@ export function SupportPage() {
     void loadDetail(selectedId);
   }, [accessToken, selectedId]);
 
+  function getTicketCustomFieldValue(fieldKey: string, dataType: string): CrmCustomFieldFormValue {
+    const value = ticketForm.customFields[fieldKey];
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    return dataType === "multiselect" ? [] : "";
+  }
+
+  function updateTicketCustomFieldValue(fieldKey: string, value: CrmCustomFieldFormValue) {
+    setTicketForm((current) => ({
+      ...current,
+      customFields: { ...current.customFields, [fieldKey]: value }
+    }));
+  }
+
   async function handleCreateTicket(event: React.FormEvent) {
     event.preventDefault();
 
@@ -175,6 +204,16 @@ export function SupportPage() {
     }
 
     setFormError(null);
+
+    const customFields =
+      customFieldDefinitions.length > 0
+        ? Object.fromEntries(
+            customFieldDefinitions.map((field) => [
+              field.fieldKey,
+              serializeCustomFieldFormValue(field, getTicketCustomFieldValue(field.fieldKey, field.dataType))
+            ])
+          )
+        : undefined;
 
     const payload: CreateSupportTicketRequestBody = {
       subject: ticketForm.subject.trim(),
@@ -185,7 +224,8 @@ export function SupportPage() {
       accountId: ticketForm.accountId || null,
       contactId: ticketForm.contactId || null,
       assigneeId: ticketForm.assigneeId || null,
-      slaPolicyId: ticketForm.slaPolicyId || null
+      slaPolicyId: ticketForm.slaPolicyId || null,
+      customFields
     };
 
     try {
@@ -380,6 +420,25 @@ export function SupportPage() {
                 <span className="text-sm font-medium">Description</span>
                 <textarea className={textareaClassName} rows={3} value={ticketForm.description} onChange={(event) => setTicketForm((current) => ({ ...current, description: event.target.value }))} />
               </label>
+
+              {customFieldDefinitions.length > 0 ? (
+                <div className="md:col-span-2">
+                  <p className="text-sm font-medium">Tenant-defined fields</p>
+                  <p className="text-sm text-muted-foreground">
+                    These extra fields come from your workspace configuration and are saved with the ticket.
+                  </p>
+                </div>
+              ) : null}
+              {customFieldDefinitions.map((field) => (
+                <CustomFieldInput
+                  key={field.fieldKey}
+                  field={field}
+                  value={getTicketCustomFieldValue(field.fieldKey, field.dataType)}
+                  options={options}
+                  onChange={(value) => updateTicketCustomFieldValue(field.fieldKey, value)}
+                />
+              ))}
+
               {formError ? <p className="text-sm text-rose-600 md:col-span-2">{formError}</p> : null}
               <div className="flex gap-3 md:col-span-2">
                 <Button type="submit">Create ticket</Button>
@@ -594,6 +653,34 @@ function TicketDetailCard({
     );
   }
 
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(options);
+  const customFieldDefinitionKeys = new Set(customFieldDefinitions.map((field) => field.fieldKey));
+  const configuredCustomFields = customFieldDefinitions.filter((field) => hasCustomFieldValue(detail.customFields[field.fieldKey]));
+  const orphanCustomFields = Object.entries(detail.customFields).filter(
+    ([fieldKey, value]) => !customFieldDefinitionKeys.has(fieldKey) && hasCustomFieldValue(value)
+  );
+
+  function renderTicketCustomFieldValue(fieldKey: string, rawValue: unknown, dataType?: string) {
+    if (dataType === "select" || dataType === "multiselect") {
+      const labels = getCustomFieldOptionLabels(
+        options,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: dataType ?? "select", optionSetKey: null },
+        rawValue
+      );
+      return labels.length > 0 ? labels.join(", ") : "—";
+    }
+    if (typeof rawValue === "boolean") {
+      return rawValue ? "Yes" : "No";
+    }
+    if (typeof rawValue === "number") {
+      return String(rawValue);
+    }
+    if (typeof rawValue === "string" && rawValue.trim().length > 0) {
+      return rawValue;
+    }
+    return "—";
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -680,6 +767,26 @@ function TicketDetailCard({
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Resolution notes</p>
             <p className="mt-1 leading-6 text-muted-foreground">{detail.resolutionNotes}</p>
+          </div>
+        ) : null}
+
+        {configuredCustomFields.length > 0 || orphanCustomFields.length > 0 ? (
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Tenant-defined fields</p>
+            <dl className="mt-2 grid gap-3 sm:grid-cols-2">
+              {configuredCustomFields.map((field) => (
+                <div key={field.fieldKey}>
+                  <dt className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{field.label}</dt>
+                  <dd className="font-medium">{renderTicketCustomFieldValue(field.fieldKey, detail.customFields[field.fieldKey], field.dataType)}</dd>
+                </div>
+              ))}
+              {orphanCustomFields.map(([fieldKey, value]) => (
+                <div key={fieldKey}>
+                  <dt className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{fieldKey}</dt>
+                  <dd className="font-medium">{renderTicketCustomFieldValue(fieldKey, value)}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         ) : null}
 

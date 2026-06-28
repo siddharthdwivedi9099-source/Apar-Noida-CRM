@@ -72,7 +72,8 @@ const ticketCreateSchema = z.object({
   escalationStatus: z.enum(supportEscalationStatuses).optional(),
   rootCause: z.string().max(4000).nullable().optional(),
   resolutionNotes: z.string().max(8000).nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const ticketUpdateSchema = z.object({
@@ -91,7 +92,8 @@ const ticketUpdateSchema = z.object({
   escalationStatus: z.enum(supportEscalationStatuses).optional(),
   rootCause: z.string().max(4000).nullable().optional(),
   resolutionNotes: z.string().max(8000).nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const messageCreateSchema = z.object({
