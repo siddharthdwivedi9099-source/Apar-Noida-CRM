@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
+  ConvertLeadRequestBody,
   CreateCrmTaskRequestBody,
   InsideSalesWorkspaceResponse,
   SalesWorkspaceLeadSummary,
@@ -272,6 +273,34 @@ export function InsideSalesWorkspacePage() {
     setSelectedLeadId(leadId);
   }
 
+  async function handleMarkNoShow(leadId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/sales-workspaces/leads/${leadId}/no-show`, {
+      method: "POST",
+      accessToken,
+      body: {}
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
+  async function handleConvertLead(leadId: string, payload: ConvertLeadRequestBody) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/leads/${leadId}/convert`, {
+      method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
   if (isLoading) {
     return (
       <CrmLoadingState
@@ -383,11 +412,14 @@ export function InsideSalesWorkspacePage() {
           canAssignOwner={canAssignOwner}
           canCreateTask={canCreateTask}
           canScheduleMeeting={canUpdateWorkflow}
+          canConvertLead={canUpdateWorkflow}
           allowedTaskTypes={["call", "follow_up"]}
           defaultTaskType="follow_up"
           onSaveWorkflow={handleSaveWorkflow}
           onCreateTask={handleCreateTask}
           onScheduleMeeting={handleScheduleMeeting}
+          onMarkNoShow={handleMarkNoShow}
+          onConvertLead={handleConvertLead}
         />
       )}
 

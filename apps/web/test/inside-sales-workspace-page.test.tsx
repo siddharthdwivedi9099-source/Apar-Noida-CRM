@@ -62,7 +62,20 @@ function buildOptions() {
     meetingTypes: [
       { key: "sales", label: "Sales meeting" },
       { key: "presales", label: "Presales / technical" }
-    ]
+    ],
+    discoveryFields: [
+      { key: "pain", label: "Pain", description: null, required: true, sortOrder: 0 },
+      { key: "budget", label: "Budget", description: null, required: true, sortOrder: 1 }
+    ],
+    objectionTypes: [
+      { key: "price", label: "Price" },
+      { key: "timing", label: "Timing" }
+    ],
+    icpCriteria: [
+      { key: "industry", label: "Industry", weight: 1 },
+      { key: "strategic_value", label: "Strategic value", weight: 2 }
+    ],
+    opportunityStages: [optionValue("discovery", "Discovery", true), optionValue("proposal", "Proposal")]
   };
 }
 
@@ -122,6 +135,49 @@ function buildLead() {
         failedAttemptsBeforeNurture: 3,
         movedToNurture: false
       },
+      research: {
+        companyProfile: null,
+        industry: null,
+        size: null,
+        leadership: null,
+        locations: null,
+        likelyNeeds: null,
+        recentSignals: null,
+        talkingPoints: null,
+        sources: [],
+        confidence: null,
+        savedAt: null
+      },
+      icpFit: {
+        configured: true,
+        band: "low" as const,
+        score: 0,
+        explanation: [
+          { key: "industry", label: "Industry", satisfied: false, weight: 1, contribution: 0 },
+          { key: "strategic_value", label: "Strategic value", satisfied: false, weight: 2, contribution: 0 }
+        ],
+        attributes: {
+          industry: null,
+          segment: null,
+          size: null,
+          geography: null,
+          useCase: null,
+          budget: null,
+          strategicValue: null
+        }
+      },
+      discovery: {
+        items: [
+          { key: "pain", label: "Pain", required: true, value: "", completed: false },
+          { key: "budget", label: "Budget", required: true, value: "", completed: false }
+        ],
+        completionCount: 0,
+        total: 2,
+        requiredCount: 2,
+        requiredComplete: false
+      },
+      objections: [],
+      noShowCount: 0,
       handoffUpdatedAt: null,
       meddicPlaceholder: { available: false as const, message: "n/a" },
       emailSequencePlaceholder: { available: false as const, message: "n/a" },

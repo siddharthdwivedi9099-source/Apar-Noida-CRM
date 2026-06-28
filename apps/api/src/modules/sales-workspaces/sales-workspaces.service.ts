@@ -3,16 +3,28 @@ import type {
   CrmLookupUserSummary,
   CrmOptionValueSummary,
   CrmTaskStatus,
+  LeadAccountResearch,
+  LeadAccountResearchInput,
   LeadBantChecklist,
   LeadCadenceStepDefinition,
   LeadCadenceStateInput,
   LeadContactScriptDefinition,
   LeadCustomQualificationField,
   LeadCustomQualificationFieldInput,
+  LeadDiscoveryFieldDefinition,
+  LeadIcpAttributes,
+  LeadIcpCriterionDefinition,
   LeadMeetingTypeDefinition,
+  LeadObjection,
+  LeadObjectionTrendEntry,
+  LeadObjectionTypeDefinition,
   LeadQualificationChecklistItemDefinition,
   LeadQualificationFramework,
   LeadQualificationOutcome,
+  LeadResearchConfidence,
+  LeadStrategicValue,
+  MarkLeadNoShowRequestBody,
+  MarkLeadNoShowResponse,
   RoleSummary,
   SalesWorkspaceAiPlaceholderSummary,
   SalesWorkspaceLeadResponse,
@@ -34,6 +46,8 @@ import {
   computeLeadWorkspacePriority,
   computeSlaStatus,
   DEFAULT_FAILED_ATTEMPTS_BEFORE_NURTURE,
+  evaluateDiscovery,
+  evaluateIcpFit,
   evaluateLeadCadence,
   evaluateQualificationChecklist,
   resolveContactScript
@@ -174,6 +188,9 @@ interface WorkspaceOptionCatalog {
   qualificationChecklistItems: LeadQualificationChecklistItemDefinition[];
   contactScripts: LeadContactScriptDefinition[];
   cadenceSteps: LeadCadenceStepDefinition[];
+  discoveryFields: LeadDiscoveryFieldDefinition[];
+  objectionTypes: LeadObjectionTypeDefinition[];
+  icpCriteria: LeadIcpCriterionDefinition[];
   slaPolicy: SlaPolicyPayload | null;
   scoringGrades: ScoreGrade[];
   nowIso: string;
@@ -357,6 +374,33 @@ function getCompletedCallCount(leads: SalesWorkspaceLeadSummary[]) {
   }).length;
 }
 
+// SDR-002: ICP fit distribution across the visible pipeline.
+function getIcpFitDistribution(leads: SalesWorkspaceLeadSummary[]) {
+  const distribution = { high: 0, medium: 0, low: 0 };
+  for (const lead of leads) {
+    distribution[lead.workspace.icpFit.band] += 1;
+  }
+  return distribution;
+}
+
+// SDR-006: objection trends (count by type) across the visible pipeline.
+function getObjectionTrends(leads: SalesWorkspaceLeadSummary[]): LeadObjectionTrendEntry[] {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const lead of leads) {
+    for (const objection of lead.workspace.objections) {
+      const existing = counts.get(objection.typeKey) ?? { label: objection.typeLabel ?? objection.typeKey, count: 0 };
+      existing.count += 1;
+      if (objection.typeLabel) {
+        existing.label = objection.typeLabel;
+      }
+      counts.set(objection.typeKey, existing);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([typeKey, value]) => ({ typeKey, label: value.label, count: value.count }))
+    .sort((a, b) => b.count - a.count);
+}
+
 function metaString(metadata: Record<string, unknown> | null | undefined, key: string): string | null {
   if (!metadata || typeof metadata !== "object") {
     return null;
@@ -472,6 +516,98 @@ function getStoredCadenceState(root: Record<string, unknown>): LeadCadenceStateI
     movedToNurture: source.movedToNurture === true
   };
 }
+
+function normalizeResearchConfidence(value: unknown): LeadResearchConfidence | null {
+  return value === "high" || value === "medium" || value === "low" ? value : null;
+}
+
+function normalizeStrategicValue(value: unknown): LeadStrategicValue | null {
+  return value === "high" || value === "medium" || value === "low" ? value : null;
+}
+
+function getStoredResearch(root: Record<string, unknown>): LeadAccountResearch {
+  const raw = root.research;
+  const source = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const sources = Array.isArray(source.sources)
+    ? source.sources.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
+  return {
+    companyProfile: metaString(source, "companyProfile"),
+    industry: metaString(source, "industry"),
+    size: metaString(source, "size"),
+    leadership: metaString(source, "leadership"),
+    locations: metaString(source, "locations"),
+    likelyNeeds: metaString(source, "likelyNeeds"),
+    recentSignals: metaString(source, "recentSignals"),
+    talkingPoints: metaString(source, "talkingPoints"),
+    sources,
+    confidence: normalizeResearchConfidence(source.confidence),
+    savedAt: metaString(source, "savedAt")
+  };
+}
+
+function getStoredIcpAttributes(root: Record<string, unknown>): LeadIcpAttributes {
+  const raw = root.icpAttributes;
+  const source = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  return {
+    industry: metaString(source, "industry"),
+    segment: metaString(source, "segment"),
+    size: metaString(source, "size"),
+    geography: metaString(source, "geography"),
+    useCase: metaString(source, "useCase"),
+    budget: metaString(source, "budget"),
+    strategicValue: normalizeStrategicValue(source.strategicValue)
+  };
+}
+
+function getStoredDiscoveryAnswers(root: Record<string, unknown>): Record<string, string> {
+  const raw = root.discovery;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+  const answers: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string") {
+      answers[key] = value;
+    }
+  }
+  return answers;
+}
+
+function getStoredObjections(root: Record<string, unknown>): LeadObjection[] {
+  const raw = root.objections;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+      const item = entry as Record<string, unknown>;
+      const typeKey = metaString(item, "typeKey");
+      if (!typeKey) {
+        return null;
+      }
+      return {
+        id: metaString(item, "id") ?? randomUUID(),
+        typeKey,
+        typeLabel: metaString(item, "typeLabel"),
+        note: metaString(item, "note"),
+        capturedAt: metaString(item, "capturedAt") ?? new Date().toISOString()
+      } satisfies LeadObjection;
+    })
+    .filter((entry): entry is LeadObjection => Boolean(entry));
+}
+
+function getStoredNoShowCount(root: Record<string, unknown>): number {
+  const raw = root.noShow;
+  const source = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  return typeof source.count === "number" && Number.isFinite(source.count) && source.count > 0 ? source.count : 0;
+}
+
+// SDR-005: after this many no-shows, the lead is routed to nurture.
+const DEFAULT_NO_SHOWS_BEFORE_NURTURE = 2;
 
 export class SalesWorkspacesService {
   constructor(
@@ -681,6 +817,29 @@ export class SalesWorkspacesService {
     });
   }
 
+  private async loadDiscoveryFields(client: PoolClient, tenantId: string): Promise<LeadDiscoveryFieldDefinition[]> {
+    const rows = await this.loadOptionValueMetaRows(client, tenantId, "lead-discovery-field");
+    return rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      description: row.description,
+      required: metaBool(row.metadata, "required"),
+      sortOrder: row.sort_order
+    }));
+  }
+
+  private async loadIcpCriteria(client: PoolClient, tenantId: string): Promise<LeadIcpCriterionDefinition[]> {
+    const rows = await this.loadOptionValueMetaRows(client, tenantId, "lead-icp-criterion");
+    return rows.map((row) => {
+      const weightRaw = row.metadata && typeof row.metadata === "object" ? (row.metadata as Record<string, unknown>).weight : null;
+      return {
+        key: row.key,
+        label: row.label,
+        weight: typeof weightRaw === "number" && Number.isFinite(weightRaw) && weightRaw >= 0 ? weightRaw : 1
+      };
+    });
+  }
+
   private async loadInsideSalesRuntimeConfig(
     client: PoolClient,
     tenantId: string
@@ -729,6 +888,9 @@ export class SalesWorkspacesService {
       qualificationChecklistItems: options.qualificationChecklistItems,
       contactScripts,
       cadenceSteps: options.cadenceSteps,
+      discoveryFields: options.discoveryFields,
+      objectionTypes: options.objectionTypes,
+      icpCriteria: options.icpCriteria,
       slaPolicy: runtime.slaPolicy,
       scoringGrades: runtime.scoringGrades,
       nowIso: new Date().toISOString()
@@ -922,6 +1084,21 @@ export class SalesWorkspacesService {
               key: "qualification_outcome_suggestion",
               label: "Suggest qualification outcome",
               description: "Placeholder entry point for future AI qualification-outcome suggestions with human override."
+            },
+            {
+              key: "account_research",
+              label: "AI account research",
+              description: "Placeholder entry point for future AI company/account research summaries with confidence + sources."
+            },
+            {
+              key: "discovery_summary",
+              label: "Summarize discovery",
+              description: "Placeholder entry point for future AI discovery-call summaries and follow-up email drafting."
+            },
+            {
+              key: "icp_explanation",
+              label: "Explain ICP fit",
+              description: "Placeholder entry point for future AI explanations of the ICP fit score."
             }
           ]
         : [],
@@ -963,6 +1140,11 @@ export class SalesWorkspacesService {
       nowIso: optionCatalog.nowIso,
       failedAttemptsBeforeNurture: DEFAULT_FAILED_ATTEMPTS_BEFORE_NURTURE
     });
+    const research = getStoredResearch(root);
+    const icpFit = evaluateIcpFit(getStoredIcpAttributes(root), optionCatalog.icpCriteria);
+    const discovery = evaluateDiscovery(optionCatalog.discoveryFields, getStoredDiscoveryAnswers(root));
+    const objections = getStoredObjections(root);
+    const noShowCount = getStoredNoShowCount(root);
 
     return {
       outreachStatus:
@@ -999,6 +1181,11 @@ export class SalesWorkspacesService {
           ? optionMaps.disqualificationReasons.get(root.disqualificationReasonKey.trim()) ?? null
           : null,
       cadence,
+      research,
+      icpFit,
+      discovery,
+      objections,
+      noShowCount,
       handoffUpdatedAt:
         typeof root.handoffUpdatedAt === "string" && root.handoffUpdatedAt.trim().length > 0
           ? root.handoffUpdatedAt.trim()
@@ -1188,7 +1375,14 @@ export class SalesWorkspacesService {
       meetingTypes: (await this.loadOptionSetValues(client, actor.tenantId, "lead-meeting-type")).map((option) => ({
         key: option.key,
         label: option.label
-      }))
+      })),
+      discoveryFields: await this.loadDiscoveryFields(client, actor.tenantId),
+      objectionTypes: (await this.loadOptionSetValues(client, actor.tenantId, "lead-objection-type")).map((option) => ({
+        key: option.key,
+        label: option.label
+      })),
+      icpCriteria: await this.loadIcpCriteria(client, actor.tenantId),
+      opportunityStages: await this.loadOptionSetValues(client, actor.tenantId, "opportunity-stage")
     };
   }
 
@@ -1493,6 +1687,24 @@ export class SalesWorkspacesService {
       .filter((field) => field.label.length > 0 || field.value.length > 0);
   }
 
+  private researchField(
+    input: LeadAccountResearchInput,
+    key: "companyProfile" | "industry" | "size" | "leadership" | "locations" | "likelyNeeds" | "recentSignals" | "talkingPoints",
+    current: string | null
+  ): string | null {
+    const value = input[key];
+    return value !== undefined ? getTrimmedNullableString(value) : current;
+  }
+
+  private icpField(
+    input: Partial<LeadIcpAttributes>,
+    key: "industry" | "segment" | "size" | "geography" | "useCase" | "budget",
+    current: string | null
+  ): string | null {
+    const value = input[key];
+    return value !== undefined ? getTrimmedNullableString(value) : current;
+  }
+
   private async createAutoNextStepTask(
     client: PoolClient,
     actor: ActorContext,
@@ -1626,6 +1838,8 @@ export class SalesWorkspacesService {
         assignedLeads,
         prospectingQueue,
         callTaskList,
+        icpFitDistribution: getIcpFitDistribution(hydratedLeads),
+        objectionTrends: getObjectionTrends(hydratedLeads),
         aiPlaceholders: this.buildAiPlaceholders(actor)
       };
     });
@@ -1817,6 +2031,87 @@ export class SalesWorkspacesService {
         nextCadence.movedToNurture = true;
       }
 
+      // Persona 7 (SDR) capture: account research (SDR-001), ICP attributes (SDR-002),
+      // discovery answers (SDR-003), objections (SDR-006).
+      const currentResearch = getStoredResearch(currentWorkspace);
+      const nextResearch: LeadAccountResearch = input.research
+        ? {
+            companyProfile: this.researchField(input.research, "companyProfile", currentResearch.companyProfile),
+            industry: this.researchField(input.research, "industry", currentResearch.industry),
+            size: this.researchField(input.research, "size", currentResearch.size),
+            leadership: this.researchField(input.research, "leadership", currentResearch.leadership),
+            locations: this.researchField(input.research, "locations", currentResearch.locations),
+            likelyNeeds: this.researchField(input.research, "likelyNeeds", currentResearch.likelyNeeds),
+            recentSignals: this.researchField(input.research, "recentSignals", currentResearch.recentSignals),
+            talkingPoints: this.researchField(input.research, "talkingPoints", currentResearch.talkingPoints),
+            sources:
+              input.research.sources !== undefined
+                ? input.research.sources.map((value) => value.trim()).filter((value) => value.length > 0)
+                : currentResearch.sources,
+            confidence:
+              input.research.confidence !== undefined
+                ? (["high", "medium", "low"].includes(input.research.confidence ?? "")
+                    ? (input.research.confidence as LeadResearchConfidence)
+                    : null)
+                : currentResearch.confidence,
+            savedAt: new Date().toISOString()
+          }
+        : currentResearch;
+
+      const currentIcpAttributes = getStoredIcpAttributes(currentWorkspace);
+      const nextIcpAttributes: LeadIcpAttributes = input.icpAttributes
+        ? {
+            industry: this.icpField(input.icpAttributes, "industry", currentIcpAttributes.industry),
+            segment: this.icpField(input.icpAttributes, "segment", currentIcpAttributes.segment),
+            size: this.icpField(input.icpAttributes, "size", currentIcpAttributes.size),
+            geography: this.icpField(input.icpAttributes, "geography", currentIcpAttributes.geography),
+            useCase: this.icpField(input.icpAttributes, "useCase", currentIcpAttributes.useCase),
+            budget: this.icpField(input.icpAttributes, "budget", currentIcpAttributes.budget),
+            strategicValue:
+              input.icpAttributes.strategicValue !== undefined
+                ? (["high", "medium", "low"].includes(input.icpAttributes.strategicValue ?? "")
+                    ? (input.icpAttributes.strategicValue as LeadStrategicValue)
+                    : null)
+                : currentIcpAttributes.strategicValue
+          }
+        : currentIcpAttributes;
+
+      const nextDiscovery = input.discovery
+        ? (() => {
+            const merged = { ...getStoredDiscoveryAnswers(currentWorkspace) };
+            for (const [key, value] of Object.entries(input.discovery)) {
+              merged[key] = typeof value === "string" ? value.trim() : "";
+            }
+            return merged;
+          })()
+        : getStoredDiscoveryAnswers(currentWorkspace);
+
+      let nextObjections = getStoredObjections(currentWorkspace);
+      if (input.addObjection) {
+        await this.resolveOptionValueId(
+          client,
+          actor.tenantId,
+          "lead-objection-type",
+          input.addObjection.typeKey,
+          "Objection type"
+        );
+        const typeLabel =
+          optionCatalog.objectionTypes.find((type) => type.key === input.addObjection?.typeKey)?.label ?? null;
+        nextObjections = [
+          ...nextObjections,
+          {
+            id: randomUUID(),
+            typeKey: input.addObjection.typeKey,
+            typeLabel,
+            note: getTrimmedNullableString(input.addObjection.note ?? null),
+            capturedAt: new Date().toISOString()
+          }
+        ];
+      }
+      if (input.removeObjectionId) {
+        nextObjections = nextObjections.filter((objection) => objection.id !== input.removeObjectionId);
+      }
+
       const qualificationChecklist = input.qualificationChecklist
         ? {
             ...getBantChecklist(currentWorkspace.qualificationChecklist),
@@ -1876,6 +2171,10 @@ export class SalesWorkspacesService {
         cadence: input.cadence
           ? { ...nextCadence, updatedAt: new Date().toISOString() }
           : currentWorkspace.cadence,
+        research: nextResearch,
+        icpAttributes: nextIcpAttributes,
+        discovery: nextDiscovery,
+        objections: nextObjections,
         handoffUpdatedAt:
           nextHandoffStatusKey !== previousHandoffStatusKey
             ? new Date().toISOString()
@@ -2216,6 +2515,94 @@ export class SalesWorkspacesService {
               "The CRM meeting record, status change, and reminder tasks are live. Calendar invite + email delivery connect once the scheduling/outbound runtime is introduced."
           }
         }
+      };
+    });
+  }
+
+  async markLeadNoShow(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    leadId: string,
+    input: MarkLeadNoShowRequestBody
+  ): Promise<MarkLeadNoShowResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withTransaction(async (client) => {
+      this.assertWorkflowMutation(actor, ["statusKey"]);
+
+      const options = await this.loadWorkspaceOptions(client, actor);
+      const optionCatalog = await this.buildOptionCatalog(client, actor, options);
+      const currentLead = await this.getLeadState(client, actor.tenantId, leadId);
+      this.assertLeadVisibility(actor, currentLead.owner_id);
+      const currentWorkspace = getSalesWorkspaceRoot(currentLead.metadata);
+      const ownerId = currentLead.owner_id ?? actor.userId;
+      const noShowCount = getStoredNoShowCount(currentWorkspace) + 1;
+      const routedTo: "nurture" | null = noShowCount >= DEFAULT_NO_SHOWS_BEFORE_NURTURE ? "nurture" : null;
+      const note = getTrimmedNullableString(input.note ?? null);
+
+      // SDR-005: create a reschedule task unless explicitly suppressed.
+      if (input.reschedule !== false) {
+        await this.createLeadTask(client, actor, leadId, ownerId, {
+          title: "Reschedule meeting after no-show",
+          description: note ?? `Lead missed the scheduled meeting. Reschedule and confirm attendance. CRM record: /leads/${leadId}`,
+          dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          reminderAt: null,
+          priority: "high",
+          taskType: "follow_up",
+          metadata: { noShow: true, noShowCount }
+        });
+      }
+
+      await this.insertLeadWorkflowActivity(client, actor, leadId, {
+        subject: "Meeting marked as no-show",
+        description: note,
+        outcome: "no_show",
+        metadata: { noShowCount, routedTo },
+        ownerId
+      });
+
+      const nextWorkspace = {
+        ...currentWorkspace,
+        outreachStatusKey:
+          routedTo === "nurture"
+            ? "nurture"
+            : typeof currentWorkspace.outreachStatusKey === "string"
+              ? getTrimmedNullableString(currentWorkspace.outreachStatusKey)
+              : null,
+        noShow: { count: noShowCount, lastAt: new Date().toISOString() }
+      };
+      const metadata = {
+        ...getMetadata(currentLead.metadata),
+        salesWorkspace: nextWorkspace
+      };
+
+      // After the configured number of no-shows, route the lead to nurture.
+      const statusOptionId =
+        routedTo === "nurture"
+          ? await this.resolveOptionValueId(client, actor.tenantId, "lead-status", "nurturing", "Lead status")
+          : currentLead.status_option_id;
+
+      await client.query(
+        `
+          UPDATE leads
+          SET status_option_id = $3, metadata = $4::jsonb, updated_by = $5
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+        `,
+        [leadId, actor.tenantId, statusOptionId, JSON.stringify(metadata), actor.userId]
+      );
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "lead.meeting.no_show",
+        resourceType: "lead",
+        resourceId: leadId,
+        status: "success",
+        metadata: { noShowCount, routedTo }
+      });
+
+      return {
+        lead: await this.reloadWorkspaceLead(client, actor, leadId, optionCatalog),
+        noShowCount,
+        routedTo
       };
     });
   }

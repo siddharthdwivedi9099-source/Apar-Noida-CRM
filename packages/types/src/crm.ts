@@ -485,6 +485,12 @@ export interface LeadWorkspaceState {
   disqualificationReason: CrmOptionValueSummary | null;
   // ISR-003 configurable contact cadence state + computed view.
   cadence: LeadCadenceView;
+  // Persona 7 (SDR) state.
+  research: LeadAccountResearch;
+  icpFit: LeadIcpFitView;
+  discovery: LeadDiscoveryView;
+  objections: LeadObjection[];
+  noShowCount: number;
   handoffUpdatedAt: string | null;
   meddicPlaceholder: {
     available: false;
@@ -598,6 +604,140 @@ export interface ScheduleLeadMeetingRequestBody {
   reminderMinutesBefore?: number;
 }
 
+// ---- Persona 7 (SDR) ----------------------------------------------------------------------------
+
+// SDR-001: AI-assisted account research (capture + sources + confidence; generation is a placeholder).
+export const leadResearchConfidences = ["high", "medium", "low"] as const;
+export type LeadResearchConfidence = (typeof leadResearchConfidences)[number];
+
+export interface LeadAccountResearch {
+  companyProfile: string | null;
+  industry: string | null;
+  size: string | null;
+  leadership: string | null;
+  locations: string | null;
+  likelyNeeds: string | null;
+  recentSignals: string | null;
+  talkingPoints: string | null;
+  sources: string[];
+  confidence: LeadResearchConfidence | null;
+  savedAt: string | null;
+}
+
+export interface LeadAccountResearchInput {
+  companyProfile?: string | null;
+  industry?: string | null;
+  size?: string | null;
+  leadership?: string | null;
+  locations?: string | null;
+  likelyNeeds?: string | null;
+  recentSignals?: string | null;
+  talkingPoints?: string | null;
+  sources?: string[];
+  confidence?: LeadResearchConfidence | null;
+}
+
+// SDR-002: ICP fit assessment.
+export const leadIcpFitBands = ["high", "medium", "low"] as const;
+export type LeadIcpFitBand = (typeof leadIcpFitBands)[number];
+
+export const leadStrategicValues = ["high", "medium", "low"] as const;
+export type LeadStrategicValue = (typeof leadStrategicValues)[number];
+
+export interface LeadIcpCriterionDefinition {
+  key: string;
+  label: string;
+  weight: number;
+}
+
+export interface LeadIcpAttributes {
+  industry: string | null;
+  segment: string | null;
+  size: string | null;
+  geography: string | null;
+  useCase: string | null;
+  budget: string | null;
+  strategicValue: LeadStrategicValue | null;
+}
+
+export interface LeadIcpExplanationEntry {
+  key: string;
+  label: string;
+  satisfied: boolean;
+  weight: number;
+  contribution: number;
+}
+
+export interface LeadIcpFitView {
+  configured: boolean;
+  band: LeadIcpFitBand;
+  score: number;
+  explanation: LeadIcpExplanationEntry[];
+  attributes: LeadIcpAttributes;
+}
+
+// SDR-003: structured discovery call form (configurable fields).
+export interface LeadDiscoveryFieldDefinition {
+  key: string;
+  label: string;
+  description: string | null;
+  required: boolean;
+  sortOrder: number;
+}
+
+export interface LeadDiscoveryItemState {
+  key: string;
+  label: string;
+  required: boolean;
+  value: string;
+  completed: boolean;
+}
+
+export interface LeadDiscoveryView {
+  items: LeadDiscoveryItemState[];
+  completionCount: number;
+  total: number;
+  requiredCount: number;
+  requiredComplete: boolean;
+}
+
+// SDR-006: objection capture.
+export interface LeadObjectionTypeDefinition {
+  key: string;
+  label: string;
+}
+
+export interface LeadObjection {
+  id: string;
+  typeKey: string;
+  typeLabel: string | null;
+  note: string | null;
+  capturedAt: string;
+}
+
+export interface LeadObjectionInput {
+  typeKey: string;
+  note?: string | null;
+}
+
+export interface LeadObjectionTrendEntry {
+  typeKey: string;
+  label: string;
+  count: number;
+}
+
+// SDR-005: no-show workflow.
+export interface MarkLeadNoShowRequestBody {
+  reschedule?: boolean;
+  note?: string | null;
+}
+
+export interface MarkLeadNoShowResponse {
+  lead: SalesWorkspaceLeadSummary;
+  noShowCount: number;
+  routedTo: "nurture" | "disqualified" | null;
+}
+
 export interface SalesWorkspaceAiPlaceholderAction {
   key:
     | "call_script_generator"
@@ -608,7 +748,10 @@ export interface SalesWorkspaceAiPlaceholderAction {
     | "best_contact_recommendation"
     | "lead_summary"
     | "call_note_summary"
-    | "qualification_outcome_suggestion";
+    | "qualification_outcome_suggestion"
+    | "account_research"
+    | "discovery_summary"
+    | "icp_explanation";
   label: string;
   description: string;
 }
@@ -660,6 +803,10 @@ export interface SalesWorkspaceOptionsResponse {
   qualificationOutcomes: CrmOptionValueSummary[];
   cadenceSteps: LeadCadenceStepDefinition[];
   meetingTypes: LeadMeetingTypeDefinition[];
+  discoveryFields: LeadDiscoveryFieldDefinition[];
+  objectionTypes: LeadObjectionTypeDefinition[];
+  icpCriteria: LeadIcpCriterionDefinition[];
+  opportunityStages: CrmOptionValueSummary[];
 }
 
 export interface SdrWorkspaceResponse {
@@ -674,6 +821,9 @@ export interface SdrWorkspaceResponse {
   assignedLeads: SalesWorkspaceLeadSummary[];
   prospectingQueue: SalesWorkspaceLeadSummary[];
   callTaskList: SalesWorkspaceTaskSummary[];
+  // SDR-002 ICP fit distribution + SDR-006 objection trends across the visible pipeline.
+  icpFitDistribution: { high: number; medium: number; low: number };
+  objectionTrends: LeadObjectionTrendEntry[];
   aiPlaceholders: SalesWorkspaceAiPlaceholderSummary;
 }
 
@@ -710,6 +860,12 @@ export interface UpdateLeadWorkspaceRequestBody {
   disqualificationReasonKey?: string | null;
   // ISR-003 cadence controls (advance a step, pause with reason, log a failed attempt).
   cadence?: UpdateLeadCadenceInput;
+  // Persona 7 (SDR) capture: account research, ICP attributes, discovery answers, objections.
+  research?: LeadAccountResearchInput;
+  icpAttributes?: Partial<LeadIcpAttributes>;
+  discovery?: Record<string, string>;
+  addObjection?: LeadObjectionInput;
+  removeObjectionId?: string;
   metadata?: Record<string, unknown>;
 }
 

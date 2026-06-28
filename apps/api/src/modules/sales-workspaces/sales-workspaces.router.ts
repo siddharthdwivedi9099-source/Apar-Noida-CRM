@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
-import type { ScheduleLeadMeetingRequestBody, UpdateLeadWorkspaceRequestBody } from "@crm/types";
+import type {
+  MarkLeadNoShowRequestBody,
+  ScheduleLeadMeetingRequestBody,
+  UpdateLeadWorkspaceRequestBody
+} from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
 import { requirePermissions } from "../../common/middleware/authorize.js";
@@ -56,7 +60,45 @@ const updateLeadWorkspaceSchema = z.object({
       logFailedAttempt: z.boolean().optional()
     })
     .optional(),
+  research: z
+    .object({
+      companyProfile: z.string().max(8000).nullable().optional(),
+      industry: z.string().max(400).nullable().optional(),
+      size: z.string().max(400).nullable().optional(),
+      leadership: z.string().max(4000).nullable().optional(),
+      locations: z.string().max(2000).nullable().optional(),
+      likelyNeeds: z.string().max(8000).nullable().optional(),
+      recentSignals: z.string().max(8000).nullable().optional(),
+      talkingPoints: z.string().max(8000).nullable().optional(),
+      sources: z.array(z.string().max(500)).max(30).optional(),
+      confidence: z.enum(["high", "medium", "low"]).nullable().optional()
+    })
+    .optional(),
+  icpAttributes: z
+    .object({
+      industry: z.string().max(400).nullable().optional(),
+      segment: z.string().max(400).nullable().optional(),
+      size: z.string().max(400).nullable().optional(),
+      geography: z.string().max(400).nullable().optional(),
+      useCase: z.string().max(2000).nullable().optional(),
+      budget: z.string().max(400).nullable().optional(),
+      strategicValue: z.enum(["high", "medium", "low"]).nullable().optional()
+    })
+    .optional(),
+  discovery: z.record(z.string().max(8000)).optional(),
+  addObjection: z
+    .object({
+      typeKey: z.string().min(2).max(160),
+      note: z.string().max(2000).nullable().optional()
+    })
+    .optional(),
+  removeObjectionId: z.string().max(200).optional(),
   metadata: recordSchema.optional()
+});
+
+const noShowSchema = z.object({
+  reschedule: z.boolean().optional(),
+  note: z.string().max(2000).nullable().optional()
 });
 
 const scheduleMeetingSchema = z.object({
@@ -178,6 +220,29 @@ export function createSalesWorkspacesRouter({ databaseService }: SalesWorkspaces
           },
           request.params.leadId,
           request.body as ScheduleLeadMeetingRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/leads/:leadId/no-show",
+    requirePermissions({ oneOf: salesWorkspaceUpdatePermissions }),
+    validateRequest({
+      params: leadIdSchema,
+      body: noShowSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await salesWorkspacesService.markLeadNoShow(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.leadId,
+          request.body as MarkLeadNoShowRequestBody
         )
       );
     })

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type {
+  ConvertLeadRequestBody,
   CreateCrmTaskRequestBody,
   LeadBantChecklist,
   LeadCadenceStepView,
@@ -13,6 +14,7 @@ import type {
   UpdateLeadCadenceInput,
   UpdateLeadWorkspaceRequestBody
 } from "@crm/types";
+import { LeadSdrPanels } from "@/components/sales/lead-sdr-panels";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,11 +36,14 @@ interface LeadWorkflowWorkbenchProps {
   canAssignOwner: boolean;
   canCreateTask: boolean;
   canScheduleMeeting: boolean;
+  canConvertLead: boolean;
   allowedTaskTypes: WorkspaceTaskType[];
   defaultTaskType: WorkspaceTaskType;
   onSaveWorkflow: (leadId: string, payload: UpdateLeadWorkspaceRequestBody) => Promise<void>;
   onCreateTask: (leadId: string, payload: CreateCrmTaskRequestBody) => Promise<void>;
   onScheduleMeeting: (leadId: string, payload: ScheduleLeadMeetingRequestBody) => Promise<void>;
+  onMarkNoShow: (leadId: string) => Promise<void>;
+  onConvertLead: (leadId: string, payload: ConvertLeadRequestBody) => Promise<void>;
 }
 
 interface WorkflowDraftState {
@@ -172,11 +177,14 @@ export function LeadWorkflowWorkbench({
   canAssignOwner,
   canCreateTask,
   canScheduleMeeting,
+  canConvertLead,
   allowedTaskTypes,
   defaultTaskType,
   onSaveWorkflow,
   onCreateTask,
-  onScheduleMeeting
+  onScheduleMeeting,
+  onMarkNoShow,
+  onConvertLead
 }: LeadWorkflowWorkbenchProps) {
   const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraftState>(getInitialWorkflowDraft(lead));
   const [taskDraft, setTaskDraft] = useState<TaskDraftState>(getInitialTaskDraft(lead, defaultTaskType));
@@ -1063,6 +1071,16 @@ export function LeadWorkflowWorkbench({
             )}
           </CardContent>
         </Card>
+
+        <LeadSdrPanels
+          lead={lead}
+          options={options}
+          canUpdate={canUpdateWorkflow}
+          canConvert={canConvertLead}
+          onPatch={(payload) => onSaveWorkflow(lead.id, payload)}
+          onMarkNoShow={() => onMarkNoShow(lead.id)}
+          onConvert={(payload) => onConvertLead(lead.id, payload)}
+        />
 
         <Card>
           <CardHeader>

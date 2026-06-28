@@ -1335,6 +1335,62 @@ export const defaultCoreCrmStandardPicklistDefinitions: TenantOptionSetSeedDefin
     ]
   }),
   optionSet({
+    setKey: "lead-discovery-field",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Discovery Field",
+    description:
+      "Configurable SDR discovery-call fields (SDR-003). `metadata.required` fields must be captured before a lead can be converted.",
+    values: [
+      { key: "pain", label: "Pain / problem", sortOrder: 0, isDefault: true, metadata: { required: true } },
+      { key: "current_process", label: "Current process", sortOrder: 1, metadata: { required: false } },
+      { key: "current_vendor", label: "Current vendor", sortOrder: 2, metadata: { required: false } },
+      { key: "urgency", label: "Urgency", sortOrder: 3, metadata: { required: true } },
+      { key: "budget", label: "Budget", sortOrder: 4, metadata: { required: true } },
+      { key: "authority", label: "Authority", sortOrder: 5, metadata: { required: true } },
+      { key: "timeline", label: "Timeline", sortOrder: 6, metadata: { required: true } },
+      { key: "decision_process", label: "Decision process", sortOrder: 7, metadata: { required: false } },
+      { key: "stakeholders", label: "Stakeholders", sortOrder: 8, metadata: { required: false } },
+      { key: "success_criteria", label: "Success criteria", sortOrder: 9, metadata: { required: false } },
+      { key: "risks", label: "Risks", sortOrder: 10, metadata: { required: false } }
+    ]
+  }),
+  optionSet({
+    setKey: "lead-objection-type",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Objection Type",
+    description: "Configurable objection categories captured during SDR conversations (SDR-006).",
+    values: [
+      { key: "price", label: "Price", sortOrder: 0, isDefault: true },
+      { key: "timing", label: "Timing", sortOrder: 1 },
+      { key: "competitor", label: "Competitor", sortOrder: 2 },
+      { key: "authority", label: "Authority", sortOrder: 3 },
+      { key: "feature_gap", label: "Feature gap", sortOrder: 4 },
+      { key: "integration", label: "Integration", sortOrder: 5 },
+      { key: "security", label: "Security", sortOrder: 6 },
+      { key: "implementation", label: "Implementation", sortOrder: 7 },
+      { key: "unclear_need", label: "Unclear need", sortOrder: 8 }
+    ]
+  }),
+  optionSet({
+    setKey: "lead-icp-criterion",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead ICP Criterion",
+    description:
+      "Configurable ICP fit criteria + weights (SDR-002). `metadata.weight` scales each criterion's contribution to the ICP fit score.",
+    values: [
+      { key: "industry", label: "Industry", sortOrder: 0, isDefault: true, metadata: { weight: 1 } },
+      { key: "segment", label: "Segment", sortOrder: 1, metadata: { weight: 1 } },
+      { key: "size", label: "Company size", sortOrder: 2, metadata: { weight: 1 } },
+      { key: "geography", label: "Geography", sortOrder: 3, metadata: { weight: 1 } },
+      { key: "use_case", label: "Use case", sortOrder: 4, metadata: { weight: 1 } },
+      { key: "budget", label: "Budget", sortOrder: 5, metadata: { weight: 1 } },
+      { key: "strategic_value", label: "Strategic value", sortOrder: 6, metadata: { weight: 2 } }
+    ]
+  }),
+  optionSet({
     setKey: "consent-status",
     moduleKey: "leads",
     kind: "dropdown",
@@ -1675,6 +1731,9 @@ export const coreCrmRequiredPicklistKeys = [
   "lead-contact-script",
   "lead-cadence-step",
   "lead-meeting-type",
+  "lead-discovery-field",
+  "lead-objection-type",
+  "lead-icp-criterion",
   "consent-status",
   "lifecycle-stage",
   "industry",
