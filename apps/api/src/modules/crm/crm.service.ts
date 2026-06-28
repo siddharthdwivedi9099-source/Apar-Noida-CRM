@@ -275,6 +275,7 @@ interface ContactStateRow {
   role_option_id: string | null;
   owner_id: string | null;
   account_id: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -395,6 +396,7 @@ interface ContactRecordRow {
   email: string | null;
   phone: string | null;
   linkedin_url: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
@@ -1656,6 +1658,7 @@ export class CrmService {
           role_option_id,
           owner_id,
           account_id,
+          custom_fields,
           metadata
         FROM contacts
         WHERE id = $1
@@ -4678,6 +4681,7 @@ export class CrmService {
           contacts.email,
           contacts.phone,
           contacts.linkedin_url,
+          contacts.custom_fields,
           contacts.metadata,
           contacts.created_at,
           contacts.updated_at,
@@ -4752,6 +4756,7 @@ export class CrmService {
 
     return {
       ...this.mapContact(row),
+      customFields: getMetadata(row.custom_fields),
       notes: await this.loadEntityNotes(client, tenantId, "contact", contactId),
       activities: await this.loadEntityActivities(client, tenantId, "contact", contactId),
       tasks: await this.loadEntityTasks(client, tenantId, "contact", contactId),
@@ -4772,6 +4777,7 @@ export class CrmService {
       const roleOptionId = input.roleKey
         ? await this.resolveOptionValueId(client, actor.tenantId, "contact-role", input.roleKey, "Contact role")
         : null;
+      const customFields = await this.sanitizeCustomFields(client, actor.tenantId, "contact", input.customFields);
       const result = await client.query<{ id: string }>(
         `
           INSERT INTO contacts (
@@ -4784,11 +4790,12 @@ export class CrmService {
             phone,
             linkedin_url,
             role_option_id,
+            custom_fields,
             metadata,
             created_by,
             updated_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $11)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $12)
           RETURNING id
         `,
         [
@@ -4801,6 +4808,7 @@ export class CrmService {
           getTrimmedNullableString(input.phone),
           getTrimmedNullableString(input.linkedinUrl),
           roleOptionId,
+          JSON.stringify(customFields),
           JSON.stringify(input.metadata ?? {}),
           actor.userId
         ]
@@ -4855,6 +4863,10 @@ export class CrmService {
             : null)
         : currentContact.role_option_id;
       const metadata = input.metadata ? { ...getMetadata(currentContact.metadata), ...input.metadata } : getMetadata(currentContact.metadata);
+      const customFields =
+        input.customFields !== undefined
+          ? await this.sanitizeCustomFields(client, actor.tenantId, "contact", input.customFields, getMetadata(currentContact.custom_fields))
+          : getMetadata(currentContact.custom_fields);
 
       await client.query(
         `
@@ -4868,8 +4880,9 @@ export class CrmService {
             phone = $8,
             linkedin_url = $9,
             role_option_id = $10,
-            metadata = $11::jsonb,
-            updated_by = $12
+            custom_fields = $11::jsonb,
+            metadata = $12::jsonb,
+            updated_by = $13
           WHERE id = $1
             AND tenant_id = $2
             AND deleted_at IS NULL
@@ -4885,6 +4898,7 @@ export class CrmService {
           input.phone !== undefined ? getTrimmedNullableString(input.phone) : currentContact.phone,
           input.linkedinUrl !== undefined ? getTrimmedNullableString(input.linkedinUrl) : currentContact.linkedin_url,
           roleOptionId,
+          JSON.stringify(customFields),
           JSON.stringify(metadata),
           actor.userId
         ]
@@ -4942,11 +4956,24 @@ export class CrmService {
   async getContactOptions(actor: ActorContext): Promise<ContactOptionsResponse> {
     this.assertEnabled();
 
-    return this.databaseService.withClient(async (client) => ({
-      owners: await this.loadOwners(client, actor.tenantId),
-      roles: await this.loadOptionSetValues(client, actor.tenantId, "contact-role"),
-      accounts: await this.loadAccountsLookup(client, actor.tenantId)
-    }));
+    return this.databaseService.withClient(async (client) => {
+      const fieldDefinitions = await this.loadFieldDefinitions(client, actor.tenantId, "contact");
+      const customFieldOptionsPromise = this.loadCustomFieldOptions(client, actor.tenantId, fieldDefinitions);
+      const [owners, roles, accounts, customFieldOptions] = await Promise.all([
+        this.loadOwners(client, actor.tenantId),
+        this.loadOptionSetValues(client, actor.tenantId, "contact-role"),
+        this.loadAccountsLookup(client, actor.tenantId),
+        customFieldOptionsPromise
+      ]);
+
+      return {
+        owners,
+        roles,
+        accounts,
+        fieldDefinitions,
+        customFieldOptions
+      };
+    });
   }
 
   async addContactNote(

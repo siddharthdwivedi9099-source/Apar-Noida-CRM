@@ -713,6 +713,7 @@ export interface ContactSummary {
 }
 
 export interface ContactDetail extends ContactSummary {
+  customFields: Record<string, unknown>;
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
   tasks: CrmTaskSummary[];
@@ -729,6 +730,7 @@ export interface CreateContactRequestBody {
   ownerId?: string | null;
   accountId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateContactRequestBody {
@@ -741,6 +743,7 @@ export interface UpdateContactRequestBody {
   ownerId?: string | null;
   accountId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface ContactResponse {
@@ -756,6 +759,8 @@ export interface ContactOptionsResponse {
   owners: CrmLookupUserSummary[];
   roles: CrmOptionValueSummary[];
   accounts: AccountLookupSummary[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
 }
 
 export const opportunitySortFields = [

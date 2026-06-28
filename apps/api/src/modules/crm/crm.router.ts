@@ -236,7 +236,8 @@ const contactCreateSchema = z.object({
   roleKey: z.string().min(2).max(160).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
   accountId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const contactUpdateSchema = z.object({
@@ -248,7 +249,8 @@ const contactUpdateSchema = z.object({
   roleKey: z.string().min(2).max(160).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
   accountId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const leadIdSchema = z.object({

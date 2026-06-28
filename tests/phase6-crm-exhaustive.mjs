@@ -648,6 +648,31 @@ async function main() {
     assert.ok(accountOptionsWithCustomField.fieldDefinitions.some((field) => field.fieldKey === customAccountFieldKey && !field.isSystemField));
     assert.deepEqual(accountOptionsWithCustomField.customFieldOptions, {});
 
+    const customContactFieldKey = `contact_department_${runToken}`;
+    const customContactField = await request("/tenant-config/custom-fields", {
+      method: "POST",
+      accessToken: adminAccessToken,
+      expectedStatus: 201,
+      body: {
+        moduleKey: "contacts",
+        entityKey: "contact",
+        fieldKey: customContactFieldKey,
+        label: `Department ${runToken}`,
+        dataType: "text",
+        isRequired: false,
+        isActive: true,
+        sortOrder: 90
+      }
+    });
+    assert.equal(customContactField.field.fieldKey, customContactFieldKey);
+
+    const contactOptionsWithCustomField = await request("/contacts/options", {
+      accessToken: adminAccessToken,
+      expectedStatus: 200
+    });
+    assert.ok(contactOptionsWithCustomField.fieldDefinitions.some((field) => field.fieldKey === customContactFieldKey && !field.isSystemField));
+    assert.deepEqual(contactOptionsWithCustomField.customFieldOptions, {});
+
     await expectError("/accounts", {
       method: "POST",
       accessToken: adminAccessToken,
@@ -952,6 +977,9 @@ async function main() {
           runToken,
           recordKind: "primary-contact",
           stage: "created"
+        },
+        customFields: {
+          [customContactFieldKey]: `Department Created ${runToken}`
         }
       },
       {
@@ -1005,6 +1033,7 @@ async function main() {
 
     const primaryContact = createdContacts[0];
     const primaryContactId = primaryContact.id;
+    assert.equal(primaryContact.customFields[customContactFieldKey], `Department Created ${runToken}`);
     const filteredContacts = await request(
       `/contacts${buildQueryString({
         search: runToken,
@@ -1121,6 +1150,9 @@ async function main() {
         metadata: {
           review: "updated",
           mergedFromTest: true
+        },
+        customFields: {
+          [customContactFieldKey]: `Department Updated ${runToken}`
         }
       }
     });
@@ -1130,6 +1162,7 @@ async function main() {
     assert.equal(contactUpdate.contact.metadata.runToken, runToken);
     assert.equal(contactUpdate.contact.metadata.stage, "created");
     assert.equal(contactUpdate.contact.metadata.mergedFromTest, true);
+    assert.equal(contactUpdate.contact.customFields[customContactFieldKey], `Department Updated ${runToken}`);
 
     const refreshedAccount = await request(`/accounts/${primaryAccountId}`, {
       accessToken: adminAccessToken,
