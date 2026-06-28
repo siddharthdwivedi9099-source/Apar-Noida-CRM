@@ -801,7 +801,7 @@ async function upsertConfigurationDefinition(
         $7,
         $8,
         $8,
-        jsonb_build_object('seeded', true, 'phase', $9)
+        jsonb_build_object('seeded', true, 'phase', $9::text)
       )
       ON CONFLICT (tenant_id, definition_type, definition_key)
       DO UPDATE SET
