@@ -185,6 +185,27 @@ describe("Opportunity detail page", () => {
               closeWon: null,
               closeLost: null,
               stageRequirement: { stageKey: "discovery", requiredFields: [], missingFields: [], satisfied: true }
+            },
+            enterprise: {
+              parentOpportunityId: null,
+              parent: null,
+              children: [],
+              rollup: { childCount: 0, totalValue: 0, weightedValue: 0, byStage: [] },
+              tender: null,
+              dealReview: {
+                solutionFit: null,
+                pricing: null,
+                legal: null,
+                risk: null,
+                deliveryReadiness: null,
+                leadershipSupport: null,
+                status: "draft",
+                approvalId: null,
+                updatedAt: null
+              },
+              dealReviewThreshold: 100000,
+              dealReviewRequired: false,
+              dealReviewComplete: false
             }
           }
         };
@@ -202,6 +223,7 @@ describe("Opportunity detail page", () => {
           stakeholderRoles: [],
           proposalTemplates: [],
           lossReasons: [{ id: "lr-1", key: "budget", label: "Budget", description: null, color: null, isDefault: true, isActive: true }],
+          tenderChecklistItems: [],
           fieldDefinitions: [
             {
               fieldKey: "dealRegion",

@@ -17,12 +17,15 @@ import {
   type CreateCrmActivityRequestBody,
   type CreateCrmNoteRequestBody,
   type CreateCrmTaskRequestBody,
+  type AddExecutiveMeetingRequestBody,
   type CreateLeadRequestBody,
   type CrmEntityType,
   type CrmTimelineQuery,
   type ContactListQuery,
   type ConvertLeadRequestBody,
   type LeadListQuery,
+  type SubmitAccountPlanReviewRequestBody,
+  type UpsertStrategicAccountPlanRequestBody,
   type UpdateCrmNoteRequestBody,
   type UpdateAccountRequestBody,
   type UpdateContactRequestBody,
@@ -259,6 +262,29 @@ const leadIdSchema = z.object({
 
 const accountIdSchema = z.object({
   accountId: uuidSchema
+});
+
+// ---- Persona 10 (Enterprise Sales) — account plan + executive engagement -----------------------
+const strategicPlanSchema = z.object({
+  accountOverview: z.string().max(20000).nullable().optional(),
+  businessUnits: z.string().max(8000).nullable().optional(),
+  stakeholders: z.string().max(8000).nullable().optional(),
+  systems: z.string().max(8000).nullable().optional(),
+  painPoints: z.string().max(8000).nullable().optional(),
+  opportunities: z.string().max(8000).nullable().optional(),
+  competitors: z.string().max(8000).nullable().optional(),
+  revenuePotential: z.coerce.number().min(0).nullable().optional(),
+  risks: z.string().max(8000).nullable().optional(),
+  actionPlan: z.string().max(8000).nullable().optional()
+});
+const planReviewSchema = z.object({ reviewerUserId: uuidSchema, note: z.string().max(4000).nullable().optional() });
+const executiveMeetingSchema = z.object({
+  contactId: uuidSchema.nullable().optional(),
+  contactName: z.string().min(1).max(200),
+  notes: z.string().max(8000).nullable().optional(),
+  commitments: z.string().max(8000).nullable().optional(),
+  followUps: z.string().max(8000).nullable().optional(),
+  meetingDate: z.string().max(40).nullable().optional()
 });
 
 const contactIdSchema = z.object({
@@ -784,6 +810,63 @@ export function createCrmRouter({ databaseService }: CrmRouterDependencies) {
             userAgent: request.header("user-agent") ?? null
           },
           request.params.accountId
+        )
+      );
+    })
+  );
+
+  router.get(
+    "/accounts/:accountId/enterprise",
+    requirePermissions({ oneOf: accountReadPermissions }),
+    validateRequest({ params: accountIdSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await crmService.getAccountEnterprise(request.auth!, request.params.accountId));
+    })
+  );
+
+  router.post(
+    "/accounts/:accountId/strategic-plan",
+    requirePermissions({ oneOf: accountMutationPermissions.update }),
+    validateRequest({ params: accountIdSchema, body: strategicPlanSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.upsertStrategicAccountPlan(
+          request.auth!,
+          { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null },
+          request.params.accountId,
+          request.body as UpsertStrategicAccountPlanRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/accounts/:accountId/strategic-plan/review",
+    requirePermissions({ oneOf: accountMutationPermissions.update }),
+    validateRequest({ params: accountIdSchema, body: planReviewSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.submitAccountPlanReview(
+          request.auth!,
+          { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null },
+          request.params.accountId,
+          request.body as SubmitAccountPlanReviewRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/accounts/:accountId/executive-meeting",
+    requirePermissions({ oneOf: accountMutationPermissions.update }),
+    validateRequest({ params: accountIdSchema, body: executiveMeetingSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await crmService.addExecutiveMeeting(
+          request.auth!,
+          { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null },
+          request.params.accountId,
+          request.body as AddExecutiveMeetingRequestBody
         )
       );
     })

@@ -20,8 +20,12 @@ import {
   type OpportunityProposalRequestBody,
   type OpportunityReactivateRequestBody,
   type OpportunityStakeholderProfilesUpdateBody,
+  type OpportunityTenderChecklistUpdateBody,
   type RejectOpportunityRequestBody,
-  type UpdateOpportunityRequestBody
+  type SetOpportunityParentRequestBody,
+  type UpdateOpportunityRequestBody,
+  type UpsertOpportunityDealReviewRequestBody,
+  type UpsertOpportunityTenderRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -178,6 +182,31 @@ const closeLostSchema = z.object({
   revisitDate: z.string().max(40).nullable().optional()
 });
 const reactivateSchema = z.object({ reason: z.string().min(1).max(4000), approverUserId: uuidSchema });
+
+// ---- Persona 10 (Enterprise Sales) schemas -----------------------------------------------------
+const setParentSchema = z.object({ parentOpportunityId: uuidSchema.nullable() });
+const tenderSchema = z.object({
+  tenderNumber: z.string().max(200).nullable().optional(),
+  issuingAuthority: z.string().max(400).nullable().optional(),
+  deadline: z.string().max(40).nullable().optional(),
+  eligibility: z.string().max(8000).nullable().optional(),
+  scope: z.string().max(20000).nullable().optional(),
+  preBidDate: z.string().max(40).nullable().optional(),
+  emd: z.string().max(2000).nullable().optional(),
+  commercialFormat: z.string().max(2000).nullable().optional(),
+  generateTasks: z.boolean().optional()
+});
+const tenderChecklistSchema = z.object({ checklist: z.record(z.boolean()) });
+const dealReviewSchema = z.object({
+  solutionFit: z.string().max(8000).nullable().optional(),
+  pricing: z.string().max(8000).nullable().optional(),
+  legal: z.string().max(8000).nullable().optional(),
+  risk: z.string().max(8000).nullable().optional(),
+  deliveryReadiness: z.string().max(8000).nullable().optional(),
+  leadershipSupport: z.string().max(8000).nullable().optional(),
+  submitForApproval: z.boolean().optional(),
+  approverUserId: uuidSchema.nullable().optional()
+});
 
 const opportunityReadPermissions: string[] = [
   "opportunities.view",
@@ -466,6 +495,50 @@ export function createOpportunityRouter({ databaseService }: OpportunityRouterDe
     asyncHandler(async (request, response) => {
       response.status(201).json(
         await opportunityService.reactivateOpportunity(request.auth!, auditFrom(request), request.params.opportunityId, request.body as OpportunityReactivateRequestBody)
+      );
+    })
+  );
+
+  router.post(
+    "/:opportunityId/parent",
+    requirePermissions({ oneOf: opportunityUpdatePermissions }),
+    validateRequest({ params: opportunityIdSchema, body: setParentSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await opportunityService.setOpportunityParent(request.auth!, auditFrom(request), request.params.opportunityId, request.body as SetOpportunityParentRequestBody)
+      );
+    })
+  );
+
+  router.post(
+    "/:opportunityId/tender",
+    requirePermissions({ oneOf: opportunityUpdatePermissions }),
+    validateRequest({ params: opportunityIdSchema, body: tenderSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await opportunityService.upsertOpportunityTender(request.auth!, auditFrom(request), request.params.opportunityId, request.body as UpsertOpportunityTenderRequestBody)
+      );
+    })
+  );
+
+  router.patch(
+    "/:opportunityId/tender/checklist",
+    requirePermissions({ oneOf: opportunityUpdatePermissions }),
+    validateRequest({ params: opportunityIdSchema, body: tenderChecklistSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await opportunityService.updateOpportunityTenderChecklist(request.auth!, auditFrom(request), request.params.opportunityId, request.body as OpportunityTenderChecklistUpdateBody)
+      );
+    })
+  );
+
+  router.post(
+    "/:opportunityId/deal-review",
+    requirePermissions({ oneOf: opportunityUpdatePermissions }),
+    validateRequest({ params: opportunityIdSchema, body: dealReviewSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await opportunityService.upsertOpportunityDealReview(request.auth!, auditFrom(request), request.params.opportunityId, request.body as UpsertOpportunityDealReviewRequestBody)
       );
     })
   );

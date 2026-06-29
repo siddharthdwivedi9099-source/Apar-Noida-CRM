@@ -981,6 +981,91 @@ export interface AccountOptionsResponse {
   customFieldOptions: Record<string, CrmOptionValueSummary[]>;
 }
 
+// ---- Persona 10 (Enterprise Sales) — account level ---------------------------------------------
+
+// ES-001: strategic account plan (stored in account metadata.strategicPlan).
+export const strategicPlanReviewStatuses = ["draft", "in_review", "reviewed"] as const;
+export type StrategicPlanReviewStatus = (typeof strategicPlanReviewStatuses)[number];
+
+export interface StrategicAccountPlanState {
+  accountOverview: string | null;
+  businessUnits: string | null;
+  stakeholders: string | null;
+  systems: string | null;
+  painPoints: string | null;
+  opportunities: string | null;
+  competitors: string | null;
+  revenuePotential: number | null;
+  risks: string | null;
+  actionPlan: string | null;
+  reviewStatus: StrategicPlanReviewStatus;
+  reviewerUserId: string | null;
+  reviewRequestedAt: string | null;
+  updatedAt: string | null;
+}
+
+// ES-004: executive engagement (stored in account metadata.executiveEngagement.meetings).
+export interface ExecutiveMeeting {
+  id: string;
+  contactId: string | null;
+  contactName: string | null;
+  notes: string | null;
+  commitments: string | null;
+  followUps: string | null;
+  meetingDate: string | null;
+  createdAt: string;
+}
+
+export const executiveEngagementBands = ["low", "medium", "high"] as const;
+export type ExecutiveEngagementBand = (typeof executiveEngagementBands)[number];
+
+export interface ExecutiveEngagementView {
+  score: number;
+  band: ExecutiveEngagementBand;
+  meetingCount: number;
+  commitmentCount: number;
+  followUpCount: number;
+  meetings: ExecutiveMeeting[];
+}
+
+export interface AccountEnterpriseView {
+  strategicPlan: StrategicAccountPlanState;
+  executiveEngagement: ExecutiveEngagementView;
+  whitespacePlaceholder: { available: false; message: string };
+}
+
+export interface AccountEnterpriseResponse {
+  accountId: string;
+  enterprise: AccountEnterpriseView;
+}
+
+export interface UpsertStrategicAccountPlanRequestBody {
+  accountOverview?: string | null;
+  businessUnits?: string | null;
+  stakeholders?: string | null;
+  systems?: string | null;
+  painPoints?: string | null;
+  opportunities?: string | null;
+  competitors?: string | null;
+  revenuePotential?: number | null;
+  risks?: string | null;
+  actionPlan?: string | null;
+}
+
+export interface SubmitAccountPlanReviewRequestBody {
+  reviewerUserId: string;
+  note?: string | null;
+}
+
+export interface AddExecutiveMeetingRequestBody {
+  contactId?: string | null;
+  contactName: string;
+  notes?: string | null;
+  commitments?: string | null;
+  followUps?: string | null;
+  meetingDate?: string | null;
+}
+
 export const contactSortFields = [
   "createdAt",
   "updatedAt",
@@ -1199,6 +1284,8 @@ export interface OpportunityDetail extends OpportunitySummary {
   dealRiskPlaceholder: OpportunityPlaceholderSurface;
   // Persona 9 (AE) workspace state.
   execWorkspace: OpportunityExecWorkspace;
+  // Persona 10 (Enterprise Sales) state.
+  enterprise: OpportunityEnterpriseView;
   aiPlaceholders: OpportunityAiPlaceholderSummary;
 }
 
@@ -1264,6 +1351,7 @@ export interface OpportunityOptionsResponse {
   stakeholderRoles: CrmOptionValueSummary[];
   proposalTemplates: CrmOptionValueSummary[];
   lossReasons: CrmOptionValueSummary[];
+  tenderChecklistItems: OpportunityTenderChecklistItemDefinition[];
 }
 
 // ---- Persona 9 (Account Executive) --------------------------------------------------------------
@@ -1460,6 +1548,129 @@ export interface OpportunityCloseLostRequestBody {
 export interface OpportunityReactivateRequestBody {
   reason: string;
   approverUserId: string;
+}
+
+// ---- Persona 10 (Enterprise Sales) — opportunity level -----------------------------------------
+
+// ES-003: RFP / tender tracking.
+export interface OpportunityTenderChecklistItemDefinition {
+  key: string;
+  label: string;
+  required: boolean;
+  sortOrder: number;
+}
+
+export interface OpportunityTenderChecklistItemState {
+  key: string;
+  label: string;
+  required: boolean;
+  completed: boolean;
+}
+
+export interface OpportunityTenderState {
+  tenderNumber: string | null;
+  issuingAuthority: string | null;
+  deadline: string | null;
+  eligibility: string | null;
+  scope: string | null;
+  preBidDate: string | null;
+  emd: string | null;
+  commercialFormat: string | null;
+  checklist: Record<string, boolean>;
+  tasksGenerated: boolean;
+  updatedAt: string | null;
+}
+
+export interface OpportunityTenderView extends OpportunityTenderState {
+  checklistItems: OpportunityTenderChecklistItemState[];
+  completionCount: number;
+  total: number;
+  requiredComplete: boolean;
+  missingDocuments: string[];
+}
+
+// ES-005: strategic deal governance.
+export const opportunityDealReviewStatuses = ["draft", "pending_approval", "approved"] as const;
+export type OpportunityDealReviewStatus = (typeof opportunityDealReviewStatuses)[number];
+
+export interface OpportunityDealReviewState {
+  solutionFit: string | null;
+  pricing: string | null;
+  legal: string | null;
+  risk: string | null;
+  deliveryReadiness: string | null;
+  leadershipSupport: string | null;
+  status: OpportunityDealReviewStatus;
+  approvalId: string | null;
+  updatedAt: string | null;
+}
+
+// ES-002: multi-opportunity roll-up.
+export interface OpportunityRollupStageEntry {
+  stageKey: string;
+  stageLabel: string;
+  count: number;
+  value: number;
+}
+
+export interface OpportunityRollup {
+  childCount: number;
+  totalValue: number;
+  weightedValue: number;
+  byStage: OpportunityRollupStageEntry[];
+}
+
+export interface OpportunityRollupChild {
+  id: string;
+  name: string;
+  stageKey: string | null;
+  stageLabel: string | null;
+  amount: number | null;
+  probability: number | null;
+  expectedCloseDate: string | null;
+}
+
+export interface OpportunityEnterpriseView {
+  parentOpportunityId: string | null;
+  parent: OpportunityLookupSummary | null;
+  children: OpportunityRollupChild[];
+  rollup: OpportunityRollup;
+  tender: OpportunityTenderView | null;
+  dealReview: OpportunityDealReviewState;
+  dealReviewThreshold: number;
+  dealReviewRequired: boolean;
+  dealReviewComplete: boolean;
+}
+
+export interface SetOpportunityParentRequestBody {
+  parentOpportunityId: string | null;
+}
+
+export interface UpsertOpportunityTenderRequestBody {
+  tenderNumber?: string | null;
+  issuingAuthority?: string | null;
+  deadline?: string | null;
+  eligibility?: string | null;
+  scope?: string | null;
+  preBidDate?: string | null;
+  emd?: string | null;
+  commercialFormat?: string | null;
+  generateTasks?: boolean;
+}
+
+export interface OpportunityTenderChecklistUpdateBody {
+  checklist: Record<string, boolean>;
+}
+
+export interface UpsertOpportunityDealReviewRequestBody {
+  solutionFit?: string | null;
+  pricing?: string | null;
+  legal?: string | null;
+  risk?: string | null;
+  deliveryReadiness?: string | null;
+  leadershipSupport?: string | null;
+  submitForApproval?: boolean;
+  approverUserId?: string | null;
 }
 
 export interface OpportunityDashboardResponse {

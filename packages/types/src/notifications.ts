@@ -163,7 +163,8 @@ export const approvalTypes = [
   "sensitive_ai_action_approval",
   "customer_escalation_approval",
   "strategic_handoff_approval",
-  "opportunity_reactivation_approval"
+  "opportunity_reactivation_approval",
+  "deal_review_approval"
 ] as const;
 
 export type ApprovalType = (typeof approvalTypes)[number];
@@ -236,6 +237,11 @@ export const approvalTypeCatalog: ApprovalTypeDefinition[] = [
     key: "opportunity_reactivation_approval",
     label: "Opportunity reactivation approval",
     description: "Manager approval to reactivate a closed-lost opportunity (AE-010)."
+  },
+  {
+    key: "deal_review_approval",
+    label: "Strategic deal review approval",
+    description: "Leadership governance sign-off for large strategic deals (ES-005)."
   }
 ];
 

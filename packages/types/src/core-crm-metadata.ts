@@ -1586,6 +1586,24 @@ export const defaultCoreCrmStandardPicklistDefinitions: TenantOptionSetSeedDefin
     ]
   }),
   optionSet({
+    setKey: "opportunity-tender-checklist",
+    moduleKey: "opportunities",
+    kind: "dropdown",
+    name: "Opportunity Tender Checklist",
+    description:
+      "Configurable RFP/tender document checklist (ES-003). `metadata.required` items are flagged as missing documents until completed.",
+    values: [
+      { key: "eligibility_certificate", label: "Eligibility certificate", sortOrder: 0, isDefault: true, metadata: { required: true } },
+      { key: "technical_bid", label: "Technical bid", sortOrder: 1, metadata: { required: true } },
+      { key: "commercial_bid", label: "Commercial bid", sortOrder: 2, metadata: { required: true } },
+      { key: "emd_proof", label: "EMD proof", sortOrder: 3, metadata: { required: true } },
+      { key: "compliance_sheet", label: "Compliance sheet", sortOrder: 4, metadata: { required: true } },
+      { key: "authorization_letter", label: "Authorization letter", sortOrder: 5, metadata: { required: false } },
+      { key: "financial_statements", label: "Financial statements", sortOrder: 6, metadata: { required: false } },
+      { key: "experience_certificates", label: "Experience certificates", sortOrder: 7, metadata: { required: false } }
+    ]
+  }),
+  optionSet({
     setKey: "campaign-type",
     moduleKey: "campaigns",
     kind: "dropdown",
@@ -1795,6 +1813,7 @@ export const coreCrmRequiredPicklistKeys = [
   "opportunity-discovery-field",
   "opportunity-stakeholder-role",
   "opportunity-proposal-template",
+  "opportunity-tender-checklist",
   "campaign-type",
   "activity-type",
   "task-status",

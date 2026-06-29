@@ -17,6 +17,7 @@ import { CrmNotesPanel } from "@/components/crm/crm-notes-panel";
 import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
 import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
+import { AccountEnterprisePanel } from "@/components/accounts/account-enterprise-panel";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
 import {
@@ -349,6 +350,10 @@ export function AccountDetailPage() {
           </CardContent>
         </Card>
       </section>
+
+      {accountId ? (
+        <AccountEnterprisePanel accountId={accountId} accessToken={accessToken} canEdit={canEdit} owners={owners} />
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>

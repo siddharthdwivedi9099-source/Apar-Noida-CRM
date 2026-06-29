@@ -20,6 +20,7 @@ import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-sh
 import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { OpportunityExecActions } from "@/components/opportunities/opportunity-exec-actions";
+import { OpportunityEnterpriseActions } from "@/components/opportunities/opportunity-enterprise-actions";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import {
@@ -397,6 +398,14 @@ export function OpportunityDetailPage() {
       </section>
 
       <OpportunityExecActions
+        detail={opportunity}
+        options={optionsResponse}
+        accessToken={accessToken}
+        canEdit={canEdit}
+        onReload={loadOpportunity}
+      />
+
+      <OpportunityEnterpriseActions
         detail={opportunity}
         options={optionsResponse}
         accessToken={accessToken}

@@ -97,6 +97,7 @@ const requestedPicklistKeys = [
   "opportunity-discovery-field",
   "opportunity-stakeholder-role",
   "opportunity-proposal-template",
+  "opportunity-tender-checklist",
   "campaign-type",
   "activity-type",
   "task-status",

@@ -10,11 +10,19 @@ import {
 import type {
   AssignmentRulePayload,
   AccountDetail,
+  AccountEnterpriseResponse,
+  AccountEnterpriseView,
   AccountListQuery,
   AccountLookupSummary,
   AccountOptionsResponse,
   AccountResponse,
   AccountSummary,
+  AddExecutiveMeetingRequestBody,
+  ExecutiveEngagementView,
+  ExecutiveMeeting,
+  StrategicAccountPlanState,
+  SubmitAccountPlanReviewRequestBody,
+  UpsertStrategicAccountPlanRequestBody,
   ContactDetail,
   ContactListQuery,
   ContactOptionsResponse,
@@ -69,10 +77,12 @@ import type {
   UpdateCrmTaskRequestBody,
   UpdateLeadRequestBody
 } from "@crm/types";
+import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { getPositiveNumber } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -4493,6 +4503,165 @@ export class CrmService {
         customFieldOptions
       };
     });
+  }
+
+  // ---- Persona 10 (Enterprise Sales) — account plan + executive engagement ---------------------
+
+  private buildAccountEnterpriseView(metadata: Record<string, unknown> | null | undefined): AccountEnterpriseView {
+    const root = getMetadata(metadata);
+    const planRaw = root.strategicPlan && typeof root.strategicPlan === "object" ? (root.strategicPlan as Record<string, unknown>) : {};
+    const ms = (key: string): string | null => {
+      const value = planRaw[key];
+      return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+    };
+    const revenuePotential = typeof planRaw.revenuePotential === "number" && Number.isFinite(planRaw.revenuePotential) ? planRaw.revenuePotential : null;
+    const reviewStatus = planRaw.reviewStatus === "in_review" ? "in_review" : planRaw.reviewStatus === "reviewed" ? "reviewed" : "draft";
+    const strategicPlan: StrategicAccountPlanState = {
+      accountOverview: ms("accountOverview"),
+      businessUnits: ms("businessUnits"),
+      stakeholders: ms("stakeholders"),
+      systems: ms("systems"),
+      painPoints: ms("painPoints"),
+      opportunities: ms("opportunities"),
+      competitors: ms("competitors"),
+      revenuePotential,
+      risks: ms("risks"),
+      actionPlan: ms("actionPlan"),
+      reviewStatus,
+      reviewerUserId: ms("reviewerUserId"),
+      reviewRequestedAt: ms("reviewRequestedAt"),
+      updatedAt: ms("updatedAt")
+    };
+
+    const engagementRaw = root.executiveEngagement && typeof root.executiveEngagement === "object" ? (root.executiveEngagement as Record<string, unknown>) : {};
+    const meetingsRaw = Array.isArray(engagementRaw.meetings) ? engagementRaw.meetings : [];
+    const meetings: ExecutiveMeeting[] = meetingsRaw
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry))
+      .map((entry) => {
+        const get = (key: string): string | null => (typeof entry[key] === "string" && (entry[key] as string).trim().length > 0 ? (entry[key] as string).trim() : null);
+        return {
+          id: get("id") ?? randomUUID(),
+          contactId: get("contactId"),
+          contactName: get("contactName"),
+          notes: get("notes"),
+          commitments: get("commitments"),
+          followUps: get("followUps"),
+          meetingDate: get("meetingDate"),
+          createdAt: get("createdAt") ?? new Date().toISOString()
+        };
+      });
+    const commitmentCount = meetings.filter((meeting) => meeting.commitments).length;
+    const followUpCount = meetings.filter((meeting) => meeting.followUps).length;
+    // Engagement score: weighted by meetings + commitments + follow-ups, saturating at 100.
+    const score = Math.min(100, meetings.length * 15 + commitmentCount * 10 + followUpCount * 5);
+    const band = score >= 60 ? "high" : score >= 25 ? "medium" : "low";
+
+    return {
+      strategicPlan,
+      executiveEngagement: { score, band, meetingCount: meetings.length, commitmentCount, followUpCount, meetings },
+      whitespacePlaceholder: {
+        available: false,
+        message: "AI whitespace analysis will connect once the AI Gateway and product-coverage data are introduced."
+      }
+    };
+  }
+
+  async getAccountEnterprise(actor: ActorContext, accountId: string): Promise<AccountEnterpriseResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const account = await this.getAccountState(client, actor.tenantId, accountId);
+      return { accountId, enterprise: this.buildAccountEnterpriseView(account.metadata) };
+    });
+  }
+
+  async upsertStrategicAccountPlan(actor: ActorContext, audit: AuditMetadata, accountId: string, input: UpsertStrategicAccountPlanRequestBody): Promise<AccountEnterpriseResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.getAccountState(client, actor.tenantId, accountId);
+      const metadata = getMetadata(account.metadata);
+      const plan = (metadata.strategicPlan && typeof metadata.strategicPlan === "object" ? metadata.strategicPlan : {}) as Record<string, unknown>;
+      const merge = (key: keyof UpsertStrategicAccountPlanRequestBody) =>
+        input[key] !== undefined ? getTrimmedNullableString(input[key] as string | null) : (plan[key] ?? null);
+      const nextPlan = {
+        ...plan,
+        accountOverview: merge("accountOverview"),
+        businessUnits: merge("businessUnits"),
+        stakeholders: merge("stakeholders"),
+        systems: merge("systems"),
+        painPoints: merge("painPoints"),
+        opportunities: merge("opportunities"),
+        competitors: merge("competitors"),
+        revenuePotential: input.revenuePotential !== undefined ? input.revenuePotential : (plan.revenuePotential ?? null),
+        risks: merge("risks"),
+        actionPlan: merge("actionPlan"),
+        reviewStatus: plan.reviewStatus ?? "draft",
+        updatedAt: new Date().toISOString()
+      };
+      await client.query(
+        `UPDATE accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [accountId, actor.tenantId, JSON.stringify({ ...metadata, strategicPlan: nextPlan }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "account.strategic_plan.upsert", resourceType: "account", resourceId: accountId, status: "success" });
+    });
+    return this.getAccountEnterprise(actor, accountId);
+  }
+
+  async submitAccountPlanReview(actor: ActorContext, audit: AuditMetadata, accountId: string, input: SubmitAccountPlanReviewRequestBody): Promise<AccountEnterpriseResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.getAccountState(client, actor.tenantId, accountId);
+      const reviewerUserId = await this.ensureOwnerId(client, actor.tenantId, input.reviewerUserId);
+      if (!reviewerUserId) {
+        throw new AppError(400, "A reviewer is required.", undefined, "VALIDATION_ERROR");
+      }
+      const metadata = getMetadata(account.metadata);
+      const plan = (metadata.strategicPlan && typeof metadata.strategicPlan === "object" ? metadata.strategicPlan : {}) as Record<string, unknown>;
+      const nextPlan = { ...plan, reviewStatus: "in_review", reviewerUserId, reviewRequestedAt: new Date().toISOString() };
+      await client.query(
+        `UPDATE accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [accountId, actor.tenantId, JSON.stringify({ ...metadata, strategicPlan: nextPlan }), actor.userId]
+      );
+      const notificationService = new NotificationService(this.databaseService, this.config);
+      await notificationService.createNotificationWithClient(client, actor, audit, {
+        notificationType: "record_assignment",
+        recipientUserId: reviewerUserId,
+        title: `Strategic account plan review: ${account.name}`,
+        message: getTrimmedNullableString(input.note) ?? "Strategic account plan submitted for your review.",
+        linkedRecord: { entityType: "account", entityId: accountId }
+      });
+      await this.recordAuditLog(client, actor, audit, { action: "account.strategic_plan.review", resourceType: "account", resourceId: accountId, status: "success", metadata: { reviewerUserId } });
+    });
+    return this.getAccountEnterprise(actor, accountId);
+  }
+
+  async addExecutiveMeeting(actor: ActorContext, audit: AuditMetadata, accountId: string, input: AddExecutiveMeetingRequestBody): Promise<AccountEnterpriseResponse> {
+    this.assertEnabled();
+    const contactName = getTrimmedNullableString(input.contactName);
+    if (!contactName) {
+      throw new AppError(400, "A contact name is required for the executive meeting.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.getAccountState(client, actor.tenantId, accountId);
+      const metadata = getMetadata(account.metadata);
+      const engagement = (metadata.executiveEngagement && typeof metadata.executiveEngagement === "object" ? metadata.executiveEngagement : {}) as Record<string, unknown>;
+      const meetings = Array.isArray(engagement.meetings) ? engagement.meetings : [];
+      const meeting = {
+        id: randomUUID(),
+        contactId: getTrimmedNullableString(input.contactId),
+        contactName,
+        notes: getTrimmedNullableString(input.notes),
+        commitments: getTrimmedNullableString(input.commitments),
+        followUps: getTrimmedNullableString(input.followUps),
+        meetingDate: getTrimmedNullableString(input.meetingDate),
+        createdAt: new Date().toISOString()
+      };
+      await client.query(
+        `UPDATE accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [accountId, actor.tenantId, JSON.stringify({ ...metadata, executiveEngagement: { ...engagement, meetings: [...meetings, meeting] } }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "account.executive_meeting.add", resourceType: "account", resourceId: accountId, status: "success" });
+    });
+    return this.getAccountEnterprise(actor, accountId);
   }
 
   async addAccountNote(

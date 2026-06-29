@@ -22,10 +22,20 @@ import type {
   OpportunityDiscoveryUpdateBody,
   OpportunityExecWorkspace,
   OpportunityListQuery,
+  OpportunityDealReviewState,
+  OpportunityEnterpriseView,
   OpportunityNegotiationState,
   OpportunityNegotiationUpdateBody,
   OpportunityOptionsResponse,
   OpportunityPipelineScope,
+  OpportunityRollupChild,
+  OpportunityTenderChecklistItemDefinition,
+  OpportunityTenderChecklistUpdateBody,
+  OpportunityTenderState,
+  OpportunityTenderView,
+  SetOpportunityParentRequestBody,
+  UpsertOpportunityDealReviewRequestBody,
+  UpsertOpportunityTenderRequestBody,
   OpportunityProposalRequestBody,
   OpportunityProposalState,
   OpportunityReactivateRequestBody,
@@ -299,6 +309,69 @@ function readNegotiation(root: Record<string, unknown>): OpportunityNegotiationS
     nextAction: metaString(source, "nextAction"),
     updatedAt: metaString(source, "updatedAt")
   };
+}
+
+// ---- Persona 10 (Enterprise Sales) metadata helpers --------------------------------------------
+
+// Deals at or above this value require a governance review before final negotiation (ES-005).
+const DEFAULT_DEAL_REVIEW_THRESHOLD = 100_000;
+
+function getEnterpriseRoot(metadata: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  return getRecord(getMetadata(metadata).enterprise);
+}
+
+function readTenderState(root: Record<string, unknown>): OpportunityTenderState | null {
+  const source = getRecord(root.tender);
+  if (Object.keys(source).length === 0) {
+    return null;
+  }
+  const checklistRaw = getRecord(source.checklist);
+  const checklist: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(checklistRaw)) {
+    checklist[key] = value === true;
+  }
+  return {
+    tenderNumber: metaString(source, "tenderNumber"),
+    issuingAuthority: metaString(source, "issuingAuthority"),
+    deadline: metaString(source, "deadline"),
+    eligibility: metaString(source, "eligibility"),
+    scope: metaString(source, "scope"),
+    preBidDate: metaString(source, "preBidDate"),
+    emd: metaString(source, "emd"),
+    commercialFormat: metaString(source, "commercialFormat"),
+    checklist,
+    tasksGenerated: source.tasksGenerated === true,
+    updatedAt: metaString(source, "updatedAt")
+  };
+}
+
+function readDealReview(root: Record<string, unknown>): OpportunityDealReviewState {
+  const source = getRecord(root.dealReview);
+  return {
+    solutionFit: metaString(source, "solutionFit"),
+    pricing: metaString(source, "pricing"),
+    legal: metaString(source, "legal"),
+    risk: metaString(source, "risk"),
+    deliveryReadiness: metaString(source, "deliveryReadiness"),
+    leadershipSupport: metaString(source, "leadershipSupport"),
+    status: (["draft", "pending_approval", "approved"].includes(String(source.status))
+      ? source.status
+      : "draft") as OpportunityDealReviewState["status"],
+    approvalId: metaString(source, "approvalId"),
+    updatedAt: metaString(source, "updatedAt")
+  };
+}
+
+// A deal review is "complete" once every scorecard dimension is captured.
+function isDealReviewComplete(review: OpportunityDealReviewState): boolean {
+  return Boolean(
+    review.solutionFit &&
+      review.pricing &&
+      review.legal &&
+      review.risk &&
+      review.deliveryReadiness &&
+      review.leadershipSupport
+  );
 }
 
 function getPagination(total: number, page: number, pageSize: number): CrmPagination {
@@ -1836,6 +1909,156 @@ export class OpportunityService {
     return nextMetadata;
   }
 
+  // ---- Persona 10 (Enterprise Sales) helpers ---------------------------------------------------
+
+  private async loadTenderChecklistDefs(client: PoolClient, tenantId: string): Promise<OpportunityTenderChecklistItemDefinition[]> {
+    const rows = await this.loadOptionValueMetaRows(client, tenantId, "opportunity-tender-checklist");
+    return rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      required: (row.metadata as Record<string, unknown> | null)?.required === true,
+      sortOrder: row.sort_order
+    }));
+  }
+
+  private async patchEnterprise(
+    client: PoolClient,
+    actor: ActorContext,
+    opportunityId: string,
+    currentMetadata: Record<string, unknown> | null | undefined,
+    patch: Record<string, unknown>
+  ) {
+    const metadata = getMetadata(currentMetadata);
+    const nextMetadata = { ...metadata, enterprise: { ...getEnterpriseRoot(metadata), ...patch } };
+    await client.query(
+      `UPDATE opportunities SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [opportunityId, actor.tenantId, JSON.stringify(nextMetadata), actor.userId]
+    );
+    return nextMetadata;
+  }
+
+  private buildTenderView(
+    tender: OpportunityTenderState | null,
+    defs: OpportunityTenderChecklistItemDefinition[]
+  ): OpportunityTenderView | null {
+    if (!tender) {
+      return null;
+    }
+    const checklistItems = defs.map((def) => ({
+      key: def.key,
+      label: def.label,
+      required: def.required,
+      completed: tender.checklist[def.key] === true
+    }));
+    const requiredItems = checklistItems.filter((item) => item.required);
+    return {
+      ...tender,
+      checklistItems,
+      completionCount: checklistItems.filter((item) => item.completed).length,
+      total: checklistItems.length,
+      requiredComplete: requiredItems.every((item) => item.completed),
+      missingDocuments: checklistItems.filter((item) => item.required && !item.completed).map((item) => item.label)
+    };
+  }
+
+  private async buildEnterpriseView(
+    client: PoolClient,
+    actor: ActorContext,
+    row: OpportunityRecordRow,
+    tenderDefs: OpportunityTenderChecklistItemDefinition[]
+  ): Promise<OpportunityEnterpriseView> {
+    const root = getEnterpriseRoot(row.metadata);
+    const parentOpportunityId = metaString(root, "parentOpportunityId");
+
+    let parent: { id: string; name: string; stage: CrmOptionValueSummary | null } | null = null;
+    if (parentOpportunityId) {
+      const parentResult = await client.query<{ id: string; name: string; stage_key: string | null; stage_label: string | null }>(
+        `
+          SELECT o.id, o.name, sv.value_key AS stage_key, sv.label AS stage_label
+          FROM opportunities o
+          INNER JOIN tenant_option_values sv ON sv.id = o.stage_option_id AND sv.tenant_id = o.tenant_id
+          WHERE o.id = $1 AND o.tenant_id = $2 AND o.deleted_at IS NULL LIMIT 1
+        `,
+        [parentOpportunityId, actor.tenantId]
+      );
+      const pr = parentResult.rows[0];
+      if (pr) {
+        parent = {
+          id: pr.id,
+          name: pr.name,
+          stage: pr.stage_key ? { id: "", key: pr.stage_key, label: pr.stage_label ?? pr.stage_key, description: null, color: null, isDefault: false, isActive: true } : null
+        };
+      }
+    }
+
+    const childRows = await client.query<{
+      id: string;
+      name: string;
+      amount: string | number | null;
+      probability: number | null;
+      expected_close_date: string | null;
+      stage_key: string | null;
+      stage_label: string | null;
+    }>(
+      `
+        SELECT o.id, o.name, o.amount, o.probability, o.expected_close_date,
+          sv.value_key AS stage_key, sv.label AS stage_label
+        FROM opportunities o
+        INNER JOIN tenant_option_values sv ON sv.id = o.stage_option_id AND sv.tenant_id = o.tenant_id
+        WHERE o.tenant_id = $1
+          AND o.deleted_at IS NULL
+          AND o.metadata -> 'enterprise' ->> 'parentOpportunityId' = $2
+        ORDER BY o.created_at ASC
+      `,
+      [actor.tenantId, row.id]
+    );
+
+    const children: OpportunityRollupChild[] = childRows.rows.map((child) => ({
+      id: child.id,
+      name: child.name,
+      stageKey: child.stage_key,
+      stageLabel: child.stage_label,
+      amount: toNullableNumber(child.amount),
+      probability: child.probability,
+      expectedCloseDate: child.expected_close_date
+    }));
+
+    const byStageMap = new Map<string, { stageKey: string; stageLabel: string; count: number; value: number }>();
+    let totalValue = 0;
+    let weightedValue = 0;
+    for (const child of children) {
+      const amount = child.amount ?? 0;
+      totalValue += amount;
+      weightedValue += amount * ((child.probability ?? 0) / 100);
+      const key = child.stageKey ?? "unknown";
+      const entry = byStageMap.get(key) ?? { stageKey: key, stageLabel: child.stageLabel ?? key, count: 0, value: 0 };
+      entry.count += 1;
+      entry.value += amount;
+      byStageMap.set(key, entry);
+    }
+
+    const dealReview = readDealReview(root);
+    const amount = toNullableNumber(row.amount) ?? 0;
+    const dealReviewRequired = amount >= DEFAULT_DEAL_REVIEW_THRESHOLD;
+
+    return {
+      parentOpportunityId,
+      parent,
+      children,
+      rollup: {
+        childCount: children.length,
+        totalValue,
+        weightedValue: Math.round(weightedValue),
+        byStage: Array.from(byStageMap.values())
+      },
+      tender: this.buildTenderView(readTenderState(root), tenderDefs),
+      dealReview,
+      dealReviewThreshold: DEFAULT_DEAL_REVIEW_THRESHOLD,
+      dealReviewRequired,
+      dealReviewComplete: dealReview.status === "approved" || isDealReviewComplete(dealReview)
+    };
+  }
+
   async getOpportunityOptions(actor: ActorContext): Promise<OpportunityOptionsResponse> {
     this.assertEnabled();
 
@@ -1867,7 +2090,8 @@ export class OpportunityService {
         discoveryFields: aeConfig.discoveryFields,
         stakeholderRoles: aeConfig.stakeholderRoles,
         proposalTemplates: aeConfig.proposalTemplates,
-        lossReasons: aeConfig.lossReasons
+        lossReasons: aeConfig.lossReasons,
+        tenderChecklistItems: await this.loadTenderChecklistDefs(client, actor.tenantId)
       };
     });
   }
@@ -2078,11 +2302,13 @@ export class OpportunityService {
         aeConfig.stakeholderRoles
       );
 
+      const tenderDefs = await this.loadTenderChecklistDefs(client, actor.tenantId);
       return {
         ...this.mapOpportunity(row),
         customFields: getMetadata(row.custom_fields),
         stakeholders,
         execWorkspace: this.buildExecWorkspace(row, stakeholders, aeConfig),
+        enterprise: await this.buildEnterpriseView(client, actor, row, tenderDefs),
         productsServicesPlaceholder: {
           available: false as const,
           message: "Products and services will connect to a governed catalog in a later commercial configuration phase."
@@ -2432,6 +2658,23 @@ export class OpportunityService {
         input.outcomeStatusKey === undefined ? currentOpportunity.outcome_status_key : input.outcomeStatusKey
       );
       assertStageAndOutcomeConsistency(resolvedStageKey, resolvedOutcomeStatusKey);
+
+      // ES-005: large deals cannot move into final negotiation until the governance review is complete.
+      const movingToNegotiation = resolvedStageKey === "negotiation" && currentOpportunity.stage_key !== "negotiation";
+      if (movingToNegotiation) {
+        const nextAmount = input.amount !== undefined ? toNullableNumber(input.amount) : toNullableNumber(currentOpportunity.amount);
+        if ((nextAmount ?? 0) >= DEFAULT_DEAL_REVIEW_THRESHOLD) {
+          const review = readDealReview(getEnterpriseRoot(currentOpportunity.metadata));
+          if (review.status !== "approved" && !isDealReviewComplete(review)) {
+            throw new AppError(
+              400,
+              "A strategic deal review is required before final negotiation for deals above the review threshold.",
+              undefined,
+              "DEAL_REVIEW_REQUIRED"
+            );
+          }
+        }
+      }
 
       const stageOptionId = resolvedStageKey === currentOpportunity.stage_key
         ? currentOpportunity.stage_option_id
@@ -3026,6 +3269,132 @@ export class OpportunityService {
         closeLost: { ...closeLost, reactivationStatus: "pending_approval", reactivationApprovalId: approval.id }
       });
       await this.recordAuditLog(client, actor, audit, { action: "opportunity.reactivate.request", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { approvalId: approval.id } });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  // ---- Persona 10 (Enterprise Sales) actions ---------------------------------------------------
+
+  async setOpportunityParent(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: SetOpportunityParentRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["enterprise"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const parentId = input.parentOpportunityId ?? null;
+      if (parentId) {
+        if (parentId === opportunityId) {
+          throw new AppError(400, "An opportunity cannot be its own parent.", undefined, "VALIDATION_ERROR");
+        }
+        // Parent must exist; and the parent must not itself be a child of this opportunity (one level guard).
+        await this.getOpportunityState(client, actor.tenantId, parentId);
+      }
+      await this.patchEnterprise(client, actor, opportunityId, current.metadata, { parentOpportunityId: parentId });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.parent.set", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { parentOpportunityId: parentId } });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async upsertOpportunityTender(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: UpsertOpportunityTenderRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["enterprise"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const existing = readTenderState(getEnterpriseRoot(current.metadata));
+      const tender: OpportunityTenderState = {
+        tenderNumber: input.tenderNumber !== undefined ? getTrimmedNullableString(input.tenderNumber) : existing?.tenderNumber ?? null,
+        issuingAuthority: input.issuingAuthority !== undefined ? getTrimmedNullableString(input.issuingAuthority) : existing?.issuingAuthority ?? null,
+        deadline: input.deadline !== undefined ? getTrimmedNullableString(input.deadline) : existing?.deadline ?? null,
+        eligibility: input.eligibility !== undefined ? getTrimmedNullableString(input.eligibility) : existing?.eligibility ?? null,
+        scope: input.scope !== undefined ? getTrimmedNullableString(input.scope) : existing?.scope ?? null,
+        preBidDate: input.preBidDate !== undefined ? getTrimmedNullableString(input.preBidDate) : existing?.preBidDate ?? null,
+        emd: input.emd !== undefined ? getTrimmedNullableString(input.emd) : existing?.emd ?? null,
+        commercialFormat: input.commercialFormat !== undefined ? getTrimmedNullableString(input.commercialFormat) : existing?.commercialFormat ?? null,
+        checklist: existing?.checklist ?? {},
+        tasksGenerated: existing?.tasksGenerated ?? false,
+        updatedAt: new Date().toISOString()
+      };
+
+      // ES-003: generate a task per function (sales/bid/presales/legal/finance/leadership) once.
+      if (input.generateTasks && !tender.tasksGenerated) {
+        const deadline = tender.deadline ? new Date(tender.deadline) : null;
+        for (const role of ["sales", "bid", "presales", "legal", "finance", "leadership"]) {
+          await this.createOpportunityTask(client, actor, opportunityId, {
+            title: `Tender (${role}): ${current.name}`,
+            description: `Tender ${tender.tenderNumber ?? ""} — ${role} workstream.`,
+            assigneeUserId: current.owner_id ?? null,
+            dueAt: Number.isNaN(deadline?.getTime() ?? NaN) ? null : deadline,
+            metadata: { phase11TaskType: "follow_up", tenderRole: role }
+          });
+        }
+        tender.tasksGenerated = true;
+      }
+
+      await this.patchEnterprise(client, actor, opportunityId, current.metadata, { tender });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.tender.upsert", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { tasksGenerated: tender.tasksGenerated } });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async updateOpportunityTenderChecklist(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityTenderChecklistUpdateBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["enterprise"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const existing = readTenderState(getEnterpriseRoot(current.metadata));
+      if (!existing) {
+        throw new AppError(400, "Create the tender before updating its checklist.", undefined, "VALIDATION_ERROR");
+      }
+      const checklist = { ...existing.checklist };
+      for (const [key, value] of Object.entries(input.checklist)) {
+        checklist[key] = value === true;
+      }
+      await this.patchEnterprise(client, actor, opportunityId, current.metadata, {
+        tender: { ...existing, checklist, updatedAt: new Date().toISOString() }
+      });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.tender.checklist", resourceType: "opportunity", resourceId: opportunityId, status: "success" });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async upsertOpportunityDealReview(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: UpsertOpportunityDealReviewRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["enterprise"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const existing = readDealReview(getEnterpriseRoot(current.metadata));
+      const review: OpportunityDealReviewState = {
+        solutionFit: input.solutionFit !== undefined ? getTrimmedNullableString(input.solutionFit) : existing.solutionFit,
+        pricing: input.pricing !== undefined ? getTrimmedNullableString(input.pricing) : existing.pricing,
+        legal: input.legal !== undefined ? getTrimmedNullableString(input.legal) : existing.legal,
+        risk: input.risk !== undefined ? getTrimmedNullableString(input.risk) : existing.risk,
+        deliveryReadiness: input.deliveryReadiness !== undefined ? getTrimmedNullableString(input.deliveryReadiness) : existing.deliveryReadiness,
+        leadershipSupport: input.leadershipSupport !== undefined ? getTrimmedNullableString(input.leadershipSupport) : existing.leadershipSupport,
+        status: existing.status,
+        approvalId: existing.approvalId,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (input.submitForApproval) {
+        if (!isDealReviewComplete(review)) {
+          throw new AppError(400, "Complete every review dimension before submitting for approval.", undefined, "VALIDATION_ERROR");
+        }
+        const approverUserId = await this.ensureOwnerId(client, actor.tenantId, input.approverUserId ?? null);
+        if (!approverUserId) {
+          throw new AppError(400, "An approver is required to submit the deal review.", undefined, "VALIDATION_ERROR");
+        }
+        const approval = await this.approvalService.createApprovalWithClient(client, actor, audit, {
+          approvalType: "deal_review_approval",
+          title: `Deal review: ${current.name}`,
+          description: review.solutionFit ?? "Strategic deal governance review.",
+          approverUserId,
+          linkedRecord: { entityType: "opportunity", entityId: opportunityId }
+        });
+        review.status = "pending_approval";
+        review.approvalId = approval.id;
+      }
+
+      await this.patchEnterprise(client, actor, opportunityId, current.metadata, { dealReview: review });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.deal_review.upsert", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { submitForApproval: Boolean(input.submitForApproval) } });
     });
     return this.getOpportunity(actor, opportunityId);
   }
