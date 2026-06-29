@@ -40,6 +40,7 @@ import type {
   InsideSalesWorkspaceResponse,
   UpdateLeadWorkspaceRequestBody
 } from "@crm/types";
+import type { ManagerLeadSlaResponse, ReassignLeadRequestBody } from "@crm/types";
 import {
   canMarkLeadQualified,
   compareLeadQueueEntries,
@@ -53,6 +54,7 @@ import {
   resolveContactScript
 } from "@crm/types";
 import type { PoolClient } from "pg";
+import { NotificationService } from "../notifications/notifications.service.js";
 import { AppError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 
@@ -610,10 +612,14 @@ function getStoredNoShowCount(root: Record<string, unknown>): number {
 const DEFAULT_NO_SHOWS_BEFORE_NURTURE = 2;
 
 export class SalesWorkspacesService {
+  private readonly notificationService: NotificationService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
-  ) {}
+  ) {
+    this.notificationService = new NotificationService(databaseService, config);
+  }
 
   private assertEnabled() {
     if (!this.databaseService.isEnabled()) {
@@ -2646,5 +2652,100 @@ export class SalesWorkspacesService {
       ]
     );
     return result.rows[0].id;
+  }
+
+  // ---- Persona 12 (Sales Manager): lead SLA monitoring (SMGR-002) ------------------------------
+
+  async getManagerLeadSla(actor: ActorContext): Promise<ManagerLeadSlaResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const options = await this.loadWorkspaceOptions(client, actor);
+      const optionCatalog = await this.buildOptionCatalog(client, actor, options);
+      const leadRows = await this.loadVisibleLeadRows(client, actor);
+      const leads = leadRows.map((row) => this.mapLeadSummary(row, optionCatalog));
+
+      let assignedCount = 0;
+      let acceptedCount = 0;
+      let overdueFirstContactCount = 0;
+      let untouchedCount = 0;
+      let breachedCount = 0;
+      const slaLeads = leads.map((lead) => {
+        const untouched = lead.activityCount === 0;
+        const outreachKey = lead.workspace.outreachStatus?.key ?? "not_started";
+        const accepted = outreachKey !== "not_started" && outreachKey !== "nurture";
+        const breached = lead.slaStatus === "breached";
+        if (lead.owner) assignedCount += 1;
+        if (accepted) acceptedCount += 1;
+        if (untouched) untouchedCount += 1;
+        if (breached) breachedCount += 1;
+        if (breached && untouched) overdueFirstContactCount += 1;
+        return {
+          id: lead.id,
+          fullName: lead.fullName,
+          companyName: lead.companyName,
+          owner: lead.owner,
+          status: lead.status,
+          slaStatus: lead.slaStatus,
+          slaDueAt: lead.slaDueAt,
+          untouched,
+          accepted
+        };
+      });
+
+      return { assignedCount, acceptedCount, overdueFirstContactCount, untouchedCount, breachedCount, leads: slaLeads };
+    });
+  }
+
+  async reassignLead(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    leadId: string,
+    input: ReassignLeadRequestBody
+  ): Promise<SalesWorkspaceLeadResponse> {
+    this.assertEnabled();
+    return this.databaseService.withTransaction(async (client) => {
+      // Reassignment requires lead-assign authority (manager-level).
+      this.assertWorkflowMutation(actor, ["ownerId"]);
+      const reason = getTrimmedNullableString(input.reason);
+      if (!reason) {
+        throw new AppError(400, "A reassignment reason is required.", undefined, "VALIDATION_ERROR");
+      }
+      const options = await this.loadWorkspaceOptions(client, actor);
+      const optionCatalog = await this.buildOptionCatalog(client, actor, options);
+      const currentLead = await this.getLeadState(client, actor.tenantId, leadId);
+      const newOwnerId = await this.ensureOwnerId(client, actor.tenantId, input.ownerId);
+      if (!newOwnerId) {
+        throw new AppError(400, "A valid new owner is required.", undefined, "VALIDATION_ERROR");
+      }
+
+      await client.query(
+        `UPDATE leads SET owner_id = $3, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [leadId, actor.tenantId, newOwnerId, actor.userId]
+      );
+      await this.insertLeadWorkflowActivity(client, actor, leadId, {
+        subject: "Lead reassigned by manager",
+        description: `Reassignment reason: ${reason}`,
+        outcome: "reassigned",
+        metadata: { fromOwnerId: currentLead.owner_id, toOwnerId: newOwnerId, reason },
+        ownerId: newOwnerId
+      });
+      // SMGR-002: escalation notification to the new owner.
+      await this.notificationService.createNotificationWithClient(client, actor, audit, {
+        notificationType: "record_assignment",
+        recipientUserId: newOwnerId,
+        title: "Lead reassigned to you",
+        message: reason,
+        linkedRecord: { entityType: "lead", entityId: leadId }
+      });
+      await this.recordAuditLog(client, actor, audit, {
+        action: "lead.reassign",
+        resourceType: "lead",
+        resourceId: leadId,
+        status: "success",
+        metadata: { fromOwnerId: currentLead.owner_id, toOwnerId: newOwnerId, reason }
+      });
+
+      return { lead: await this.reloadWorkspaceLead(client, actor, leadId, optionCatalog) };
+    });
   }
 }

@@ -23,6 +23,7 @@ import {
 } from "@/lib/crm";
 import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
+import { SalesManagerDashboard } from "@/components/sales/sales-manager-dashboard";
 import { Link } from "react-router-dom";
 
 type PipelineViewMode = "list" | "kanban";
@@ -74,6 +75,7 @@ export function OpportunitiesPage() {
   const [draggingOpportunityId, setDraggingOpportunityId] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
+  const canViewManager = hasAnyPermission(["opportunities.view_dashboard", "opportunities.manage_workflow", "opportunities.configure"]);
   const canCreate = hasAnyPermission(["opportunities.create", "opportunities.configure"]);
   const canEdit = hasAnyPermission(["opportunities.edit", "opportunities.assign", "opportunities.configure"]);
   const canDelete = hasAnyPermission(["opportunities.delete", "opportunities.configure"]);
@@ -359,6 +361,8 @@ export function OpportunitiesPage() {
           description="Switch between personal, team, and tenant-wide pipeline views when your role allows it."
         />
       </section>
+
+      {canViewManager ? <SalesManagerDashboard accessToken={accessToken} canManage={canEdit} /> : null}
 
       <section className="grid gap-6 xl:grid-cols-[1fr_1.15fr]">
         <Card>

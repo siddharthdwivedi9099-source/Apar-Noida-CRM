@@ -7,8 +7,15 @@ import type {
   CrmMutationSuccessResponse,
   CrmOptionValueSummary,
   CrmPagination,
+  AddOpportunityDealReviewRequestBody,
+  CreateCoachingTaskRequestBody,
   LeadDiscoveryFieldDefinition,
+  ManagerForecastResponse,
+  ManagerPerformanceResponse,
+  ManagerPipelineResponse,
   OpportunityAcceptanceState,
+  OpportunityDealReviewEntry,
+  SetOpportunityForecastRequestBody,
   OpportunityAiPlaceholderSummary,
   OpportunityCloseLostRequestBody,
   OpportunityCloseWonRequestBody,
@@ -2091,7 +2098,8 @@ export class OpportunityService {
         stakeholderRoles: aeConfig.stakeholderRoles,
         proposalTemplates: aeConfig.proposalTemplates,
         lossReasons: aeConfig.lossReasons,
-        tenderChecklistItems: await this.loadTenderChecklistDefs(client, actor.tenantId)
+        tenderChecklistItems: await this.loadTenderChecklistDefs(client, actor.tenantId),
+        forecastCategories: await this.loadOptionSetValues(client, actor.tenantId, "forecast-category")
       };
     });
   }
@@ -2309,6 +2317,7 @@ export class OpportunityService {
         stakeholders,
         execWorkspace: this.buildExecWorkspace(row, stakeholders, aeConfig),
         enterprise: await this.buildEnterpriseView(client, actor, row, tenderDefs),
+        managerDealReviews: this.readManagerDealReviews(row.metadata),
         productsServicesPlaceholder: {
           available: false as const,
           message: "Products and services will connect to a governed catalog in a later commercial configuration phase."
@@ -3395,6 +3404,342 @@ export class OpportunityService {
 
       await this.patchEnterprise(client, actor, opportunityId, current.metadata, { dealReview: review });
       await this.recordAuditLog(client, actor, audit, { action: "opportunity.deal_review.upsert", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { submitForApproval: Boolean(input.submitForApproval) } });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  // ---- Persona 12 (Sales Manager) --------------------------------------------------------------
+
+  private readManagerDealReviews(metadata: Record<string, unknown> | null | undefined): OpportunityDealReviewEntry[] {
+    const raw = getMetadata(metadata).managerDealReviews;
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+    return raw
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry))
+      .map((entry) => ({
+        id: metaString(entry, "id") ?? randomUUID(),
+        stage: metaString(entry, "stage"),
+        closeDate: metaString(entry, "closeDate"),
+        nextStep: metaString(entry, "nextStep"),
+        stakeholders: metaString(entry, "stakeholders"),
+        competitor: metaString(entry, "competitor"),
+        risks: metaString(entry, "risks"),
+        blockers: metaString(entry, "blockers"),
+        probability: metaNumber(entry, "probability"),
+        comments: metaString(entry, "comments"),
+        reviewedBy: (() => {
+          const rb = getRecord(entry.reviewedBy);
+          const id = metaString(rb, "id");
+          const displayName = metaString(rb, "displayName");
+          const email = metaString(rb, "email");
+          return id && displayName && email ? { id, displayName, email, teamName: null, departmentName: null } : null;
+        })(),
+        createdAt: metaString(entry, "createdAt") ?? new Date().toISOString()
+      }));
+  }
+
+  private managerFromClause() {
+    return `
+      FROM opportunities
+      INNER JOIN tenant_option_values AS stage_values ON stage_values.id = opportunities.stage_option_id AND stage_values.tenant_id = opportunities.tenant_id
+      INNER JOIN tenant_option_values AS source_values ON source_values.id = opportunities.source_option_id AND source_values.tenant_id = opportunities.tenant_id
+      INNER JOIN tenant_option_values AS outcome_values ON outcome_values.id = opportunities.outcome_status_option_id AND outcome_values.tenant_id = opportunities.tenant_id
+      LEFT JOIN accounts ON accounts.id = opportunities.account_id AND accounts.tenant_id = opportunities.tenant_id AND accounts.deleted_at IS NULL
+      LEFT JOIN contacts AS primary_contacts ON primary_contacts.id = opportunities.primary_contact_id AND primary_contacts.tenant_id = opportunities.tenant_id AND primary_contacts.deleted_at IS NULL
+      LEFT JOIN users AS owner_users ON owner_users.id = opportunities.owner_id AND owner_users.tenant_id = opportunities.tenant_id AND owner_users.deleted_at IS NULL
+      LEFT JOIN teams AS owner_teams ON owner_teams.id = owner_users.team_id AND owner_teams.tenant_id = owner_users.tenant_id AND owner_teams.deleted_at IS NULL
+      LEFT JOIN departments AS owner_departments ON owner_departments.id = owner_users.department_id AND owner_departments.tenant_id = owner_users.tenant_id AND owner_departments.deleted_at IS NULL
+    `;
+  }
+
+  async getManagerPipeline(actor: ActorContext, query: OpportunityListQuery): Promise<ManagerPipelineResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const { whereClause, params } = await this.buildOpportunityWhereContext(client, actor, query);
+
+      const byOwnerResult = await client.query<{ owner_id: string | null; owner_display_name: string | null; owner_email: string | null; owner_team_name: string | null; owner_department_name: string | null; open_count: number; pipeline_value: string; weighted_value: string }>(
+        `
+          SELECT owner_users.id AS owner_id, owner_users.display_name AS owner_display_name, owner_users.email AS owner_email,
+            owner_teams.name AS owner_team_name, owner_departments.name AS owner_department_name,
+            COUNT(*) FILTER (WHERE outcome_values.value_key = 'open')::int AS open_count,
+            COALESCE(SUM(CASE WHEN outcome_values.value_key = 'open' THEN COALESCE(opportunities.amount, 0) ELSE 0 END), 0) AS pipeline_value,
+            COALESCE(SUM(CASE WHEN outcome_values.value_key = 'open' THEN COALESCE(opportunities.amount, 0) * COALESCE(opportunities.probability, 0) / 100.0 ELSE 0 END), 0) AS weighted_value
+          ${this.managerFromClause()}
+          WHERE ${whereClause}
+          GROUP BY owner_users.id, owner_users.display_name, owner_users.email, owner_teams.name, owner_departments.name
+          ORDER BY pipeline_value DESC
+        `,
+        params
+      );
+
+      const dealsResult = await client.query<{
+        id: string; name: string; amount: string | number | null; probability: number | null; expected_close_date: string | null;
+        age_days: number; owner_id: string | null; owner_display_name: string | null; owner_email: string | null; owner_team_name: string | null; owner_department_name: string | null;
+        stage_id: string | null; stage_key: string | null; stage_label: string | null; stage_description: string | null; stage_color: string | null; stage_is_default: boolean | null; stage_is_active: boolean | null;
+      }>(
+        `
+          SELECT opportunities.id, opportunities.name, opportunities.amount, opportunities.probability, opportunities.expected_close_date,
+            GREATEST(0, EXTRACT(DAY FROM (NOW() - opportunities.last_stage_changed_at)))::int AS age_days,
+            owner_users.id AS owner_id, owner_users.display_name AS owner_display_name, owner_users.email AS owner_email,
+            owner_teams.name AS owner_team_name, owner_departments.name AS owner_department_name,
+            stage_values.id AS stage_id, stage_values.value_key AS stage_key, stage_values.label AS stage_label, stage_values.description AS stage_description, stage_values.color AS stage_color, stage_values.is_default AS stage_is_default, stage_values.is_active AS stage_is_active
+          ${this.managerFromClause()}
+          WHERE ${whereClause} AND outcome_values.value_key = 'open'
+          ORDER BY opportunities.amount DESC NULLS LAST
+          LIMIT 300
+        `,
+        params
+      );
+
+      let totalOpen = 0;
+      let pipelineValue = 0;
+      let weightedValue = 0;
+      const aging = [
+        { bucket: "0-30 days", count: 0, value: 0 },
+        { bucket: "31-60 days", count: 0, value: 0 },
+        { bucket: "61-90 days", count: 0, value: 0 },
+        { bucket: "90+ days", count: 0, value: 0 }
+      ];
+      const stageMap = new Map<string, OpportunityStageDistributionItem>();
+      const highRiskDeals: ManagerPipelineResponse["highRiskDeals"] = [];
+
+      for (const row of dealsResult.rows) {
+        const amount = toNullableNumber(row.amount) ?? 0;
+        totalOpen += 1;
+        pipelineValue += amount;
+        weightedValue += amount * ((row.probability ?? 0) / 100);
+        const bucket = row.age_days <= 30 ? aging[0] : row.age_days <= 60 ? aging[1] : row.age_days <= 90 ? aging[2] : aging[3];
+        bucket.count += 1;
+        bucket.value += amount;
+        const stage = mapOptionValue({ id: row.stage_id, key: row.stage_key, label: row.stage_label, description: row.stage_description, color: row.stage_color, isDefault: row.stage_is_default, isActive: row.stage_is_active });
+        const stageKey = stage?.key ?? "unknown";
+        const existing = stageMap.get(stageKey) ?? { stage, opportunityCount: 0, totalAmount: 0 };
+        existing.opportunityCount += 1;
+        existing.totalAmount += amount;
+        stageMap.set(stageKey, existing);
+
+        const riskReasons: string[] = [];
+        if (row.expected_close_date && new Date(row.expected_close_date).getTime() < Date.now()) riskReasons.push("Past close date");
+        if (row.age_days > 60) riskReasons.push("Stalled in stage");
+        if ((row.probability ?? 0) < 20) riskReasons.push("Low probability");
+        const risk = riskReasons.length >= 2 ? "high" : riskReasons.length === 1 ? "medium" : "low";
+        if (risk !== "low") {
+          highRiskDeals.push({
+            id: row.id,
+            name: row.name,
+            owner: mapUser({ id: row.owner_id, displayName: row.owner_display_name, email: row.owner_email, teamName: row.owner_team_name, departmentName: row.owner_department_name }),
+            stage,
+            amount: toNullableNumber(row.amount),
+            probability: row.probability,
+            expectedCloseDate: row.expected_close_date,
+            ageDays: row.age_days,
+            risk,
+            riskReasons
+          });
+        }
+      }
+
+      return {
+        totalOpen,
+        pipelineValue,
+        weightedValue: Math.round(weightedValue),
+        byOwner: byOwnerResult.rows.map((row) => ({
+          owner: mapUser({ id: row.owner_id, displayName: row.owner_display_name, email: row.owner_email, teamName: row.owner_team_name, departmentName: row.owner_department_name }),
+          openCount: row.open_count,
+          pipelineValue: toNullableNumber(row.pipeline_value) ?? 0,
+          weightedValue: Math.round(toNullableNumber(row.weighted_value) ?? 0)
+        })),
+        byStage: Array.from(stageMap.values()),
+        aging,
+        highRiskDeals: highRiskDeals.sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)).slice(0, 25),
+        aiPlaceholder: { available: false, message: "AI high-risk deal detection will connect with the AI Gateway phase." }
+      };
+    });
+  }
+
+  async getManagerPerformance(actor: ActorContext, query: OpportunityListQuery): Promise<ManagerPerformanceResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const { whereClause, params } = await this.buildOpportunityWhereContext(client, actor, query);
+      const result = await client.query<{
+        owner_id: string | null; owner_display_name: string | null; owner_email: string | null; owner_team_name: string | null; owner_department_name: string | null;
+        open_count: number; won_count: number; lost_count: number; total_count: number; avg_deal: string | null; avg_cycle: string | null;
+      }>(
+        `
+          SELECT owner_users.id AS owner_id, owner_users.display_name AS owner_display_name, owner_users.email AS owner_email,
+            owner_teams.name AS owner_team_name, owner_departments.name AS owner_department_name,
+            COUNT(*) FILTER (WHERE outcome_values.value_key = 'open')::int AS open_count,
+            COUNT(*) FILTER (WHERE outcome_values.value_key = 'won')::int AS won_count,
+            COUNT(*) FILTER (WHERE outcome_values.value_key = 'lost')::int AS lost_count,
+            COUNT(*)::int AS total_count,
+            COALESCE(AVG(opportunities.amount) FILTER (WHERE outcome_values.value_key = 'won'), 0) AS avg_deal,
+            COALESCE(AVG(EXTRACT(EPOCH FROM (opportunities.last_stage_changed_at - opportunities.created_at)) / 86400.0) FILTER (WHERE outcome_values.value_key = 'won'), 0) AS avg_cycle
+          ${this.managerFromClause()}
+          WHERE ${whereClause} AND owner_users.id IS NOT NULL
+          GROUP BY owner_users.id, owner_users.display_name, owner_users.email, owner_teams.name, owner_departments.name
+          ORDER BY won_count DESC
+        `,
+        params
+      );
+
+      return {
+        reps: result.rows.map((row) => {
+          const decided = row.won_count + row.lost_count;
+          return {
+            owner: mapUser({ id: row.owner_id, displayName: row.owner_display_name, email: row.owner_email, teamName: row.owner_team_name, departmentName: row.owner_department_name }),
+            openCount: row.open_count,
+            wonCount: row.won_count,
+            lostCount: row.lost_count,
+            winRate: decided > 0 ? Math.round((row.won_count / decided) * 100) : 0,
+            conversionRate: row.total_count > 0 ? Math.round((row.won_count / row.total_count) * 100) : 0,
+            avgDealSize: Math.round(toNullableNumber(row.avg_deal) ?? 0),
+            avgCycleDays: Math.round(toNullableNumber(row.avg_cycle) ?? 0)
+          };
+        }),
+        aiPlaceholder: { available: false, message: "AI coaching-focus recommendations will connect with the AI Gateway phase." }
+      };
+    });
+  }
+
+  async getManagerForecast(actor: ActorContext, query: OpportunityListQuery): Promise<ManagerForecastResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const { whereClause, params } = await this.buildOpportunityWhereContext(client, actor, query);
+      const categories = await this.loadOptionSetValues(client, actor.tenantId, "forecast-category");
+      const rows = await client.query<{ amount: string | number | null; probability: number | null; outcome_key: string | null; metadata: Record<string, unknown> | null }>(
+        `
+          SELECT opportunities.amount, opportunities.probability, outcome_values.value_key AS outcome_key, opportunities.metadata
+          ${this.managerFromClause()}
+          WHERE ${whereClause}
+        `,
+        params
+      );
+
+      const counts = new Map<string, { count: number; value: number }>();
+      let wonValue = 0;
+      let openWeighted = 0;
+      for (const row of rows.rows) {
+        const amount = toNullableNumber(row.amount) ?? 0;
+        if (row.outcome_key === "won") {
+          wonValue += amount;
+        }
+        if (row.outcome_key === "open") {
+          openWeighted += amount * ((row.probability ?? 0) / 100);
+          const forecast = getRecord(getMetadata(row.metadata).forecast);
+          const key = metaString(forecast, "managerOverrideCategoryKey") ?? metaString(forecast, "forecastCategoryKey") ?? "__uncategorized";
+          const entry = counts.get(key) ?? { count: 0, value: 0 };
+          entry.count += 1;
+          entry.value += amount;
+          counts.set(key, entry);
+        }
+      }
+
+      const categoryEntries: ManagerForecastResponse["categories"] = [];
+      for (const category of categories) {
+        const entry = counts.get(category.key);
+        if (entry) {
+          categoryEntries.push({ category, count: entry.count, value: entry.value });
+        }
+      }
+      const uncategorized = counts.get("__uncategorized");
+      if (uncategorized) {
+        categoryEntries.push({ category: null, count: uncategorized.count, value: uncategorized.value });
+      }
+
+      return {
+        categories: categoryEntries,
+        wonValue,
+        openWeightedValue: Math.round(openWeighted),
+        aiPlaceholder: { available: false, message: "AI flagging of unrealistic close dates/probabilities will connect with the AI Gateway phase." }
+      };
+    });
+  }
+
+  async setOpportunityForecast(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: SetOpportunityForecastRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      if (input.forecastCategoryKey) {
+        await this.resolveOptionValueId(client, actor.tenantId, "forecast-category", input.forecastCategoryKey, "Forecast category");
+      }
+      if (input.managerOverrideCategoryKey) {
+        await this.resolveOptionValueId(client, actor.tenantId, "forecast-category", input.managerOverrideCategoryKey, "Forecast category");
+      }
+      const metadata = getMetadata(current.metadata);
+      const forecast = getRecord(metadata.forecast);
+      const nextForecast = {
+        ...forecast,
+        forecastCategoryKey: input.forecastCategoryKey !== undefined ? getTrimmedNullableString(input.forecastCategoryKey) : forecast.forecastCategoryKey ?? null,
+        managerOverrideCategoryKey: input.managerOverrideCategoryKey !== undefined ? getTrimmedNullableString(input.managerOverrideCategoryKey) : forecast.managerOverrideCategoryKey ?? null,
+        overrideReason: input.overrideReason !== undefined ? getTrimmedNullableString(input.overrideReason) : forecast.overrideReason ?? null,
+        updatedAt: new Date().toISOString()
+      };
+      await client.query(
+        `UPDATE opportunities SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [opportunityId, actor.tenantId, JSON.stringify({ ...metadata, forecast: nextForecast }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.forecast.set", resourceType: "opportunity", resourceId: opportunityId, status: "success" });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async addOpportunityDealReview(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: AddOpportunityDealReviewRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    const comments = getTrimmedNullableString(input.comments);
+    if (!comments) {
+      throw new AppError(400, "Deal review comments are required.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const metadata = getMetadata(current.metadata);
+      const reviews = Array.isArray(metadata.managerDealReviews) ? metadata.managerDealReviews : [];
+      const entry = {
+        id: randomUUID(),
+        stage: current.stage_key,
+        closeDate: input.closeDate !== undefined ? getTrimmedNullableString(input.closeDate) : current.expected_close_date,
+        nextStep: input.nextStep !== undefined ? getTrimmedNullableString(input.nextStep) : current.next_step,
+        stakeholders: getTrimmedNullableString(input.stakeholders),
+        competitor: input.competitor !== undefined ? getTrimmedNullableString(input.competitor) : current.competitor,
+        risks: getTrimmedNullableString(input.risks),
+        blockers: getTrimmedNullableString(input.blockers),
+        probability: input.probability !== undefined ? toNullableNumber(input.probability) : current.probability,
+        comments,
+        reviewedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email },
+        createdAt: new Date().toISOString()
+      };
+      await client.query(
+        `UPDATE opportunities SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [opportunityId, actor.tenantId, JSON.stringify({ ...metadata, managerDealReviews: [...reviews, entry] }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.deal_review.add", resourceType: "opportunity", resourceId: opportunityId, status: "success" });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async createCoachingTask(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: CreateCoachingTaskRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    const title = getTrimmedNullableString(input.title);
+    if (!title) {
+      throw new AppError(400, "A coaching task title is required.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const assigneeUserId = await this.ensureOwnerId(client, actor.tenantId, input.assigneeUserId);
+      if (!assigneeUserId) {
+        throw new AppError(400, "A valid rep is required for the coaching task.", undefined, "VALIDATION_ERROR");
+      }
+      await this.createOpportunityTask(client, actor, opportunityId, {
+        title,
+        description: getTrimmedNullableString(input.description),
+        assigneeUserId,
+        dueAt: input.dueAt ? new Date(input.dueAt) : null,
+        metadata: { phase11TaskType: "follow_up", coaching: true }
+      });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.coaching_task.create", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { assigneeUserId } });
     });
     return this.getOpportunity(actor, opportunityId);
   }

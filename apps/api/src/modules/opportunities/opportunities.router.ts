@@ -8,7 +8,10 @@ import {
   opportunitySortFields,
   opportunityStakeholderSentiments,
   type AcceptOpportunityRequestBody,
+  type AddOpportunityDealReviewRequestBody,
+  type CreateCoachingTaskRequestBody,
   type CreateOpportunityRequestBody,
+  type SetOpportunityForecastRequestBody,
   type OpportunityCloseLostRequestBody,
   type OpportunityCloseWonRequestBody,
   type OpportunityDemoFeedbackBody,
@@ -183,6 +186,29 @@ const closeLostSchema = z.object({
 });
 const reactivateSchema = z.object({ reason: z.string().min(1).max(4000), approverUserId: uuidSchema });
 
+// ---- Persona 12 (Sales Manager) schemas --------------------------------------------------------
+const dealReviewLogSchema = z.object({
+  closeDate: z.string().max(40).nullable().optional(),
+  nextStep: z.string().max(4000).nullable().optional(),
+  stakeholders: z.string().max(8000).nullable().optional(),
+  competitor: z.string().max(2000).nullable().optional(),
+  risks: z.string().max(8000).nullable().optional(),
+  blockers: z.string().max(8000).nullable().optional(),
+  probability: z.coerce.number().int().min(0).max(100).nullable().optional(),
+  comments: z.string().min(1).max(8000)
+});
+const forecastSchema = z.object({
+  forecastCategoryKey: z.string().min(2).max(160).nullable().optional(),
+  managerOverrideCategoryKey: z.string().min(2).max(160).nullable().optional(),
+  overrideReason: z.string().max(4000).nullable().optional()
+});
+const coachingTaskSchema = z.object({
+  assigneeUserId: uuidSchema,
+  title: z.string().min(2).max(200),
+  description: z.string().max(8000).nullable().optional(),
+  dueAt: z.string().datetime().nullable().optional()
+});
+
 // ---- Persona 10 (Enterprise Sales) schemas -----------------------------------------------------
 const setParentSchema = z.object({ parentOpportunityId: uuidSchema.nullable() });
 const tenderSchema = z.object({
@@ -277,6 +303,32 @@ export function createOpportunityRouter({ databaseService }: OpportunityRouterDe
     }),
     asyncHandler(async (request, response) => {
       response.status(200).json(await opportunityService.getOpportunityDashboard(request.auth!, request.query as OpportunityListQuery));
+    })
+  );
+
+  // ---- Persona 12 (Sales Manager) read routes (static, before /:opportunityId) ----------------
+  router.get(
+    "/manager/pipeline",
+    requirePermissions({ oneOf: opportunityReadPermissions }),
+    validateRequest({ query: opportunityListQuerySchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await opportunityService.getManagerPipeline(request.auth!, request.query as OpportunityListQuery));
+    })
+  );
+  router.get(
+    "/manager/forecast",
+    requirePermissions({ oneOf: opportunityReadPermissions }),
+    validateRequest({ query: opportunityListQuerySchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await opportunityService.getManagerForecast(request.auth!, request.query as OpportunityListQuery));
+    })
+  );
+  router.get(
+    "/manager/performance",
+    requirePermissions({ oneOf: opportunityReadPermissions }),
+    validateRequest({ query: opportunityListQuerySchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await opportunityService.getManagerPerformance(request.auth!, request.query as OpportunityListQuery));
     })
   );
 
@@ -539,6 +591,38 @@ export function createOpportunityRouter({ databaseService }: OpportunityRouterDe
     asyncHandler(async (request, response) => {
       response.status(200).json(
         await opportunityService.upsertOpportunityDealReview(request.auth!, auditFrom(request), request.params.opportunityId, request.body as UpsertOpportunityDealReviewRequestBody)
+      );
+    })
+  );
+
+  // ---- Persona 12 (Sales Manager) write routes ------------------------------------------------
+  router.post(
+    "/:opportunityId/deal-review-log",
+    requirePermissions({ oneOf: opportunityUpdatePermissions }),
+    validateRequest({ params: opportunityIdSchema, body: dealReviewLogSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await opportunityService.addOpportunityDealReview(request.auth!, auditFrom(request), request.params.opportunityId, request.body as AddOpportunityDealReviewRequestBody)
+      );
+    })
+  );
+  router.post(
+    "/:opportunityId/forecast",
+    requirePermissions({ oneOf: opportunityUpdatePermissions }),
+    validateRequest({ params: opportunityIdSchema, body: forecastSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await opportunityService.setOpportunityForecast(request.auth!, auditFrom(request), request.params.opportunityId, request.body as SetOpportunityForecastRequestBody)
+      );
+    })
+  );
+  router.post(
+    "/:opportunityId/coaching-task",
+    requirePermissions({ oneOf: opportunityUpdatePermissions }),
+    validateRequest({ params: opportunityIdSchema, body: coachingTaskSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await opportunityService.createCoachingTask(request.auth!, auditFrom(request), request.params.opportunityId, request.body as CreateCoachingTaskRequestBody)
       );
     })
   );

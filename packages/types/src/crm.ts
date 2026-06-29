@@ -1286,6 +1286,8 @@ export interface OpportunityDetail extends OpportunitySummary {
   execWorkspace: OpportunityExecWorkspace;
   // Persona 10 (Enterprise Sales) state.
   enterprise: OpportunityEnterpriseView;
+  // Persona 12 (Sales Manager) deal-review history.
+  managerDealReviews: OpportunityDealReviewEntry[];
   aiPlaceholders: OpportunityAiPlaceholderSummary;
 }
 
@@ -1352,6 +1354,7 @@ export interface OpportunityOptionsResponse {
   proposalTemplates: CrmOptionValueSummary[];
   lossReasons: CrmOptionValueSummary[];
   tenderChecklistItems: OpportunityTenderChecklistItemDefinition[];
+  forecastCategories: CrmOptionValueSummary[];
 }
 
 // ---- Persona 9 (Account Executive) --------------------------------------------------------------
@@ -1684,6 +1687,142 @@ export interface OpportunityDashboardResponse {
   stageDistribution: OpportunityStageDistributionItem[];
   forecastPlaceholder: OpportunityPlaceholderSurface;
   dealRiskPlaceholder: OpportunityPlaceholderSurface;
+}
+
+// ---- Persona 12 (Sales Manager) ----------------------------------------------------------------
+
+export const managerDealRisks = ["low", "medium", "high"] as const;
+export type ManagerDealRisk = (typeof managerDealRisks)[number];
+
+export interface ManagerOwnerPipeline {
+  owner: CrmLookupUserSummary | null;
+  openCount: number;
+  pipelineValue: number;
+  weightedValue: number;
+}
+
+export interface ManagerAgingBucket {
+  bucket: string;
+  count: number;
+  value: number;
+}
+
+export interface ManagerPipelineDeal {
+  id: string;
+  name: string;
+  owner: CrmLookupUserSummary | null;
+  stage: CrmOptionValueSummary | null;
+  amount: number | null;
+  probability: number | null;
+  expectedCloseDate: string | null;
+  ageDays: number;
+  risk: ManagerDealRisk;
+  riskReasons: string[];
+}
+
+export interface ManagerPipelineResponse {
+  totalOpen: number;
+  pipelineValue: number;
+  weightedValue: number;
+  byOwner: ManagerOwnerPipeline[];
+  byStage: OpportunityStageDistributionItem[];
+  aging: ManagerAgingBucket[];
+  highRiskDeals: ManagerPipelineDeal[];
+  aiPlaceholder: { available: false; message: string };
+}
+
+export interface ManagerPerformanceRep {
+  owner: CrmLookupUserSummary | null;
+  openCount: number;
+  wonCount: number;
+  lostCount: number;
+  winRate: number;
+  conversionRate: number;
+  avgDealSize: number;
+  avgCycleDays: number;
+}
+
+export interface ManagerPerformanceResponse {
+  reps: ManagerPerformanceRep[];
+  aiPlaceholder: { available: false; message: string };
+}
+
+export interface ManagerForecastCategoryEntry {
+  category: CrmOptionValueSummary | null;
+  count: number;
+  value: number;
+}
+
+export interface ManagerForecastResponse {
+  categories: ManagerForecastCategoryEntry[];
+  wonValue: number;
+  openWeightedValue: number;
+  aiPlaceholder: { available: false; message: string };
+}
+
+export interface OpportunityDealReviewEntry {
+  id: string;
+  stage: string | null;
+  closeDate: string | null;
+  nextStep: string | null;
+  stakeholders: string | null;
+  competitor: string | null;
+  risks: string | null;
+  blockers: string | null;
+  probability: number | null;
+  comments: string | null;
+  reviewedBy: CrmLookupUserSummary | null;
+  createdAt: string;
+}
+
+export interface AddOpportunityDealReviewRequestBody {
+  closeDate?: string | null;
+  nextStep?: string | null;
+  stakeholders?: string | null;
+  competitor?: string | null;
+  risks?: string | null;
+  blockers?: string | null;
+  probability?: number | null;
+  comments: string;
+}
+
+export interface SetOpportunityForecastRequestBody {
+  forecastCategoryKey?: string | null;
+  managerOverrideCategoryKey?: string | null;
+  overrideReason?: string | null;
+}
+
+export interface CreateCoachingTaskRequestBody {
+  assigneeUserId: string;
+  title: string;
+  description?: string | null;
+  dueAt?: string | null;
+}
+
+export interface ManagerLeadSlaLead {
+  id: string;
+  fullName: string;
+  companyName: string;
+  owner: CrmLookupUserSummary | null;
+  status: CrmOptionValueSummary | null;
+  slaStatus: SlaStatus | null;
+  slaDueAt: string | null;
+  untouched: boolean;
+  accepted: boolean;
+}
+
+export interface ManagerLeadSlaResponse {
+  assignedCount: number;
+  acceptedCount: number;
+  overdueFirstContactCount: number;
+  untouchedCount: number;
+  breachedCount: number;
+  leads: ManagerLeadSlaLead[];
+}
+
+export interface ReassignLeadRequestBody {
+  ownerId: string;
+  reason: string;
 }
 
 export const campaignSortFields = [

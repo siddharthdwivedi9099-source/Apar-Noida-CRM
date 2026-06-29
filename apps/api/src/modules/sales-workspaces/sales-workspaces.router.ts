@@ -3,6 +3,7 @@ import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import type {
   MarkLeadNoShowRequestBody,
+  ReassignLeadRequestBody,
   ScheduleLeadMeetingRequestBody,
   UpdateLeadWorkspaceRequestBody
 } from "@crm/types";
@@ -176,6 +177,38 @@ export function createSalesWorkspacesRouter({ databaseService }: SalesWorkspaces
     requirePermissions({ oneOf: salesWorkspaceReadPermissions }),
     asyncHandler(async (request, response) => {
       response.status(200).json(await salesWorkspacesService.getInsideSalesWorkspace(request.auth!));
+    })
+  );
+
+  // ---- Persona 12 (Sales Manager) lead SLA monitoring (SMGR-002) -------------------------------
+  router.get(
+    "/manager/lead-sla",
+    requirePermissions({ oneOf: salesWorkspaceReadPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await salesWorkspacesService.getManagerLeadSla(request.auth!));
+    })
+  );
+
+  router.post(
+    "/leads/:leadId/reassign",
+    requirePermissions({ oneOf: salesWorkspaceUpdatePermissions }),
+    validateRequest({
+      params: leadIdSchema,
+      body: z.object({ ownerId: uuidSchema, reason: z.string().min(1).max(4000) })
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await salesWorkspacesService.reassignLead(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.leadId,
+          request.body as ReassignLeadRequestBody
+        )
+      );
     })
   );
 

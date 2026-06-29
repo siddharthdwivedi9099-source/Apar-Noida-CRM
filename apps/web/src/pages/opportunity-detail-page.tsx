@@ -21,6 +21,7 @@ import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { OpportunityExecActions } from "@/components/opportunities/opportunity-exec-actions";
 import { OpportunityEnterpriseActions } from "@/components/opportunities/opportunity-enterprise-actions";
+import { OpportunityManagerCard } from "@/components/opportunities/opportunity-manager-card";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import {
@@ -54,6 +55,7 @@ export function OpportunityDetailPage() {
     "opportunities.manage_workflow"
   ]);
   const canDelete = hasAnyPermission(["opportunities.delete", "opportunities.configure"]);
+  const canManage = hasAnyPermission(["opportunities.manage_workflow", "opportunities.view_dashboard", "opportunities.configure"]);
   const canManageProductivity = hasAnyPermission([
     "opportunities.create",
     "opportunities.edit",
@@ -410,6 +412,14 @@ export function OpportunityDetailPage() {
         options={optionsResponse}
         accessToken={accessToken}
         canEdit={canEdit}
+        onReload={loadOpportunity}
+      />
+
+      <OpportunityManagerCard
+        detail={opportunity}
+        options={optionsResponse}
+        accessToken={accessToken}
+        canManage={canManage}
         onReload={loadOpportunity}
       />
 
