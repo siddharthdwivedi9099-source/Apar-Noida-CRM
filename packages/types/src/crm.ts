@@ -1107,7 +1107,29 @@ export interface OpportunityListQuery {
   sortOrder?: CrmSortOrder;
 }
 
-export interface OpportunityStakeholderSummary extends ContactRelationshipSummary {}
+export const opportunityStakeholderSentiments = ["positive", "neutral", "negative"] as const;
+export type OpportunityStakeholderSentiment = (typeof opportunityStakeholderSentiments)[number];
+export const opportunityInfluenceLevels = ["low", "medium", "high", "champion", "blocker"] as const;
+export type OpportunityInfluenceLevel = (typeof opportunityInfluenceLevels)[number];
+export const opportunityRelationshipStrengths = ["none", "developing", "engaged", "strong"] as const;
+export type OpportunityRelationshipStrength = (typeof opportunityRelationshipStrengths)[number];
+
+// AE-003: stakeholder mapping enrichment (stored in opportunity metadata keyed by contact id).
+export interface OpportunityStakeholderSummary extends ContactRelationshipSummary {
+  roleKey: string | null;
+  roleLabel: string | null;
+  influence: OpportunityInfluenceLevel | null;
+  sentiment: OpportunityStakeholderSentiment | null;
+  relationship: OpportunityRelationshipStrength | null;
+}
+
+export interface OpportunityStakeholderProfileInput {
+  contactId: string;
+  roleKey?: string | null;
+  influence?: OpportunityInfluenceLevel | null;
+  sentiment?: OpportunityStakeholderSentiment | null;
+  relationship?: OpportunityRelationshipStrength | null;
+}
 
 export interface OpportunityPlaceholderSurface {
   available: false;
@@ -1120,7 +1142,11 @@ export interface OpportunityAiPlaceholderAction {
     | "deal_risk"
     | "next_best_action"
     | "proposal_draft"
-    | "win_probability";
+    | "win_probability"
+    | "discovery_summary"
+    | "engagement_strategy"
+    | "negotiation_risk"
+    | "lessons_learned";
   label: string;
   description: string;
 }
@@ -1171,6 +1197,8 @@ export interface OpportunityDetail extends OpportunitySummary {
   productsServicesPlaceholder: OpportunityPlaceholderSurface;
   forecastPlaceholder: OpportunityPlaceholderSurface;
   dealRiskPlaceholder: OpportunityPlaceholderSurface;
+  // Persona 9 (AE) workspace state.
+  execWorkspace: OpportunityExecWorkspace;
   aiPlaceholders: OpportunityAiPlaceholderSummary;
 }
 
@@ -1231,6 +1259,207 @@ export interface OpportunityOptionsResponse {
   availableScopes: OpportunityPipelineScope[];
   fieldDefinitions: CrmFieldDefinition[];
   customFieldOptions: Record<string, CrmOptionValueSummary[]>;
+  // Persona 9 (AE) configuration.
+  discoveryFields: LeadDiscoveryFieldDefinition[];
+  stakeholderRoles: CrmOptionValueSummary[];
+  proposalTemplates: CrmOptionValueSummary[];
+  lossReasons: CrmOptionValueSummary[];
+}
+
+// ---- Persona 9 (Account Executive) --------------------------------------------------------------
+
+export const opportunityAcceptanceStatuses = ["pending", "accepted", "rejected"] as const;
+export type OpportunityAcceptanceStatus = (typeof opportunityAcceptanceStatuses)[number];
+
+export interface OpportunityAcceptanceState {
+  status: OpportunityAcceptanceStatus;
+  acceptedAt: string | null;
+  rejectedReason: string | null;
+  slaStartedAt: string | null;
+}
+
+export const opportunityProposalStatuses = ["draft", "pending_approval", "approved", "sent"] as const;
+export type OpportunityProposalStatus = (typeof opportunityProposalStatuses)[number];
+
+export interface OpportunityProposalState {
+  templateKey: string | null;
+  scope: string | null;
+  pricing: string | null;
+  timeline: string | null;
+  terms: string | null;
+  assumptions: string | null;
+  exclusions: string | null;
+  executiveSummary: string | null;
+  status: OpportunityProposalStatus;
+  approvalId: string | null;
+  updatedAt: string | null;
+}
+
+export const opportunityDiscountStatuses = ["none", "pending_approval", "approved", "rejected"] as const;
+export type OpportunityDiscountStatus = (typeof opportunityDiscountStatuses)[number];
+
+export interface OpportunityDiscountState {
+  percent: number | null;
+  justification: string | null;
+  competitorContext: string | null;
+  marginImpact: string | null;
+  value: number | null;
+  closeProbability: number | null;
+  status: OpportunityDiscountStatus;
+  approvalId: string | null;
+  requestedAt: string | null;
+}
+
+export interface OpportunityNegotiationState {
+  commercialAsks: string | null;
+  legalAsks: string | null;
+  procurementBlockers: string | null;
+  competitorOffers: string | null;
+  finalPrice: number | null;
+  nextAction: string | null;
+  updatedAt: string | null;
+}
+
+export interface OpportunityDemoState {
+  useCase: string | null;
+  audience: string | null;
+  painPoints: string | null;
+  modules: string | null;
+  desiredOutcome: string | null;
+  requestedDate: string | null;
+  presalesOwnerId: string | null;
+  presalesOwnerName: string | null;
+  status: "requested" | "scheduled" | "delivered" | "cancelled";
+  feedback: string | null;
+  requestedAt: string | null;
+}
+
+export interface OpportunityCloseWonState {
+  finalValue: number | null;
+  contractStatus: string | null;
+  poStatus: string | null;
+  billingTerms: string | null;
+  startDate: string | null;
+  implementationScope: string | null;
+  onboardingOwnerId: string | null;
+  onboardingOwnerName: string | null;
+  handoverNote: string | null;
+}
+
+export interface OpportunityCloseLostState {
+  lossReasonKey: string | null;
+  lossReasonLabel: string | null;
+  competitor: string | null;
+  revisitDate: string | null;
+  reactivationStatus: "none" | "pending_approval" | "reactivated";
+  reactivationApprovalId: string | null;
+}
+
+export interface OpportunityStageRequirementView {
+  stageKey: string;
+  requiredFields: string[];
+  missingFields: string[];
+  satisfied: boolean;
+}
+
+// AE workspace state assembled on the opportunity detail.
+export interface OpportunityExecWorkspace {
+  acceptance: OpportunityAcceptanceState;
+  discovery: LeadDiscoveryView;
+  buyingCommittee: BdBuyingCommitteeView;
+  negotiation: OpportunityNegotiationState;
+  proposal: OpportunityProposalState | null;
+  discount: OpportunityDiscountState;
+  demo: OpportunityDemoState | null;
+  closeWon: OpportunityCloseWonState | null;
+  closeLost: OpportunityCloseLostState | null;
+  stageRequirement: OpportunityStageRequirementView;
+}
+
+export interface AcceptOpportunityRequestBody {
+  slaHours?: number | null;
+}
+
+export interface RejectOpportunityRequestBody {
+  reason: string;
+  reassignToUserId?: string | null;
+}
+
+export interface OpportunityDiscoveryUpdateBody {
+  discovery: Record<string, string>;
+}
+
+export interface OpportunityStakeholderProfilesUpdateBody {
+  profiles: OpportunityStakeholderProfileInput[];
+}
+
+export interface OpportunityNegotiationUpdateBody {
+  commercialAsks?: string | null;
+  legalAsks?: string | null;
+  procurementBlockers?: string | null;
+  competitorOffers?: string | null;
+  finalPrice?: number | null;
+  nextAction?: string | null;
+}
+
+export interface OpportunityDemoRequestBody {
+  useCase: string;
+  audience?: string | null;
+  painPoints?: string | null;
+  modules?: string | null;
+  desiredOutcome?: string | null;
+  requestedDate?: string | null;
+  presalesOwnerId: string;
+}
+
+export interface OpportunityDemoFeedbackBody {
+  status?: OpportunityDemoState["status"];
+  feedback?: string | null;
+}
+
+export interface OpportunityProposalRequestBody {
+  templateKey?: string | null;
+  scope?: string | null;
+  pricing?: string | null;
+  timeline?: string | null;
+  terms?: string | null;
+  assumptions?: string | null;
+  exclusions?: string | null;
+  executiveSummary?: string | null;
+  requireApproval?: boolean;
+  approverUserId?: string | null;
+}
+
+export interface OpportunityDiscountRequestBody {
+  percent: number;
+  justification: string;
+  competitorContext?: string | null;
+  marginImpact?: string | null;
+  value?: number | null;
+  closeProbability?: number | null;
+  approverUserId: string;
+}
+
+export interface OpportunityCloseWonRequestBody {
+  finalValue: number;
+  contractStatus: string;
+  poStatus: string;
+  billingTerms: string;
+  startDate: string;
+  implementationScope: string;
+  onboardingOwnerId: string;
+  handoverNote: string;
+}
+
+export interface OpportunityCloseLostRequestBody {
+  lossReasonKey: string;
+  competitor?: string | null;
+  revisitDate?: string | null;
+}
+
+export interface OpportunityReactivateRequestBody {
+  reason: string;
+  approverUserId: string;
 }
 
 export interface OpportunityDashboardResponse {

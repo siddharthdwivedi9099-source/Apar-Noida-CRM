@@ -1538,6 +1538,54 @@ export const defaultCoreCrmStandardPicklistDefinitions: TenantOptionSetSeedDefin
     ]
   }),
   optionSet({
+    setKey: "opportunity-discovery-field",
+    moduleKey: "opportunities",
+    kind: "dropdown",
+    name: "Opportunity Discovery Field",
+    description:
+      "Configurable AE discovery-call fields (AE-004). `metadata.required` count toward completeness; `metadata.critical` fields block the opportunity from moving forward.",
+    values: [
+      { key: "business_problem", label: "Business problem", sortOrder: 0, isDefault: true, metadata: { required: true, critical: true } },
+      { key: "current_process", label: "Current process", sortOrder: 1, metadata: { required: false, critical: false } },
+      { key: "urgency", label: "Urgency", sortOrder: 2, metadata: { required: true, critical: false } },
+      { key: "success_metrics", label: "Success metrics", sortOrder: 3, metadata: { required: true, critical: false } },
+      { key: "budget", label: "Budget", sortOrder: 4, metadata: { required: true, critical: true } },
+      { key: "timeline", label: "Timeline", sortOrder: 5, metadata: { required: true, critical: false } },
+      { key: "decision_criteria", label: "Decision criteria", sortOrder: 6, metadata: { required: true, critical: true } },
+      { key: "procurement_process", label: "Procurement process", sortOrder: 7, metadata: { required: false, critical: false } },
+      { key: "risks", label: "Risks", sortOrder: 8, metadata: { required: false, critical: false } }
+    ]
+  }),
+  optionSet({
+    setKey: "opportunity-stakeholder-role",
+    moduleKey: "opportunities",
+    kind: "dropdown",
+    name: "Opportunity Stakeholder Role",
+    description: "Buying-committee roles for opportunity stakeholder mapping (AE-003).",
+    values: [
+      { key: "decision_maker", label: "Decision Maker", sortOrder: 0, isDefault: true },
+      { key: "influencer", label: "Influencer", sortOrder: 1 },
+      { key: "evaluator", label: "Evaluator", sortOrder: 2 },
+      { key: "procurement", label: "Procurement", sortOrder: 3 },
+      { key: "finance", label: "Finance", sortOrder: 4 },
+      { key: "technical", label: "Technical", sortOrder: 5 },
+      { key: "user", label: "User", sortOrder: 6 },
+      { key: "executive", label: "Executive", sortOrder: 7 }
+    ]
+  }),
+  optionSet({
+    setKey: "opportunity-proposal-template",
+    moduleKey: "opportunities",
+    kind: "dropdown",
+    name: "Opportunity Proposal Template",
+    description: "Configurable proposal templates pulled into AE proposal generation (AE-006).",
+    values: [
+      { key: "standard", label: "Standard proposal", sortOrder: 0, isDefault: true },
+      { key: "enterprise", label: "Enterprise proposal", sortOrder: 1 },
+      { key: "services", label: "Services / SOW", sortOrder: 2 }
+    ]
+  }),
+  optionSet({
     setKey: "campaign-type",
     moduleKey: "campaigns",
     kind: "dropdown",
@@ -1744,6 +1792,9 @@ export const coreCrmRequiredPicklistKeys = [
   "opportunity-type",
   "forecast-category",
   "loss-reason",
+  "opportunity-discovery-field",
+  "opportunity-stakeholder-role",
+  "opportunity-proposal-template",
   "campaign-type",
   "activity-type",
   "task-status",

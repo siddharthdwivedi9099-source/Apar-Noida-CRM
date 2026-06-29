@@ -1,4 +1,5 @@
 import type {
+  AcceptOpportunityRequestBody,
   AccountLookupSummary,
   ContactRelationshipSummary,
   CreateOpportunityRequestBody,
@@ -6,24 +7,47 @@ import type {
   CrmMutationSuccessResponse,
   CrmOptionValueSummary,
   CrmPagination,
+  LeadDiscoveryFieldDefinition,
+  OpportunityAcceptanceState,
   OpportunityAiPlaceholderSummary,
+  OpportunityCloseLostRequestBody,
+  OpportunityCloseWonRequestBody,
   OpportunityDashboardResponse,
+  OpportunityDemoFeedbackBody,
+  OpportunityDemoRequestBody,
+  OpportunityDemoState,
   OpportunityDetail,
+  OpportunityDiscountRequestBody,
+  OpportunityDiscountState,
+  OpportunityDiscoveryUpdateBody,
+  OpportunityExecWorkspace,
   OpportunityListQuery,
+  OpportunityNegotiationState,
+  OpportunityNegotiationUpdateBody,
   OpportunityOptionsResponse,
   OpportunityPipelineScope,
+  OpportunityProposalRequestBody,
+  OpportunityProposalState,
+  OpportunityReactivateRequestBody,
   OpportunityResponse,
   OpportunityStageDistributionItem,
+  OpportunityStakeholderProfilesUpdateBody,
+  OpportunityStakeholderSummary,
   OpportunitySummary,
   OpportunitiesResponse,
+  RejectOpportunityRequestBody,
   RoleSummary,
   UpdateOpportunityRequestBody
 } from "@crm/types";
+import { evaluateBuyingCommitteeCompleteness, evaluateDiscovery } from "@crm/types";
+import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { getPositiveNumber } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 import { CrmService } from "../crm/crm.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
+import { ApprovalService } from "../approvals/approvals.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -226,6 +250,57 @@ function getTrimmedNullableString(value: string | null | undefined) {
   return trimmedValue.length > 0 ? trimmedValue : null;
 }
 
+// ---- Persona 9 (AE) metadata helpers -----------------------------------------------------------
+
+function metaString(value: Record<string, unknown> | null | undefined, key: string): string | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = (value as Record<string, unknown>)[key];
+  return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : null;
+}
+
+function metaNumber(value: Record<string, unknown> | null | undefined, key: string): number | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = (value as Record<string, unknown>)[key];
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+}
+
+function getRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+// Root for all AE workspace state stored under opportunity metadata.
+function getSalesExecRoot(metadata: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  return getRecord(getMetadata(metadata).salesExec);
+}
+
+function readAcceptance(root: Record<string, unknown>): OpportunityAcceptanceState {
+  const source = getRecord(root.acceptance);
+  const status = source.status === "accepted" ? "accepted" : source.status === "rejected" ? "rejected" : "pending";
+  return {
+    status,
+    acceptedAt: metaString(source, "acceptedAt"),
+    rejectedReason: metaString(source, "rejectedReason"),
+    slaStartedAt: metaString(source, "slaStartedAt")
+  };
+}
+
+function readNegotiation(root: Record<string, unknown>): OpportunityNegotiationState {
+  const source = getRecord(root.negotiation);
+  return {
+    commercialAsks: metaString(source, "commercialAsks"),
+    legalAsks: metaString(source, "legalAsks"),
+    procurementBlockers: metaString(source, "procurementBlockers"),
+    competitorOffers: metaString(source, "competitorOffers"),
+    finalPrice: metaNumber(source, "finalPrice"),
+    nextAction: metaString(source, "nextAction"),
+    updatedAt: metaString(source, "updatedAt")
+  };
+}
+
 function getPagination(total: number, page: number, pageSize: number): CrmPagination {
   const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
 
@@ -406,12 +481,16 @@ function getDateOnlyString(value: string | null) {
 
 export class OpportunityService {
   private readonly crmService: CrmService;
+  private readonly notificationService: NotificationService;
+  private readonly approvalService: ApprovalService;
 
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
   ) {
     this.crmService = new CrmService(databaseService, config);
+    this.notificationService = new NotificationService(databaseService, config);
+    this.approvalService = new ApprovalService(databaseService, config);
   }
 
   private assertEnabled() {
@@ -1171,6 +1250,26 @@ export class OpportunityService {
               key: "win_probability",
               label: "Win probability",
               description: "Placeholder entry point for future AI-assisted win likelihood projections."
+            },
+            {
+              key: "discovery_summary",
+              label: "Discovery summary",
+              description: "Placeholder entry point for future AI summaries of captured discovery."
+            },
+            {
+              key: "engagement_strategy",
+              label: "Engagement strategy",
+              description: "Placeholder entry point for future AI stakeholder engagement recommendations."
+            },
+            {
+              key: "negotiation_risk",
+              label: "Negotiation risk",
+              description: "Placeholder entry point for future AI risk detection across negotiation points."
+            },
+            {
+              key: "lessons_learned",
+              label: "Lessons learned",
+              description: "Placeholder entry point for future AI loss-analysis summaries."
             }
           ]
         : [],
@@ -1490,6 +1589,253 @@ export class OpportunityService {
     return row;
   }
 
+  // ---- Persona 9 (AE) helpers ------------------------------------------------------------------
+
+  private async loadOptionValueMetaRows(client: PoolClient, tenantId: string, setKey: string) {
+    const result = await client.query<{ key: string; label: string; description: string | null; sort_order: number; metadata: Record<string, unknown> | null }>(
+      `
+        SELECT
+          tenant_option_values.value_key AS key,
+          tenant_option_values.label,
+          tenant_option_values.description,
+          tenant_option_values.sort_order,
+          tenant_option_values.metadata
+        FROM tenant_option_sets
+        INNER JOIN tenant_option_values
+          ON tenant_option_values.option_set_id = tenant_option_sets.id
+         AND tenant_option_values.tenant_id = tenant_option_sets.tenant_id
+        WHERE tenant_option_sets.tenant_id = $1
+          AND tenant_option_sets.set_key = $2
+          AND tenant_option_sets.deleted_at IS NULL
+          AND tenant_option_values.deleted_at IS NULL
+          AND tenant_option_values.is_active = true
+        ORDER BY tenant_option_values.sort_order ASC, tenant_option_values.label ASC
+      `,
+      [tenantId, setKey]
+    );
+    return result.rows;
+  }
+
+  private async loadAeConfig(client: PoolClient, tenantId: string) {
+    const discoveryRows = await this.loadOptionValueMetaRows(client, tenantId, "opportunity-discovery-field");
+    const discoveryFields: LeadDiscoveryFieldDefinition[] = discoveryRows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      description: row.description,
+      required: (row.metadata as Record<string, unknown> | null)?.required === true,
+      sortOrder: row.sort_order
+    }));
+    const criticalDiscoveryKeys = discoveryRows
+      .filter((row) => (row.metadata as Record<string, unknown> | null)?.critical === true)
+      .map((row) => row.key);
+    const stakeholderRoles = await this.loadOptionSetValues(client, tenantId, "opportunity-stakeholder-role");
+    const proposalTemplates = await this.loadOptionSetValues(client, tenantId, "opportunity-proposal-template");
+    const lossReasons = await this.loadOptionSetValues(client, tenantId, "loss-reason");
+    // Stage -> required field tokens (configurable via opportunity-pipeline option metadata).
+    const stageRows = await this.loadOptionValueMetaRows(client, tenantId, "opportunity-pipeline");
+    const stageRequirements = new Map<string, string[]>();
+    for (const row of stageRows) {
+      const raw = (row.metadata as Record<string, unknown> | null)?.requiredFields;
+      if (Array.isArray(raw)) {
+        stageRequirements.set(row.key, raw.filter((value): value is string => typeof value === "string"));
+      }
+    }
+    return { discoveryFields, criticalDiscoveryKeys, stakeholderRoles, proposalTemplates, lossReasons, stageRequirements };
+  }
+
+  private computeMissingStageFields(
+    requiredFields: string[],
+    context: {
+      amount: number | null;
+      expectedCloseDate: string | null;
+      primaryContactId: string | null;
+      stakeholderCount: number;
+      criticalDiscoverySatisfied: boolean;
+    }
+  ): string[] {
+    const missing: string[] = [];
+    for (const field of requiredFields) {
+      if (field === "amount" && (context.amount === null || context.amount <= 0)) missing.push("amount");
+      else if (field === "expectedCloseDate" && !context.expectedCloseDate) missing.push("expectedCloseDate");
+      else if (field === "primaryContact" && !context.primaryContactId) missing.push("primaryContact");
+      else if (field === "stakeholders" && context.stakeholderCount <= 0) missing.push("stakeholders");
+      else if (field === "criticalDiscovery" && !context.criticalDiscoverySatisfied) missing.push("criticalDiscovery");
+    }
+    return missing;
+  }
+
+  private mapStakeholdersWithProfiles(
+    contacts: ContactRelationshipSummary[],
+    root: Record<string, unknown>,
+    stakeholderRoles: CrmOptionValueSummary[]
+  ): OpportunityStakeholderSummary[] {
+    const profiles = getRecord(root.stakeholderProfiles);
+    const roleMap = new Map(stakeholderRoles.map((role) => [role.key, role.label]));
+    return contacts.map((contact) => {
+      const profile = getRecord(profiles[contact.id]);
+      const roleKey = metaString(profile, "roleKey");
+      const influence = profile.influence;
+      const sentiment = profile.sentiment;
+      const relationship = profile.relationship;
+      return {
+        ...contact,
+        roleKey,
+        roleLabel: roleKey ? roleMap.get(roleKey) ?? null : null,
+        influence:
+          influence === "low" || influence === "medium" || influence === "high" || influence === "champion" || influence === "blocker"
+            ? influence
+            : null,
+        sentiment: sentiment === "positive" || sentiment === "neutral" || sentiment === "negative" ? sentiment : null,
+        relationship:
+          relationship === "none" || relationship === "developing" || relationship === "engaged" || relationship === "strong"
+            ? relationship
+            : null
+      } satisfies OpportunityStakeholderSummary;
+    });
+  }
+
+  private buildExecWorkspace(
+    row: OpportunityRecordRow,
+    stakeholders: OpportunityStakeholderSummary[],
+    config: Awaited<ReturnType<OpportunityService["loadAeConfig"]>>
+  ): OpportunityExecWorkspace {
+    const root = getSalesExecRoot(row.metadata);
+    const discovery = evaluateDiscovery(config.discoveryFields, getRecord(root.discovery) as Record<string, string>);
+    const buyingCommittee = evaluateBuyingCommitteeCompleteness(
+      config.stakeholderRoles,
+      stakeholders.map((stakeholder) => stakeholder.roleKey)
+    );
+    const criticalDiscoverySatisfied = config.criticalDiscoveryKeys.every((key) =>
+      discovery.items.some((item) => item.key === key && item.completed)
+    );
+    const stageKey = row.stage_key ?? "";
+    const requiredFields = config.stageRequirements.get(stageKey) ?? [];
+    const missingFields = this.computeMissingStageFields(requiredFields, {
+      amount: toNullableNumber(row.amount),
+      expectedCloseDate: row.expected_close_date ?? null,
+      primaryContactId: row.primary_contact_id ?? null,
+      stakeholderCount: stakeholders.length,
+      criticalDiscoverySatisfied
+    });
+
+    const proposalRoot = root.proposal ? getRecord(root.proposal) : null;
+    const proposal: OpportunityProposalState | null = proposalRoot
+      ? {
+          templateKey: metaString(proposalRoot, "templateKey"),
+          scope: metaString(proposalRoot, "scope"),
+          pricing: metaString(proposalRoot, "pricing"),
+          timeline: metaString(proposalRoot, "timeline"),
+          terms: metaString(proposalRoot, "terms"),
+          assumptions: metaString(proposalRoot, "assumptions"),
+          exclusions: metaString(proposalRoot, "exclusions"),
+          executiveSummary: metaString(proposalRoot, "executiveSummary"),
+          status: (["draft", "pending_approval", "approved", "sent"].includes(String(proposalRoot.status))
+            ? proposalRoot.status
+            : "draft") as OpportunityProposalState["status"],
+          approvalId: metaString(proposalRoot, "approvalId"),
+          updatedAt: metaString(proposalRoot, "updatedAt")
+        }
+      : null;
+
+    const discountRoot = getRecord(root.discount);
+    const discount: OpportunityDiscountState = {
+      percent: metaNumber(discountRoot, "percent"),
+      justification: metaString(discountRoot, "justification"),
+      competitorContext: metaString(discountRoot, "competitorContext"),
+      marginImpact: metaString(discountRoot, "marginImpact"),
+      value: metaNumber(discountRoot, "value"),
+      closeProbability: metaNumber(discountRoot, "closeProbability"),
+      status: (["none", "pending_approval", "approved", "rejected"].includes(String(discountRoot.status))
+        ? discountRoot.status
+        : "none") as OpportunityDiscountState["status"],
+      approvalId: metaString(discountRoot, "approvalId"),
+      requestedAt: metaString(discountRoot, "requestedAt")
+    };
+
+    const demoRoot = root.demo ? getRecord(root.demo) : null;
+    const demo: OpportunityDemoState | null = demoRoot
+      ? {
+          useCase: metaString(demoRoot, "useCase"),
+          audience: metaString(demoRoot, "audience"),
+          painPoints: metaString(demoRoot, "painPoints"),
+          modules: metaString(demoRoot, "modules"),
+          desiredOutcome: metaString(demoRoot, "desiredOutcome"),
+          requestedDate: metaString(demoRoot, "requestedDate"),
+          presalesOwnerId: metaString(demoRoot, "presalesOwnerId"),
+          presalesOwnerName: metaString(demoRoot, "presalesOwnerName"),
+          status: (["requested", "scheduled", "delivered", "cancelled"].includes(String(demoRoot.status))
+            ? demoRoot.status
+            : "requested") as OpportunityDemoState["status"],
+          feedback: metaString(demoRoot, "feedback"),
+          requestedAt: metaString(demoRoot, "requestedAt")
+        }
+      : null;
+
+    const closeWonRoot = root.closeWon ? getRecord(root.closeWon) : null;
+    const closeWon = closeWonRoot
+      ? {
+          finalValue: metaNumber(closeWonRoot, "finalValue"),
+          contractStatus: metaString(closeWonRoot, "contractStatus"),
+          poStatus: metaString(closeWonRoot, "poStatus"),
+          billingTerms: metaString(closeWonRoot, "billingTerms"),
+          startDate: metaString(closeWonRoot, "startDate"),
+          implementationScope: metaString(closeWonRoot, "implementationScope"),
+          onboardingOwnerId: metaString(closeWonRoot, "onboardingOwnerId"),
+          onboardingOwnerName: metaString(closeWonRoot, "onboardingOwnerName"),
+          handoverNote: metaString(closeWonRoot, "handoverNote")
+        }
+      : null;
+
+    const closeLostRoot = root.closeLost ? getRecord(root.closeLost) : null;
+    const closeLost = closeLostRoot
+      ? {
+          lossReasonKey: metaString(closeLostRoot, "lossReasonKey"),
+          lossReasonLabel: metaString(closeLostRoot, "lossReasonLabel"),
+          competitor: metaString(closeLostRoot, "competitor"),
+          revisitDate: metaString(closeLostRoot, "revisitDate"),
+          reactivationStatus: (["none", "pending_approval", "reactivated"].includes(String(closeLostRoot.reactivationStatus))
+            ? closeLostRoot.reactivationStatus
+            : "none") as "none" | "pending_approval" | "reactivated",
+          reactivationApprovalId: metaString(closeLostRoot, "reactivationApprovalId")
+        }
+      : null;
+
+    return {
+      acceptance: readAcceptance(root),
+      discovery,
+      buyingCommittee,
+      negotiation: readNegotiation(root),
+      proposal,
+      discount,
+      demo,
+      closeWon,
+      closeLost,
+      stageRequirement: {
+        stageKey,
+        requiredFields,
+        missingFields,
+        satisfied: missingFields.length === 0
+      }
+    };
+  }
+
+  // Persist a partial AE state patch into opportunity metadata.salesExec within a transaction.
+  private async patchSalesExec(
+    client: PoolClient,
+    actor: ActorContext,
+    opportunityId: string,
+    currentMetadata: Record<string, unknown> | null | undefined,
+    patch: Record<string, unknown>
+  ) {
+    const metadata = getMetadata(currentMetadata);
+    const nextMetadata = { ...metadata, salesExec: { ...getSalesExecRoot(metadata), ...patch } };
+    await client.query(
+      `UPDATE opportunities SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [opportunityId, actor.tenantId, JSON.stringify(nextMetadata), actor.userId]
+    );
+    return nextMetadata;
+  }
+
   async getOpportunityOptions(actor: ActorContext): Promise<OpportunityOptionsResponse> {
     this.assertEnabled();
 
@@ -1506,6 +1852,7 @@ export class OpportunityService {
         this.getAvailableScopes(client, actor),
         customFieldOptionsPromise
       ]);
+      const aeConfig = await this.loadAeConfig(client, actor.tenantId);
 
       return {
         owners,
@@ -1516,7 +1863,11 @@ export class OpportunityService {
         outcomeStatuses,
         availableScopes,
         fieldDefinitions,
-        customFieldOptions
+        customFieldOptions,
+        discoveryFields: aeConfig.discoveryFields,
+        stakeholderRoles: aeConfig.stakeholderRoles,
+        proposalTemplates: aeConfig.proposalTemplates,
+        lossReasons: aeConfig.lossReasons
       };
     });
   }
@@ -1720,11 +2071,18 @@ export class OpportunityService {
     const opportunity = await this.databaseService.withClient(async (client) => {
       const row = await this.loadOpportunityDetailCore(client, actor, opportunityId);
       const stakeholdersByOpportunityId = await this.loadStakeholdersForOpportunities(client, actor.tenantId, [opportunityId]);
+      const aeConfig = await this.loadAeConfig(client, actor.tenantId);
+      const stakeholders = this.mapStakeholdersWithProfiles(
+        stakeholdersByOpportunityId.get(opportunityId) ?? [],
+        getSalesExecRoot(row.metadata),
+        aeConfig.stakeholderRoles
+      );
 
       return {
         ...this.mapOpportunity(row),
         customFields: getMetadata(row.custom_fields),
-        stakeholders: stakeholdersByOpportunityId.get(opportunityId) ?? [],
+        stakeholders,
+        execWorkspace: this.buildExecWorkspace(row, stakeholders, aeConfig),
         productsServicesPlaceholder: {
           available: false as const,
           message: "Products and services will connect to a governed catalog in a later commercial configuration phase."
@@ -2262,5 +2620,413 @@ export class OpportunityService {
 
       return { success: true };
     });
+  }
+
+  // ---- Persona 9 (AE) actions ------------------------------------------------------------------
+
+  private async createOpportunityTask(
+    client: PoolClient,
+    actor: ActorContext,
+    opportunityId: string,
+    input: { title: string; description: string | null; assigneeUserId: string | null; dueAt: Date | null; metadata: Record<string, unknown> }
+  ) {
+    const ownerId = input.assigneeUserId ?? actor.userId;
+    await client.query(
+      `
+        INSERT INTO crm_tasks (
+          tenant_id, entity_type, entity_id, owner_user_id, assignee_user_id, title, description,
+          due_at, priority, status, reminder_at, metadata, created_by, updated_by
+        )
+        VALUES ($1, 'opportunity', $2, $3, $3, $4, $5, $6, 'high', 'open', NULL, $7::jsonb, $8, $8)
+      `,
+      [actor.tenantId, opportunityId, ownerId, input.title, input.description, input.dueAt, JSON.stringify(input.metadata), actor.userId]
+    );
+  }
+
+  async acceptOpportunity(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: AcceptOpportunityRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const acceptance: OpportunityAcceptanceState = {
+        status: "accepted",
+        acceptedAt: new Date().toISOString(),
+        rejectedReason: null,
+        slaStartedAt: new Date().toISOString()
+      };
+      await this.patchSalesExec(client, actor, opportunityId, current.metadata, { acceptance, slaHours: input.slaHours ?? null });
+      await this.recordAuditLog(client, actor, audit, {
+        action: "opportunity.accept",
+        resourceType: "opportunity",
+        resourceId: opportunityId,
+        status: "success",
+        metadata: { slaHours: input.slaHours ?? null }
+      });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async rejectOpportunity(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: RejectOpportunityRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["ownerId"]);
+      const reason = getTrimmedNullableString(input.reason);
+      if (!reason) {
+        throw new AppError(400, "A rejection reason is required.", undefined, "VALIDATION_ERROR");
+      }
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const reassignToUserId = await this.ensureOwnerId(client, actor.tenantId, input.reassignToUserId ?? null);
+      const acceptance: OpportunityAcceptanceState = { status: "rejected", acceptedAt: null, rejectedReason: reason, slaStartedAt: null };
+      const nextMetadata = await this.patchSalesExec(client, actor, opportunityId, current.metadata, { acceptance });
+      // Return the opportunity to the queue: reassign owner (or unassign back to SDR/manager queue).
+      await client.query(
+        `UPDATE opportunities SET owner_id = $3, metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [opportunityId, actor.tenantId, reassignToUserId, JSON.stringify(nextMetadata), actor.userId]
+      );
+      if (reassignToUserId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: reassignToUserId,
+          title: `Opportunity returned to queue: ${current.name}`,
+          message: reason,
+          linkedRecord: { entityType: "opportunity", entityId: opportunityId }
+        });
+      }
+      await this.recordAuditLog(client, actor, audit, {
+        action: "opportunity.reject",
+        resourceType: "opportunity",
+        resourceId: opportunityId,
+        status: "success",
+        metadata: { reason, reassignToUserId }
+      });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async updateOpportunityDiscovery(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityDiscoveryUpdateBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const root = getSalesExecRoot(current.metadata);
+      const merged = { ...getRecord(root.discovery) };
+      for (const [key, value] of Object.entries(input.discovery)) {
+        merged[key] = typeof value === "string" ? value.trim() : "";
+      }
+      await this.patchSalesExec(client, actor, opportunityId, current.metadata, { discovery: merged });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.discovery.update", resourceType: "opportunity", resourceId: opportunityId, status: "success" });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async updateOpportunityStakeholderProfiles(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityStakeholderProfilesUpdateBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const root = getSalesExecRoot(current.metadata);
+      const profiles = { ...getRecord(root.stakeholderProfiles) };
+      for (const profile of input.profiles) {
+        if (!profile.contactId) {
+          continue;
+        }
+        profiles[profile.contactId] = {
+          roleKey: getTrimmedNullableString(profile.roleKey),
+          influence: profile.influence ?? null,
+          sentiment: profile.sentiment ?? null,
+          relationship: profile.relationship ?? null
+        };
+      }
+      await this.patchSalesExec(client, actor, opportunityId, current.metadata, { stakeholderProfiles: profiles });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.stakeholders.update", resourceType: "opportunity", resourceId: opportunityId, status: "success" });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async updateOpportunityNegotiation(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityNegotiationUpdateBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const existing = readNegotiation(getSalesExecRoot(current.metadata));
+      const negotiation: OpportunityNegotiationState = {
+        commercialAsks: input.commercialAsks !== undefined ? getTrimmedNullableString(input.commercialAsks) : existing.commercialAsks,
+        legalAsks: input.legalAsks !== undefined ? getTrimmedNullableString(input.legalAsks) : existing.legalAsks,
+        procurementBlockers: input.procurementBlockers !== undefined ? getTrimmedNullableString(input.procurementBlockers) : existing.procurementBlockers,
+        competitorOffers: input.competitorOffers !== undefined ? getTrimmedNullableString(input.competitorOffers) : existing.competitorOffers,
+        finalPrice: input.finalPrice !== undefined ? toNullableNumber(input.finalPrice) : existing.finalPrice,
+        nextAction: input.nextAction !== undefined ? getTrimmedNullableString(input.nextAction) : existing.nextAction,
+        updatedAt: new Date().toISOString()
+      };
+      await this.patchSalesExec(client, actor, opportunityId, current.metadata, { negotiation });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.negotiation.update", resourceType: "opportunity", resourceId: opportunityId, status: "success" });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async requestOpportunityDemo(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityDemoRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const useCase = getTrimmedNullableString(input.useCase);
+      if (!useCase) {
+        throw new AppError(400, "A demo use case is required.", undefined, "VALIDATION_ERROR");
+      }
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const presalesOwnerId = await this.ensureOwnerId(client, actor.tenantId, input.presalesOwnerId);
+      if (!presalesOwnerId) {
+        throw new AppError(400, "A presales owner is required.", undefined, "VALIDATION_ERROR");
+      }
+      const demo: OpportunityDemoState = {
+        useCase,
+        audience: getTrimmedNullableString(input.audience),
+        painPoints: getTrimmedNullableString(input.painPoints),
+        modules: getTrimmedNullableString(input.modules),
+        desiredOutcome: getTrimmedNullableString(input.desiredOutcome),
+        requestedDate: getTrimmedNullableString(input.requestedDate),
+        presalesOwnerId,
+        presalesOwnerName: null,
+        status: "requested",
+        feedback: null,
+        requestedAt: new Date().toISOString()
+      };
+      await this.patchSalesExec(client, actor, opportunityId, current.metadata, { demo });
+      await this.createOpportunityTask(client, actor, opportunityId, {
+        title: `Demo request: ${current.name}`,
+        description: useCase,
+        assigneeUserId: presalesOwnerId,
+        dueAt: input.requestedDate ? new Date(input.requestedDate) : null,
+        metadata: { phase11TaskType: "follow_up", demoRequest: true }
+      });
+      await this.notificationService.createNotificationWithClient(client, actor, audit, {
+        notificationType: "record_assignment",
+        recipientUserId: presalesOwnerId,
+        title: `Demo requested: ${current.name}`,
+        message: useCase,
+        linkedRecord: { entityType: "opportunity", entityId: opportunityId }
+      });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.demo.request", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { presalesOwnerId } });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async updateOpportunityDemoFeedback(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityDemoFeedbackBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const root = getSalesExecRoot(current.metadata);
+      const demo = getRecord(root.demo);
+      if (Object.keys(demo).length === 0) {
+        throw new AppError(400, "No demo request exists to update.", undefined, "VALIDATION_ERROR");
+      }
+      const nextDemo = {
+        ...demo,
+        status: input.status ?? demo.status ?? "requested",
+        feedback: input.feedback !== undefined ? getTrimmedNullableString(input.feedback) : demo.feedback ?? null
+      };
+      await this.patchSalesExec(client, actor, opportunityId, current.metadata, { demo: nextDemo });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.demo.feedback", resourceType: "opportunity", resourceId: opportunityId, status: "success" });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async upsertOpportunityProposal(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityProposalRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const root = getSalesExecRoot(current.metadata);
+      const existing = getRecord(root.proposal);
+      const requireApproval = Boolean(input.requireApproval);
+      let approvalId = metaString(existing, "approvalId");
+      let status: OpportunityProposalState["status"] = "draft";
+
+      if (requireApproval) {
+        const approverUserId = await this.ensureOwnerId(client, actor.tenantId, input.approverUserId ?? null);
+        if (!approverUserId) {
+          throw new AppError(400, "An approver is required to submit the proposal for approval.", undefined, "VALIDATION_ERROR");
+        }
+        const approval = await this.approvalService.createApprovalWithClient(client, actor, audit, {
+          approvalType: "proposal_approval",
+          title: `Proposal approval: ${current.name}`,
+          description: getTrimmedNullableString(input.executiveSummary) ?? "Proposal review requested.",
+          approverUserId,
+          linkedRecord: { entityType: "opportunity", entityId: opportunityId }
+        });
+        approvalId = approval.id;
+        status = "pending_approval";
+      }
+
+      const proposal = {
+        templateKey: input.templateKey !== undefined ? getTrimmedNullableString(input.templateKey) : metaString(existing, "templateKey"),
+        scope: input.scope !== undefined ? getTrimmedNullableString(input.scope) : metaString(existing, "scope"),
+        pricing: input.pricing !== undefined ? getTrimmedNullableString(input.pricing) : metaString(existing, "pricing"),
+        timeline: input.timeline !== undefined ? getTrimmedNullableString(input.timeline) : metaString(existing, "timeline"),
+        terms: input.terms !== undefined ? getTrimmedNullableString(input.terms) : metaString(existing, "terms"),
+        assumptions: input.assumptions !== undefined ? getTrimmedNullableString(input.assumptions) : metaString(existing, "assumptions"),
+        exclusions: input.exclusions !== undefined ? getTrimmedNullableString(input.exclusions) : metaString(existing, "exclusions"),
+        executiveSummary: input.executiveSummary !== undefined ? getTrimmedNullableString(input.executiveSummary) : metaString(existing, "executiveSummary"),
+        status,
+        approvalId,
+        updatedAt: new Date().toISOString()
+      };
+      await this.patchSalesExec(client, actor, opportunityId, current.metadata, { proposal });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.proposal.upsert", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { requireApproval, approvalId } });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async requestOpportunityDiscount(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityDiscountRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const justification = getTrimmedNullableString(input.justification);
+      if (!justification) {
+        throw new AppError(400, "A discount justification is required.", undefined, "VALIDATION_ERROR");
+      }
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const approverUserId = await this.ensureOwnerId(client, actor.tenantId, input.approverUserId);
+      if (!approverUserId) {
+        throw new AppError(400, "An approver is required for the discount request.", undefined, "VALIDATION_ERROR");
+      }
+      const approval = await this.approvalService.createApprovalWithClient(client, actor, audit, {
+        approvalType: "discount_approval",
+        title: `Discount approval (${input.percent}%): ${current.name}`,
+        description: justification,
+        approverUserId,
+        linkedRecord: { entityType: "opportunity", entityId: opportunityId },
+        metadata: { percent: input.percent }
+      });
+      const discount: OpportunityDiscountState = {
+        percent: input.percent,
+        justification,
+        competitorContext: getTrimmedNullableString(input.competitorContext),
+        marginImpact: getTrimmedNullableString(input.marginImpact),
+        value: toNullableNumber(input.value),
+        closeProbability: toNullableNumber(input.closeProbability),
+        status: "pending_approval",
+        approvalId: approval.id,
+        requestedAt: new Date().toISOString()
+      };
+      await this.patchSalesExec(client, actor, opportunityId, current.metadata, { discount });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.discount.request", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { percent: input.percent, approvalId: approval.id } });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async closeOpportunityWon(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityCloseWonRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const root = getSalesExecRoot(current.metadata);
+      // AE-007: cannot close won with an unapproved discount.
+      const discountStatus = getRecord(root.discount).status;
+      if (discountStatus === "pending_approval") {
+        throw new AppError(400, "Resolve the pending discount approval before closing won.", undefined, "DISCOUNT_PENDING");
+      }
+      const onboardingOwnerId = await this.ensureOwnerId(client, actor.tenantId, input.onboardingOwnerId);
+      if (!onboardingOwnerId) {
+        throw new AppError(400, "An onboarding owner (CSM) is required to close won.", undefined, "VALIDATION_ERROR");
+      }
+      const stageOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-pipeline", "closed_won", "Opportunity stage");
+      const outcomeOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-outcome-status", "won", "Opportunity outcome status");
+      const closeWon = {
+        finalValue: input.finalValue,
+        contractStatus: getTrimmedNullableString(input.contractStatus),
+        poStatus: getTrimmedNullableString(input.poStatus),
+        billingTerms: getTrimmedNullableString(input.billingTerms),
+        startDate: getTrimmedNullableString(input.startDate),
+        implementationScope: getTrimmedNullableString(input.implementationScope),
+        onboardingOwnerId,
+        onboardingOwnerName: null,
+        handoverNote: getTrimmedNullableString(input.handoverNote)
+      };
+      const nextMetadata = await this.patchSalesExec(client, actor, opportunityId, current.metadata, { closeWon });
+      await client.query(
+        `UPDATE opportunities SET stage_option_id = $3, outcome_status_option_id = $4, amount = $5, metadata = $6::jsonb, last_stage_changed_at = NOW(), updated_by = $7 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [opportunityId, actor.tenantId, stageOptionId, outcomeOptionId, input.finalValue, JSON.stringify(nextMetadata), actor.userId]
+      );
+      // AE-009: kick off onboarding via a CSM-owned task + notification (forecast reflects the won amount).
+      await this.createOpportunityTask(client, actor, opportunityId, {
+        title: `Onboarding handover: ${current.name}`,
+        description: getTrimmedNullableString(input.handoverNote),
+        assigneeUserId: onboardingOwnerId,
+        dueAt: input.startDate ? new Date(input.startDate) : null,
+        metadata: { phase11TaskType: "follow_up", onboardingHandover: true }
+      });
+      await this.notificationService.createNotificationWithClient(client, actor, audit, {
+        notificationType: "record_assignment",
+        recipientUserId: onboardingOwnerId,
+        title: `New won deal to onboard: ${current.name}`,
+        message: getTrimmedNullableString(input.handoverNote) ?? "Closed won — begin onboarding.",
+        linkedRecord: { entityType: "opportunity", entityId: opportunityId }
+      });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.close_won", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { finalValue: input.finalValue, onboardingOwnerId } });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async closeOpportunityLost(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityCloseLostRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      await this.resolveOptionValueId(client, actor.tenantId, "loss-reason", input.lossReasonKey, "Loss reason");
+      const lossReasons = await this.loadOptionSetValues(client, actor.tenantId, "loss-reason");
+      const lossReasonLabel = lossReasons.find((reason) => reason.key === input.lossReasonKey)?.label ?? input.lossReasonKey;
+      const stageOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-pipeline", "closed_lost", "Opportunity stage");
+      const outcomeOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-outcome-status", "lost", "Opportunity outcome status");
+      const competitor = getTrimmedNullableString(input.competitor);
+      const closeLost = {
+        lossReasonKey: input.lossReasonKey,
+        lossReasonLabel,
+        competitor,
+        revisitDate: getTrimmedNullableString(input.revisitDate),
+        reactivationStatus: "none" as const,
+        reactivationApprovalId: null
+      };
+      const nextMetadata = await this.patchSalesExec(client, actor, opportunityId, current.metadata, { closeLost });
+      await client.query(
+        `UPDATE opportunities SET stage_option_id = $3, outcome_status_option_id = $4, competitor = COALESCE($5, competitor), win_loss_reason = $6, metadata = $7::jsonb, last_stage_changed_at = NOW(), updated_by = $8 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [opportunityId, actor.tenantId, stageOptionId, outcomeOptionId, competitor, lossReasonLabel, JSON.stringify(nextMetadata), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.close_lost", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { lossReasonKey: input.lossReasonKey } });
+    });
+    return this.getOpportunity(actor, opportunityId);
+  }
+
+  async reactivateOpportunity(actor: ActorContext, audit: AuditMetadata, opportunityId: string, input: OpportunityReactivateRequestBody): Promise<OpportunityResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertOpportunityMutation(actor, ["execWorkspace"]);
+      const reason = getTrimmedNullableString(input.reason);
+      if (!reason) {
+        throw new AppError(400, "A reactivation reason is required.", undefined, "VALIDATION_ERROR");
+      }
+      const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      const root = getSalesExecRoot(current.metadata);
+      const closeLost = getRecord(root.closeLost);
+      if (Object.keys(closeLost).length === 0) {
+        throw new AppError(400, "Only closed-lost opportunities can be reactivated.", undefined, "VALIDATION_ERROR");
+      }
+      const approverUserId = await this.ensureOwnerId(client, actor.tenantId, input.approverUserId);
+      if (!approverUserId) {
+        throw new AppError(400, "An approver is required to reactivate.", undefined, "VALIDATION_ERROR");
+      }
+      const approval = await this.approvalService.createApprovalWithClient(client, actor, audit, {
+        approvalType: "opportunity_reactivation_approval",
+        title: `Reactivate lost opportunity: ${current.name}`,
+        description: reason,
+        approverUserId,
+        linkedRecord: { entityType: "opportunity", entityId: opportunityId }
+      });
+      await this.patchSalesExec(client, actor, opportunityId, current.metadata, {
+        closeLost: { ...closeLost, reactivationStatus: "pending_approval", reactivationApprovalId: approval.id }
+      });
+      await this.recordAuditLog(client, actor, audit, { action: "opportunity.reactivate.request", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { approvalId: approval.id } });
+    });
+    return this.getOpportunity(actor, opportunityId);
   }
 }

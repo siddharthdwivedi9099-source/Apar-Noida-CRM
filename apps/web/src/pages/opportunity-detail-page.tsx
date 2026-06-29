@@ -19,6 +19,7 @@ import { CrmNotesPanel } from "@/components/crm/crm-notes-panel";
 import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
 import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
+import { OpportunityExecActions } from "@/components/opportunities/opportunity-exec-actions";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import {
@@ -394,6 +395,14 @@ export function OpportunityDetailPage() {
           </Card>
         ) : null}
       </section>
+
+      <OpportunityExecActions
+        detail={opportunity}
+        options={optionsResponse}
+        accessToken={accessToken}
+        canEdit={canEdit}
+        onReload={loadOpportunity}
+      />
 
       {(() => {
         const classification = (opportunity.metadata ?? {}) as LeadClassificationMetadata;

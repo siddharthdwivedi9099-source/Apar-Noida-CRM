@@ -162,7 +162,8 @@ export const approvalTypes = [
   "reseller_approval",
   "sensitive_ai_action_approval",
   "customer_escalation_approval",
-  "strategic_handoff_approval"
+  "strategic_handoff_approval",
+  "opportunity_reactivation_approval"
 ] as const;
 
 export type ApprovalType = (typeof approvalTypes)[number];
@@ -230,6 +231,11 @@ export const approvalTypeCatalog: ApprovalTypeDefinition[] = [
     key: "strategic_handoff_approval",
     label: "Strategic handoff approval",
     description: "Manager approval for reassigning a strategic target account to enterprise sales (BDR-005)."
+  },
+  {
+    key: "opportunity_reactivation_approval",
+    label: "Opportunity reactivation approval",
+    description: "Manager approval to reactivate a closed-lost opportunity (AE-010)."
   }
 ];
 

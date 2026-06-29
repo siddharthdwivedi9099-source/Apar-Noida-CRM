@@ -155,6 +155,36 @@ describe("Opportunity detail page", () => {
             aiPlaceholders: {
               actions: [],
               governanceHint: "Hint"
+            },
+            execWorkspace: {
+              acceptance: { status: "pending", acceptedAt: null, rejectedReason: null, slaStartedAt: null },
+              discovery: { items: [], completionCount: 0, total: 0, requiredCount: 0, requiredComplete: true },
+              buyingCommittee: { score: 0, total: 0, covered: 0, roles: [], missingRoles: [] },
+              negotiation: {
+                commercialAsks: null,
+                legalAsks: null,
+                procurementBlockers: null,
+                competitorOffers: null,
+                finalPrice: null,
+                nextAction: null,
+                updatedAt: null
+              },
+              proposal: null,
+              discount: {
+                percent: null,
+                justification: null,
+                competitorContext: null,
+                marginImpact: null,
+                value: null,
+                closeProbability: null,
+                status: "none",
+                approvalId: null,
+                requestedAt: null
+              },
+              demo: null,
+              closeWon: null,
+              closeLost: null,
+              stageRequirement: { stageKey: "discovery", requiredFields: [], missingFields: [], satisfied: true }
             }
           }
         };
@@ -168,6 +198,10 @@ describe("Opportunity detail page", () => {
           sources: [],
           outcomeStatuses: [],
           availableScopes: ["all"],
+          discoveryFields: [],
+          stakeholderRoles: [],
+          proposalTemplates: [],
+          lossReasons: [{ id: "lr-1", key: "budget", label: "Budget", description: null, color: null, isDefault: true, isActive: true }],
           fieldDefinitions: [
             {
               fieldKey: "dealRegion",
