@@ -24,6 +24,7 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
 import { SalesManagerDashboard } from "@/components/sales/sales-manager-dashboard";
+import { SalesLeadershipDashboard } from "@/components/sales/sales-leadership-dashboard";
 import { Link } from "react-router-dom";
 
 type PipelineViewMode = "list" | "kanban";
@@ -76,6 +77,8 @@ export function OpportunitiesPage() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   const canViewManager = hasAnyPermission(["opportunities.view_dashboard", "opportunities.manage_workflow", "opportunities.configure"]);
+  const canViewLeadership = hasAnyPermission(["opportunities.view_dashboard", "opportunities.configure", "dashboards.view_dashboard"]);
+  const canManageLeadership = hasAnyPermission(["opportunities.configure", "opportunities.manage_workflow", "opportunities.approve"]);
   const canCreate = hasAnyPermission(["opportunities.create", "opportunities.configure"]);
   const canEdit = hasAnyPermission(["opportunities.edit", "opportunities.assign", "opportunities.configure"]);
   const canDelete = hasAnyPermission(["opportunities.delete", "opportunities.configure"]);
@@ -363,6 +366,8 @@ export function OpportunitiesPage() {
       </section>
 
       {canViewManager ? <SalesManagerDashboard accessToken={accessToken} canManage={canEdit} /> : null}
+
+      {canViewLeadership ? <SalesLeadershipDashboard accessToken={accessToken} canManage={canManageLeadership} /> : null}
 
       <section className="grid gap-6 xl:grid-cols-[1fr_1.15fr]">
         <Card>

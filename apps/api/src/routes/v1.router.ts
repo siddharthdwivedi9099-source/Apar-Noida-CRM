@@ -26,6 +26,7 @@ import { createPartnersRouter } from "../modules/partners/partners.router.js";
 import { createRbacRouter } from "../modules/rbac/rbac.router.js";
 import { createResellersRouter } from "../modules/resellers/resellers.router.js";
 import { createSalesWorkspacesRouter } from "../modules/sales-workspaces/sales-workspaces.router.js";
+import { createSalesLeadershipRouter } from "../modules/sales-leadership/sales-leadership.router.js";
 import { createSocialRouter } from "../modules/social/social.router.js";
 import { createSupportRouter } from "../modules/support/support.router.js";
 import { createTrainingRouter } from "../modules/training/training.router.js";
@@ -77,6 +78,7 @@ export function createV1Router({
   router.use("/partners", createPartnersRouter({ databaseService }));
   router.use("/resellers", createResellersRouter({ databaseService }));
   router.use("/sales-workspaces", createSalesWorkspacesRouter({ databaseService }));
+  router.use("/sales-leadership", createSalesLeadershipRouter({ databaseService }));
   router.use("/social", createSocialRouter({ databaseService }));
   router.use("/support", createSupportRouter({ databaseService }));
   router.use("/customer-success", createCustomerSuccessRouter({ databaseService }));

@@ -3,6 +3,7 @@ import type { TenantCoreSettings } from "@crm/types";
 import { Building2, LayoutTemplate, Palette, ShieldCheck, Shapes, Type } from "lucide-react";
 import { Link } from "react-router-dom";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { ConfigurationGovernance } from "@/components/admin/configuration-governance";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -261,6 +262,8 @@ export function AdminSettingsPage() {
           </CardContent>
         </Card>
       </section>
+
+      <ConfigurationGovernance accessToken={accessToken} />
     </div>
   );
 }

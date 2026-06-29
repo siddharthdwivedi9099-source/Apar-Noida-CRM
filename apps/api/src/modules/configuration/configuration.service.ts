@@ -20,14 +20,18 @@ import {
   type ConfigurationVersionStatus,
   type ConfigurationVersionSummary,
   type ImportConfigurationRequestBody,
+  type ConfigurationReviewDecisionRequestBody,
   type RoleSummary,
   type SaveConfigurationDraftRequestBody,
+  type SubmitConfigurationReviewRequestBody,
   type UpsertConfigurationDefinitionRequestBody
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 import { TenantConfigService } from "../tenant-config/tenant-config.service.js";
+import { ApprovalService } from "../approvals/approvals.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -97,11 +101,16 @@ function toIsoString(value: Date | string): string {
 export class ConfigurationService {
   private readonly tenantConfig: TenantConfigService;
 
+  private readonly approvalService: ApprovalService;
+  private readonly notificationService: NotificationService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: ConfigurationServiceConfig
   ) {
     this.tenantConfig = new TenantConfigService(databaseService, config);
+    this.approvalService = new ApprovalService(databaseService, config);
+    this.notificationService = new NotificationService(databaseService, config);
   }
 
   private ensureEnabled() {
@@ -287,6 +296,97 @@ export class ConfigurationService {
     return this.databaseService.withClient(async (client) => {
       const row = await this.loadVersion(client, actor.tenantId, versionId);
       return this.mapVersion(row);
+    });
+  }
+
+  // ---- Persona 13 (Sales Head) SH-005: governed process changes --------------------------------
+
+  /**
+   * RevOps submits a draft configuration version for Sales Head review. Creates a
+   * configuration_change_approval linked to the version and notifies the approver.
+   * Reuses the existing versioning + approvals + notifications engines.
+   */
+  async submitVersionForReview(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    versionId: string,
+    body: SubmitConfigurationReviewRequestBody
+  ): Promise<ConfigurationVersion> {
+    this.ensureEnabled();
+    const version = await this.getVersion(actor, versionId);
+    if (version.status !== "draft") {
+      throw new AppError(409, `A ${version.status} configuration version cannot be submitted for review.`, undefined, "CONFIGURATION_INVALID_TRANSITION");
+    }
+    const existing = await this.findOpenReviewApproval(actor.tenantId, versionId);
+    if (existing) {
+      throw new AppError(409, "This configuration version already has a pending review.", undefined, "CONFIGURATION_REVIEW_PENDING");
+    }
+    const summary = body.changeSummary?.trim() || version.changeReason || `Configuration version #${version.versionNumber}`;
+    await this.approvalService.createApproval(actor, audit, {
+      approvalType: "configuration_change_approval",
+      title: `Sales process change review (v#${version.versionNumber})`,
+      description: summary,
+      approverUserId: body.approverUserId ?? null,
+      linkedRecord: { entityType: "configuration_version", entityId: versionId },
+      initialComment: summary,
+      metadata: { versionId, versionNumber: version.versionNumber }
+    });
+    return this.getVersion(actor, versionId);
+  }
+
+  /**
+   * Sales Head decides a pending configuration review. On approval the version is
+   * published (validation-gated) so the change is versioned and live; on rejection the
+   * draft is left intact. The proposer is notified either way (SH-005).
+   */
+  async decideVersionReview(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    versionId: string,
+    body: ConfigurationReviewDecisionRequestBody
+  ): Promise<ConfigurationVersion> {
+    this.ensureEnabled();
+    const approval = await this.findOpenReviewApproval(actor.tenantId, versionId);
+    if (!approval) {
+      throw new AppError(404, "No pending review was found for this configuration version.", undefined, "NOT_FOUND");
+    }
+
+    await this.approvalService.decideApproval(actor, audit, approval.id, { decision: body.decision, comment: body.comment ?? null });
+
+    if (body.decision === "approved") {
+      await this.publishVersion(actor, audit, versionId);
+    }
+
+    if (approval.requested_by_user_id) {
+      await this.notificationService.createNotification(actor, audit, {
+        notificationType: "system_announcement",
+        recipientUserId: approval.requested_by_user_id,
+        title: body.decision === "approved" ? "Sales process change approved and published" : "Sales process change rejected",
+        message: body.comment?.trim() || (body.decision === "approved" ? "Your proposed configuration change has been approved and is now live." : "Your proposed configuration change was rejected."),
+        linkedRecord: { entityType: "configuration_version", entityId: versionId }
+      });
+    }
+
+    return this.getVersion(actor, versionId);
+  }
+
+  private async findOpenReviewApproval(tenantId: string, versionId: string): Promise<{ id: string; requested_by_user_id: string | null } | null> {
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<{ id: string; requested_by_user_id: string | null }>(
+        `
+          SELECT id, requested_by_user_id
+          FROM approval_requests
+          WHERE tenant_id = $1
+            AND approval_type = 'configuration_change_approval'
+            AND linked_record_type = 'configuration_version'
+            AND linked_record_id = $2
+            AND status = 'pending'
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        [tenantId, versionId]
+      );
+      return result.rows[0] ?? null;
     });
   }
 

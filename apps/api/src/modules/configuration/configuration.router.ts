@@ -198,6 +198,33 @@ export function createConfigurationRouter({ databaseService }: RouterDependencie
     })
   );
 
+  // SH-005: RevOps submits a draft for Sales Head review; Sales Head decides.
+  router.post(
+    "/versions/:versionId/submit-review",
+    requirePermissions({ oneOf: writePermissions }),
+    validateRequest({
+      params: versionIdParams,
+      body: z.object({ approverUserId: z.string().uuid(), changeSummary: z.string().max(4000).nullable().optional() })
+    }),
+    asyncHandler(async (request, response) => {
+      const version = await service.submitVersionForReview(request.auth!, getAuditMetadata(request), request.params.versionId, request.body as { approverUserId: string; changeSummary?: string | null });
+      response.status(201).json({ version });
+    })
+  );
+
+  router.post(
+    "/versions/:versionId/review-decision",
+    requirePermissions({ oneOf: publishPermissions }),
+    validateRequest({
+      params: versionIdParams,
+      body: z.object({ decision: z.enum(["approved", "rejected"]), comment: z.string().max(4000).nullable().optional() })
+    }),
+    asyncHandler(async (request, response) => {
+      const version = await service.decideVersionReview(request.auth!, getAuditMetadata(request), request.params.versionId, request.body as { decision: "approved" | "rejected"; comment?: string | null });
+      response.status(200).json({ version });
+    })
+  );
+
   // Dry-run: preview the upsert plan if this version were applied.
   router.get(
     "/versions/:versionId/apply-plan",
