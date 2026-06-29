@@ -14,7 +14,12 @@ import {
   type BdConvertRequestBody,
   type BdHandoffRequestBody,
   type BdImportRequestBody,
+  type CreateBdMarketSignalRequestBody,
+  type CreateBdPartnerReferralRequestBody,
   type CreateBdTargetAccountRequestBody,
+  type CreateBdTerritoryPlanRequestBody,
+  type SubmitBdTerritoryPlanReviewRequestBody,
+  type UpdateBdPartnerReferralRequestBody,
   type CreatePresalesRequestRequestBody,
   type BdTargetAccountListQuery,
   type PresalesRequestListQuery,
@@ -178,6 +183,40 @@ const bdHandoffSchema = z.object({
   nextMeetingAt: z.string().datetime().nullable().optional(),
   requireApproval: z.boolean().optional(),
   approverUserId: uuidSchema.nullable().optional()
+});
+
+// ---- Persona 11 (BDM) schemas ------------------------------------------------------------------
+const territoryPlanSchema = z.object({
+  name: z.string().min(2).max(200),
+  ownerId: uuidSchema.nullable().optional(),
+  geography: z.string().max(2000).nullable().optional(),
+  targetSegments: z.string().max(8000).nullable().optional(),
+  namedAccounts: z.string().max(8000).nullable().optional(),
+  partnerCoverage: z.string().max(8000).nullable().optional(),
+  campaigns: z.string().max(8000).nullable().optional(),
+  pipelineTarget: z.coerce.number().min(0).nullable().optional(),
+  revenueTarget: z.coerce.number().min(0).nullable().optional()
+});
+const territoryPlanReviewSchema = z.object({ reviewerUserId: uuidSchema, note: z.string().max(4000).nullable().optional() });
+const marketSignalSchema = z.object({
+  signalTypeKey: z.string().min(2).max(160),
+  content: z.string().min(1).max(8000),
+  linkedEntityType: z.enum(["account", "opportunity", "campaign"]).nullable().optional(),
+  linkedEntityId: uuidSchema.nullable().optional()
+});
+const partnerReferralSchema = z.object({
+  customerName: z.string().min(1).max(200),
+  partnerAccountId: uuidSchema.nullable().optional(),
+  referralSource: z.string().max(2000).nullable().optional(),
+  referredValue: z.coerce.number().min(0).nullable().optional(),
+  notes: z.string().max(8000).nullable().optional()
+});
+const partnerReferralUpdateSchema = z.object({
+  converted: z.boolean().optional(),
+  commissionEligible: z.boolean().optional(),
+  referredValue: z.coerce.number().min(0).nullable().optional(),
+  opportunityId: uuidSchema.nullable().optional(),
+  notes: z.string().max(8000).nullable().optional()
 });
 
 const presalesRequirementSchema = z.object({
@@ -362,6 +401,71 @@ export function createBusinessDevelopmentRouter({ databaseService }: RouterDepen
         .json(
           await service.importBdTargetAccounts(request.auth!, getAuditMetadata(request), request.body as BdImportRequestBody)
         );
+    })
+  );
+
+  // ---- Persona 11 (BDM) routes (static paths registered before /:targetAccountId) -------------
+  router.get(
+    "/territory-plans",
+    requirePermissions({ oneOf: bdReadPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.listTerritoryPlans(request.auth!));
+    })
+  );
+  router.post(
+    "/territory-plans",
+    requirePermissions({ oneOf: bdCreatePermissions }),
+    validateRequest({ body: territoryPlanSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(await service.createTerritoryPlan(request.auth!, getAuditMetadata(request), request.body as CreateBdTerritoryPlanRequestBody));
+    })
+  );
+  router.post(
+    "/territory-plans/:planId/review",
+    requirePermissions({ oneOf: bdUpdatePermissions }),
+    validateRequest({ params: z.object({ planId: uuidSchema }), body: territoryPlanReviewSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.submitTerritoryPlanReview(request.auth!, getAuditMetadata(request), request.params.planId, request.body as SubmitBdTerritoryPlanReviewRequestBody));
+    })
+  );
+
+  router.get(
+    "/market-signals",
+    requirePermissions({ oneOf: bdReadPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.listMarketSignals(request.auth!));
+    })
+  );
+  router.post(
+    "/market-signals",
+    requirePermissions({ oneOf: bdCreatePermissions }),
+    validateRequest({ body: marketSignalSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(await service.createMarketSignal(request.auth!, getAuditMetadata(request), request.body as CreateBdMarketSignalRequestBody));
+    })
+  );
+
+  router.get(
+    "/partner-referrals",
+    requirePermissions({ oneOf: bdReadPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.listPartnerReferrals(request.auth!));
+    })
+  );
+  router.post(
+    "/partner-referrals",
+    requirePermissions({ oneOf: bdCreatePermissions }),
+    validateRequest({ body: partnerReferralSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(await service.createPartnerReferral(request.auth!, getAuditMetadata(request), request.body as CreateBdPartnerReferralRequestBody));
+    })
+  );
+  router.patch(
+    "/partner-referrals/:referralId",
+    requirePermissions({ oneOf: bdUpdatePermissions }),
+    validateRequest({ params: z.object({ referralId: uuidSchema }), body: partnerReferralUpdateSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.updatePartnerReferral(request.auth!, getAuditMetadata(request), request.params.referralId, request.body as UpdateBdPartnerReferralRequestBody));
     })
   );
 

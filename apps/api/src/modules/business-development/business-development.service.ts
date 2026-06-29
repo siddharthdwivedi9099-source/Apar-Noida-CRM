@@ -13,9 +13,23 @@ import type {
   BdImportResponse,
   BdImportSkippedEntry,
   BdInfluenceLevel,
+  BdMarketSignalSummary,
+  BdPartnerReferralSummary,
   BdPipelineScope,
   BdRelationshipStrength,
   BdSequenceStepDefinition,
+  BdTerritoryPlanSummary,
+  CreateBdMarketSignalRequestBody,
+  CreateBdPartnerReferralRequestBody,
+  CreateBdTerritoryPlanRequestBody,
+  BdMarketSignalResponse,
+  BdMarketSignalsResponse,
+  BdPartnerReferralResponse,
+  BdPartnerReferralsResponse,
+  BdTerritoryPlanResponse,
+  BdTerritoryPlansResponse,
+  SubmitBdTerritoryPlanReviewRequestBody,
+  UpdateBdPartnerReferralRequestBody,
   BdTargetAccountDetail,
   BdTargetAccountListQuery,
   BdTargetAccountOptionsResponse,
@@ -1234,7 +1248,8 @@ export class BusinessDevelopmentService {
       technologies: await this.loadOptionSetValues(client, actor.tenantId, "bd-technology"),
       buyerRoles: await this.loadOptionSetValues(client, actor.tenantId, "bd-buyer-role"),
       sequenceSteps: await this.loadBdSequenceSteps(client, actor.tenantId),
-      opportunityStages: await this.loadOptionSetValues(client, actor.tenantId, "opportunity-pipeline")
+      opportunityStages: await this.loadOptionSetValues(client, actor.tenantId, "opportunity-pipeline"),
+      marketSignalTypes: await this.loadOptionSetValues(client, actor.tenantId, "bd-market-signal-type")
     }));
   }
 
@@ -1907,7 +1922,10 @@ export class BusinessDevelopmentService {
         input.stageKey,
         "Opportunity stage"
       );
-      const sourceOptionId = await this.resolveDefaultOptionValueId(client, actor.tenantId, "opportunity-source");
+      // BDM-004: strategic opportunities are attributed to business development by default.
+      const sourceOptionId = input.sourceKey
+        ? await this.resolveOptionValueId(client, actor.tenantId, "opportunity-source", input.sourceKey, "Opportunity source")
+        : await this.resolveOptionValueId(client, actor.tenantId, "opportunity-source", "business_development", "Opportunity source");
       const outcomeStatusOptionId = await this.resolveOptionValueId(
         client,
         actor.tenantId,
@@ -1937,7 +1955,12 @@ export class BusinessDevelopmentService {
           input.amount,
           getTrimmedNullableString(input.expectedCloseDate),
           getTrimmedNullableString(input.nextStep),
-          JSON.stringify({ convertedFromBdTargetAccountId: targetAccountId }),
+          JSON.stringify({
+            convertedFromBdTargetAccountId: targetAccountId,
+            ...(getTrimmedNullableString(input.useCase) ? { useCase: getTrimmedNullableString(input.useCase) } : {}),
+            ...(getTrimmedNullableString(input.product) ? { product: getTrimmedNullableString(input.product) } : {}),
+            ...(getTrimmedNullableString(input.priorityKey) ? { priorityKey: getTrimmedNullableString(input.priorityKey) } : {})
+          }),
           actor.userId
         ]
       );
@@ -2067,6 +2090,275 @@ export class BusinessDevelopmentService {
 
     const detail = await this.databaseService.withClient(async (client) => this.loadBdDetail(client, actor, targetAccountId));
     return { targetAccount: detail, notificationId: result.notificationId, approvalId: result.approvalId };
+  }
+
+  // ==========================================================================
+  // Persona 11 (BDM): territory plans, market intelligence, partner referrals
+  // ==========================================================================
+
+  private mapTerritoryPlan(row: BdTerritoryPlanRow): BdTerritoryPlanSummary {
+    return {
+      id: row.id,
+      name: row.name,
+      owner: mapUser({ id: row.owner_id, displayName: row.owner_display_name, email: row.owner_email, teamName: null, departmentName: null }),
+      geography: row.geography,
+      targetSegments: row.target_segments,
+      namedAccounts: row.named_accounts,
+      partnerCoverage: row.partner_coverage,
+      campaigns: row.campaigns,
+      pipelineTarget: parseNumeric(row.pipeline_target),
+      revenueTarget: parseNumeric(row.revenue_target),
+      reviewStatus: (["draft", "in_review", "reviewed"].includes(row.review_status) ? row.review_status : "draft") as BdTerritoryPlanSummary["reviewStatus"],
+      reviewer: mapUser({ id: row.reviewer_id, displayName: row.reviewer_display_name, email: row.reviewer_email, teamName: null, departmentName: null }),
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString()
+    };
+  }
+
+  private territoryPlanSelect() {
+    return `
+      bd_territory_plans.id, bd_territory_plans.name, bd_territory_plans.geography, bd_territory_plans.target_segments,
+      bd_territory_plans.named_accounts, bd_territory_plans.partner_coverage, bd_territory_plans.campaigns,
+      bd_territory_plans.pipeline_target, bd_territory_plans.revenue_target, bd_territory_plans.review_status,
+      bd_territory_plans.created_at, bd_territory_plans.updated_at,
+      owner_users.id AS owner_id, owner_users.display_name AS owner_display_name, owner_users.email AS owner_email,
+      reviewer_users.id AS reviewer_id, reviewer_users.display_name AS reviewer_display_name, reviewer_users.email AS reviewer_email
+      FROM bd_territory_plans
+      LEFT JOIN users AS owner_users ON owner_users.id = bd_territory_plans.owner_id AND owner_users.tenant_id = bd_territory_plans.tenant_id AND owner_users.deleted_at IS NULL
+      LEFT JOIN users AS reviewer_users ON reviewer_users.id = bd_territory_plans.reviewer_id AND reviewer_users.tenant_id = bd_territory_plans.tenant_id AND reviewer_users.deleted_at IS NULL
+    `;
+  }
+
+  async listTerritoryPlans(actor: ActorContext): Promise<BdTerritoryPlansResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<BdTerritoryPlanRow>(
+        `SELECT ${this.territoryPlanSelect()} WHERE bd_territory_plans.tenant_id = $1 AND bd_territory_plans.deleted_at IS NULL ORDER BY bd_territory_plans.created_at DESC LIMIT 200`,
+        [actor.tenantId]
+      );
+      return { territoryPlans: result.rows.map((row) => this.mapTerritoryPlan(row)) };
+    });
+  }
+
+  async createTerritoryPlan(actor: ActorContext, audit: AuditMetadata, input: CreateBdTerritoryPlanRequestBody): Promise<BdTerritoryPlanResponse> {
+    this.assertEnabled();
+    const planId = await this.databaseService.withTransaction(async (client) => {
+      this.assertBdMutation(actor, ["name"]);
+      const ownerId = await this.ensureOwnerId(client, actor.tenantId, input.ownerId ?? actor.userId);
+      const result = await client.query<{ id: string }>(
+        `
+          INSERT INTO bd_territory_plans (tenant_id, owner_id, name, geography, target_segments, named_accounts, partner_coverage, campaigns, pipeline_target, revenue_target, created_by, updated_by)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11) RETURNING id
+        `,
+        [
+          actor.tenantId,
+          ownerId,
+          input.name.trim(),
+          getTrimmedNullableString(input.geography),
+          getTrimmedNullableString(input.targetSegments),
+          getTrimmedNullableString(input.namedAccounts),
+          getTrimmedNullableString(input.partnerCoverage),
+          getTrimmedNullableString(input.campaigns),
+          input.pipelineTarget ?? null,
+          input.revenueTarget ?? null,
+          actor.userId
+        ]
+      );
+      const id = result.rows[0]?.id;
+      if (!id) {
+        throw new AppError(500, "Territory plan creation failed.", undefined, "TERRITORY_PLAN_CREATE_FAILED");
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "bd.territory_plan.create", resourceType: "bd_territory_plan", resourceId: id, status: "success" });
+      return id;
+    });
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<BdTerritoryPlanRow>(`SELECT ${this.territoryPlanSelect()} WHERE bd_territory_plans.id = $1 AND bd_territory_plans.tenant_id = $2 LIMIT 1`, [planId, actor.tenantId]);
+      return { territoryPlan: this.mapTerritoryPlan(result.rows[0]) };
+    });
+  }
+
+  async submitTerritoryPlanReview(actor: ActorContext, audit: AuditMetadata, planId: string, input: SubmitBdTerritoryPlanReviewRequestBody): Promise<BdTerritoryPlanResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertBdMutation(actor, ["name"]);
+      const existing = await client.query<{ name: string }>(`SELECT name FROM bd_territory_plans WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`, [planId, actor.tenantId]);
+      if (!existing.rows[0]) {
+        throw new AppError(404, "Territory plan not found.", undefined, "TERRITORY_PLAN_NOT_FOUND");
+      }
+      const reviewerUserId = await this.ensureOwnerId(client, actor.tenantId, input.reviewerUserId);
+      if (!reviewerUserId) {
+        throw new AppError(400, "A reviewer is required.", undefined, "VALIDATION_ERROR");
+      }
+      await client.query(
+        `UPDATE bd_territory_plans SET review_status = 'in_review', reviewer_id = $3, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [planId, actor.tenantId, reviewerUserId, actor.userId]
+      );
+      await this.notificationService.createNotificationWithClient(client, actor, audit, {
+        notificationType: "record_assignment",
+        recipientUserId: reviewerUserId,
+        title: `Territory plan review: ${existing.rows[0].name}`,
+        message: getTrimmedNullableString(input.note) ?? "Territory plan submitted for your review.",
+        linkedRecord: { entityType: "bd_territory_plan", entityId: planId }
+      });
+      await this.recordAuditLog(client, actor, audit, { action: "bd.territory_plan.review", resourceType: "bd_territory_plan", resourceId: planId, status: "success", metadata: { reviewerUserId } });
+    });
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<BdTerritoryPlanRow>(`SELECT ${this.territoryPlanSelect()} WHERE bd_territory_plans.id = $1 AND bd_territory_plans.tenant_id = $2 LIMIT 1`, [planId, actor.tenantId]);
+      return { territoryPlan: this.mapTerritoryPlan(result.rows[0]) };
+    });
+  }
+
+  async listMarketSignals(actor: ActorContext): Promise<BdMarketSignalsResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<BdMarketSignalRow>(
+        `
+          SELECT bd_market_signals.id, bd_market_signals.signal_type, bd_market_signals.content,
+            bd_market_signals.linked_entity_type, bd_market_signals.linked_entity_id, bd_market_signals.created_at,
+            owner_users.id AS owner_id, owner_users.display_name AS owner_display_name, owner_users.email AS owner_email,
+            sv.id AS type_id, sv.value_key AS type_key, sv.label AS type_label, sv.description AS type_description, sv.color AS type_color, sv.is_default AS type_is_default, sv.is_active AS type_is_active
+          FROM bd_market_signals
+          LEFT JOIN users AS owner_users ON owner_users.id = bd_market_signals.owner_id AND owner_users.tenant_id = bd_market_signals.tenant_id AND owner_users.deleted_at IS NULL
+          LEFT JOIN tenant_option_sets os ON os.tenant_id = bd_market_signals.tenant_id AND os.set_key = 'bd-market-signal-type' AND os.deleted_at IS NULL
+          LEFT JOIN tenant_option_values sv ON sv.option_set_id = os.id AND sv.tenant_id = os.tenant_id AND sv.value_key = bd_market_signals.signal_type AND sv.deleted_at IS NULL
+          WHERE bd_market_signals.tenant_id = $1 AND bd_market_signals.deleted_at IS NULL
+          ORDER BY bd_market_signals.created_at DESC LIMIT 200
+        `,
+        [actor.tenantId]
+      );
+      return {
+        marketSignals: result.rows.map((row) => ({
+          id: row.id,
+          signalType: mapOptionValue({ id: row.type_id, key: row.type_key, label: row.type_label, description: row.type_description, color: row.type_color, isDefault: row.type_is_default, isActive: row.type_is_active }),
+          content: row.content,
+          linkedEntityType: (row.linked_entity_type as BdMarketSignalSummary["linkedEntityType"]) ?? null,
+          linkedEntityId: row.linked_entity_id,
+          owner: mapUser({ id: row.owner_id, displayName: row.owner_display_name, email: row.owner_email, teamName: null, departmentName: null }),
+          createdAt: row.created_at.toISOString()
+        }))
+      };
+    });
+  }
+
+  async createMarketSignal(actor: ActorContext, audit: AuditMetadata, input: CreateBdMarketSignalRequestBody): Promise<BdMarketSignalResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertBdMutation(actor, ["content"]);
+      await this.resolveOptionValueId(client, actor.tenantId, "bd-market-signal-type", input.signalTypeKey, "Market signal type");
+      const content = getTrimmedNullableString(input.content);
+      if (!content) {
+        throw new AppError(400, "Market signal content is required.", undefined, "VALIDATION_ERROR");
+      }
+      const linkedType = input.linkedEntityType && ["account", "opportunity", "campaign"].includes(input.linkedEntityType) ? input.linkedEntityType : null;
+      await client.query(
+        `INSERT INTO bd_market_signals (tenant_id, owner_id, signal_type, content, linked_entity_type, linked_entity_id, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
+        [actor.tenantId, actor.userId, input.signalTypeKey.trim(), content, linkedType, linkedType ? input.linkedEntityId ?? null : null, actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "bd.market_signal.create", resourceType: "bd_market_signal", resourceId: null, status: "success", metadata: { signalTypeKey: input.signalTypeKey } });
+    });
+    const response = await this.listMarketSignals(actor);
+    return { marketSignal: response.marketSignals[0] };
+  }
+
+  private mapPartnerReferral(row: BdPartnerReferralRow): BdPartnerReferralSummary {
+    return {
+      id: row.id,
+      partnerAccount: row.account_id ? { id: row.account_id, name: row.account_name ?? "", website: row.account_website } : null,
+      referralSource: row.referral_source,
+      customerName: row.customer_name,
+      opportunity: row.opportunity_id ? { id: row.opportunity_id, name: row.opportunity_name ?? "", stage: null } : null,
+      referredValue: parseNumeric(row.referred_value),
+      converted: row.converted,
+      commissionEligible: row.commission_eligible,
+      notes: row.notes,
+      owner: mapUser({ id: row.owner_id, displayName: row.owner_display_name, email: row.owner_email, teamName: null, departmentName: null }),
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString()
+    };
+  }
+
+  private partnerReferralSelect() {
+    return `
+      bd_partner_referrals.id, bd_partner_referrals.referral_source, bd_partner_referrals.customer_name,
+      bd_partner_referrals.referred_value, bd_partner_referrals.converted, bd_partner_referrals.commission_eligible,
+      bd_partner_referrals.notes, bd_partner_referrals.created_at, bd_partner_referrals.updated_at,
+      bd_partner_referrals.partner_account_id AS account_id, accounts.name AS account_name, accounts.website AS account_website,
+      bd_partner_referrals.opportunity_id, opportunities.name AS opportunity_name,
+      owner_users.id AS owner_id, owner_users.display_name AS owner_display_name, owner_users.email AS owner_email
+      FROM bd_partner_referrals
+      LEFT JOIN accounts ON accounts.id = bd_partner_referrals.partner_account_id AND accounts.tenant_id = bd_partner_referrals.tenant_id AND accounts.deleted_at IS NULL
+      LEFT JOIN opportunities ON opportunities.id = bd_partner_referrals.opportunity_id AND opportunities.tenant_id = bd_partner_referrals.tenant_id AND opportunities.deleted_at IS NULL
+      LEFT JOIN users AS owner_users ON owner_users.id = bd_partner_referrals.owner_id AND owner_users.tenant_id = bd_partner_referrals.tenant_id AND owner_users.deleted_at IS NULL
+    `;
+  }
+
+  async listPartnerReferrals(actor: ActorContext): Promise<BdPartnerReferralsResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<BdPartnerReferralRow>(
+        `SELECT ${this.partnerReferralSelect()} WHERE bd_partner_referrals.tenant_id = $1 AND bd_partner_referrals.deleted_at IS NULL ORDER BY bd_partner_referrals.created_at DESC LIMIT 200`,
+        [actor.tenantId]
+      );
+      return { referrals: result.rows.map((row) => this.mapPartnerReferral(row)) };
+    });
+  }
+
+  async createPartnerReferral(actor: ActorContext, audit: AuditMetadata, input: CreateBdPartnerReferralRequestBody): Promise<BdPartnerReferralResponse> {
+    this.assertEnabled();
+    const referralId = await this.databaseService.withTransaction(async (client) => {
+      this.assertBdMutation(actor, ["customerName"]);
+      const customerName = getTrimmedNullableString(input.customerName);
+      if (!customerName) {
+        throw new AppError(400, "A customer name is required for the referral.", undefined, "VALIDATION_ERROR");
+      }
+      const partnerAccountId = await this.ensureAccountId(client, actor.tenantId, input.partnerAccountId ?? null);
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO bd_partner_referrals (tenant_id, owner_id, partner_account_id, referral_source, customer_name, referred_value, notes, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8) RETURNING id`,
+        [actor.tenantId, actor.userId, partnerAccountId, getTrimmedNullableString(input.referralSource), customerName, input.referredValue ?? null, getTrimmedNullableString(input.notes), actor.userId]
+      );
+      const id = result.rows[0]?.id;
+      if (!id) {
+        throw new AppError(500, "Referral creation failed.", undefined, "REFERRAL_CREATE_FAILED");
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "bd.partner_referral.create", resourceType: "bd_partner_referral", resourceId: id, status: "success" });
+      return id;
+    });
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<BdPartnerReferralRow>(`SELECT ${this.partnerReferralSelect()} WHERE bd_partner_referrals.id = $1 AND bd_partner_referrals.tenant_id = $2 LIMIT 1`, [referralId, actor.tenantId]);
+      return { referral: this.mapPartnerReferral(result.rows[0]) };
+    });
+  }
+
+  async updatePartnerReferral(actor: ActorContext, audit: AuditMetadata, referralId: string, input: UpdateBdPartnerReferralRequestBody): Promise<BdPartnerReferralResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      this.assertBdMutation(actor, ["customerName"]);
+      const existing = await client.query<{ id: string }>(`SELECT id FROM bd_partner_referrals WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`, [referralId, actor.tenantId]);
+      if (!existing.rows[0]) {
+        throw new AppError(404, "Referral not found.", undefined, "REFERRAL_NOT_FOUND");
+      }
+      const assignments: string[] = [];
+      const params: unknown[] = [referralId, actor.tenantId, actor.userId];
+      const push = (column: string, value: unknown) => {
+        params.push(value);
+        assignments.push(`${column} = $${params.length}`);
+      };
+      if (input.converted !== undefined) push("converted", Boolean(input.converted));
+      if (input.commissionEligible !== undefined) push("commission_eligible", Boolean(input.commissionEligible));
+      if (input.referredValue !== undefined) push("referred_value", input.referredValue ?? null);
+      if (input.notes !== undefined) push("notes", getTrimmedNullableString(input.notes));
+      if (input.opportunityId !== undefined) {
+        push("opportunity_id", await this.ensureOpportunityId(client, actor.tenantId, input.opportunityId ?? null));
+      }
+      if (assignments.length > 0) {
+        await client.query(`UPDATE bd_partner_referrals SET ${assignments.join(", ")}, updated_by = $3 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, params);
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "bd.partner_referral.update", resourceType: "bd_partner_referral", resourceId: referralId, status: "success" });
+    });
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<BdPartnerReferralRow>(`SELECT ${this.partnerReferralSelect()} WHERE bd_partner_referrals.id = $1 AND bd_partner_referrals.tenant_id = $2 LIMIT 1`, [referralId, actor.tenantId]);
+      return { referral: this.mapPartnerReferral(result.rows[0]) };
+    });
   }
 
   // ==========================================================================
@@ -2920,6 +3212,66 @@ interface BdTargetAccountRow {
   partnership_type_is_active: boolean | null;
   stakeholder_count: number;
   executive_stakeholder_count: number;
+}
+
+interface BdTerritoryPlanRow {
+  id: string;
+  name: string;
+  geography: string | null;
+  target_segments: string | null;
+  named_accounts: string | null;
+  partner_coverage: string | null;
+  campaigns: string | null;
+  pipeline_target: string | number | null;
+  revenue_target: string | number | null;
+  review_status: string;
+  created_at: Date;
+  updated_at: Date;
+  owner_id: string | null;
+  owner_display_name: string | null;
+  owner_email: string | null;
+  reviewer_id: string | null;
+  reviewer_display_name: string | null;
+  reviewer_email: string | null;
+}
+
+interface BdMarketSignalRow {
+  id: string;
+  signal_type: string;
+  content: string;
+  linked_entity_type: string | null;
+  linked_entity_id: string | null;
+  created_at: Date;
+  owner_id: string | null;
+  owner_display_name: string | null;
+  owner_email: string | null;
+  type_id: string | null;
+  type_key: string | null;
+  type_label: string | null;
+  type_description: string | null;
+  type_color: string | null;
+  type_is_default: boolean | null;
+  type_is_active: boolean | null;
+}
+
+interface BdPartnerReferralRow {
+  id: string;
+  referral_source: string | null;
+  customer_name: string;
+  referred_value: string | number | null;
+  converted: boolean;
+  commission_eligible: boolean;
+  notes: string | null;
+  created_at: Date;
+  updated_at: Date;
+  account_id: string | null;
+  account_name: string | null;
+  account_website: string | null;
+  opportunity_id: string | null;
+  opportunity_name: string | null;
+  owner_id: string | null;
+  owner_display_name: string | null;
+  owner_email: string | null;
 }
 
 interface PresalesRequestRow {

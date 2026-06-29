@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
 import { ListToolbar } from "@/components/crm/list-toolbar";
 import { BusinessDevelopmentActions } from "@/components/business-development/business-development-actions";
+import { BusinessDevelopmentBdm } from "@/components/business-development/business-development-bdm";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -534,6 +535,8 @@ export function BusinessDevelopmentPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <BusinessDevelopmentBdm options={options} accessToken={accessToken} canCreate={canCreate} canUpdate={canUpdate} />
 
       <section className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
         <Card>

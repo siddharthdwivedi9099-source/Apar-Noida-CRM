@@ -2199,6 +2199,7 @@ export interface BdTargetAccountOptionsResponse {
   buyerRoles: CrmOptionValueSummary[];
   sequenceSteps: BdSequenceStepDefinition[];
   opportunityStages: CrmOptionValueSummary[];
+  marketSignalTypes: CrmOptionValueSummary[];
 }
 
 // ---- Persona 8 (BDR) enhancements ---------------------------------------------------------------
@@ -2330,6 +2331,11 @@ export interface BdConvertRequestBody {
   expectedCloseDate: string;
   nextStep: string;
   ownerId?: string | null;
+  // BDM-004 strategic opportunity attribution + context.
+  sourceKey?: string | null;
+  useCase?: string | null;
+  product?: string | null;
+  priorityKey?: string | null;
 }
 
 export interface BdConvertResponse {
@@ -2351,6 +2357,120 @@ export interface BdHandoffResponse {
   targetAccount: BdTargetAccountDetail;
   notificationId: string | null;
   approvalId: string | null;
+}
+
+// ---- Persona 11 (Business Development Manager) -------------------------------------------------
+
+export const bdTerritoryPlanReviewStatuses = ["draft", "in_review", "reviewed"] as const;
+export type BdTerritoryPlanReviewStatus = (typeof bdTerritoryPlanReviewStatuses)[number];
+
+export interface BdTerritoryPlanSummary {
+  id: string;
+  name: string;
+  owner: CrmLookupUserSummary | null;
+  geography: string | null;
+  targetSegments: string | null;
+  namedAccounts: string | null;
+  partnerCoverage: string | null;
+  campaigns: string | null;
+  pipelineTarget: number | null;
+  revenueTarget: number | null;
+  reviewStatus: BdTerritoryPlanReviewStatus;
+  reviewer: CrmLookupUserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBdTerritoryPlanRequestBody {
+  name: string;
+  ownerId?: string | null;
+  geography?: string | null;
+  targetSegments?: string | null;
+  namedAccounts?: string | null;
+  partnerCoverage?: string | null;
+  campaigns?: string | null;
+  pipelineTarget?: number | null;
+  revenueTarget?: number | null;
+}
+
+export interface SubmitBdTerritoryPlanReviewRequestBody {
+  reviewerUserId: string;
+  note?: string | null;
+}
+
+export interface BdTerritoryPlanResponse {
+  territoryPlan: BdTerritoryPlanSummary;
+}
+
+export interface BdTerritoryPlansResponse {
+  territoryPlans: BdTerritoryPlanSummary[];
+}
+
+export const bdMarketSignalLinkTypes = ["account", "opportunity", "campaign"] as const;
+export type BdMarketSignalLinkType = (typeof bdMarketSignalLinkTypes)[number];
+
+export interface BdMarketSignalSummary {
+  id: string;
+  signalType: CrmOptionValueSummary | null;
+  content: string;
+  linkedEntityType: BdMarketSignalLinkType | null;
+  linkedEntityId: string | null;
+  owner: CrmLookupUserSummary | null;
+  createdAt: string;
+}
+
+export interface CreateBdMarketSignalRequestBody {
+  signalTypeKey: string;
+  content: string;
+  linkedEntityType?: BdMarketSignalLinkType | null;
+  linkedEntityId?: string | null;
+}
+
+export interface BdMarketSignalResponse {
+  marketSignal: BdMarketSignalSummary;
+}
+
+export interface BdMarketSignalsResponse {
+  marketSignals: BdMarketSignalSummary[];
+}
+
+export interface BdPartnerReferralSummary {
+  id: string;
+  partnerAccount: AccountLookupSummary | null;
+  referralSource: string | null;
+  customerName: string;
+  opportunity: OpportunityLookupSummary | null;
+  referredValue: number | null;
+  converted: boolean;
+  commissionEligible: boolean;
+  notes: string | null;
+  owner: CrmLookupUserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBdPartnerReferralRequestBody {
+  customerName: string;
+  partnerAccountId?: string | null;
+  referralSource?: string | null;
+  referredValue?: number | null;
+  notes?: string | null;
+}
+
+export interface UpdateBdPartnerReferralRequestBody {
+  converted?: boolean;
+  commissionEligible?: boolean;
+  referredValue?: number | null;
+  opportunityId?: string | null;
+  notes?: string | null;
+}
+
+export interface BdPartnerReferralResponse {
+  referral: BdPartnerReferralSummary;
+}
+
+export interface BdPartnerReferralsResponse {
+  referrals: BdPartnerReferralSummary[];
 }
 
 export const presalesPipelineScopes = ["mine", "team", "all"] as const;

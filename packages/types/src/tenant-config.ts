@@ -968,7 +968,8 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "partner", label: "Partner", color: "#6366f1", sortOrder: 4 },
       { key: "reseller", label: "Reseller", color: "#64748b", sortOrder: 5 },
       { key: "renewal", label: "Renewal", color: "#b45309", sortOrder: 6 },
-      { key: "expansion", label: "Expansion", color: "#f97316", sortOrder: 7 }
+      { key: "expansion", label: "Expansion", color: "#f97316", sortOrder: 7 },
+      { key: "business_development", label: "Business Development", color: "#0891b2", sortOrder: 8 }
     ],
     metadata: {
       seeded: true,
@@ -1322,6 +1323,21 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "technical", label: "Technical", sortOrder: 5 },
       { key: "user", label: "User", sortOrder: 6 },
       { key: "executive", label: "Executive", sortOrder: 7 }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
+    setKey: "bd-market-signal-type",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Market Signal Type",
+    description: "Market-intelligence signal categories captured by business development managers (BDM-002).",
+    values: [
+      { key: "competitor", label: "Competitor insight", sortOrder: 0, isDefault: true },
+      { key: "pricing", label: "Pricing signal", sortOrder: 1 },
+      { key: "objection", label: "Objection", sortOrder: 2 },
+      { key: "customer_trend", label: "Customer trend", sortOrder: 3 },
+      { key: "opportunity", label: "Market opportunity", sortOrder: 4 }
     ],
     metadata: { seeded: true, category: "business-development" }
   },
