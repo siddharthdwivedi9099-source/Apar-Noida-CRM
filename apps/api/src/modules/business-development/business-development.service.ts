@@ -3,9 +3,19 @@ import type {
   BdAccountStakeholderInput,
   BdAccountStakeholderSummary,
   BdAiPlaceholderSummary,
+  BdConvertRequestBody,
+  BdConvertResponse,
+  BdEngagementSignals,
+  BdHandoffRecord,
+  BdHandoffRequestBody,
+  BdHandoffResponse,
+  BdImportRequestBody,
+  BdImportResponse,
+  BdImportSkippedEntry,
   BdInfluenceLevel,
   BdPipelineScope,
   BdRelationshipStrength,
+  BdSequenceStepDefinition,
   BdTargetAccountDetail,
   BdTargetAccountListQuery,
   BdTargetAccountOptionsResponse,
@@ -36,10 +46,18 @@ import type {
   UpdateBdTargetAccountRequestBody,
   UpdatePresalesRequestRequestBody
 } from "@crm/types";
+import {
+  evaluateBdEngagement,
+  evaluateBdSequence,
+  evaluateBuyingCommitteeCompleteness
+} from "@crm/types";
+import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
+import { ApprovalService } from "../approvals/approvals.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -128,6 +146,25 @@ const PRESALES_COMPLIANCE_STATUSES: PresalesComplianceStatus[] = [
 
 function toIsoString(value: Date | null) {
   return value ? value.toISOString() : null;
+}
+
+function metaString(value: Record<string, unknown> | null | undefined, key: string): string | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = (value as Record<string, unknown>)[key];
+  return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : null;
+}
+
+function metaStringArray(value: Record<string, unknown> | null | undefined, key: string): string[] {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const raw = (value as Record<string, unknown>)[key];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim());
 }
 
 function getMetadata(value: Record<string, unknown> | null | undefined) {
@@ -240,10 +277,16 @@ function normalizeComplianceStatus(value: unknown): PresalesComplianceStatus {
 }
 
 export class BusinessDevelopmentService {
+  private readonly notificationService: NotificationService;
+  private readonly approvalService: ApprovalService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
-  ) {}
+  ) {
+    this.notificationService = new NotificationService(databaseService, config);
+    this.approvalService = new ApprovalService(databaseService, config);
+  }
 
   private assertEnabled() {
     if (!this.databaseService.isEnabled()) {
@@ -378,6 +421,58 @@ export class BusinessDevelopmentService {
       isDefault: row.is_default,
       isActive: row.is_active
     }));
+  }
+
+  // BDR-003: load outbound sequence step definitions (channel + offset + targeting from metadata).
+  private async loadBdSequenceSteps(client: PoolClient, tenantId: string): Promise<BdSequenceStepDefinition[]> {
+    const result = await client.query<{ key: string; label: string; sort_order: number; metadata: Record<string, unknown> | null }>(
+      `
+        SELECT
+          tenant_option_values.value_key AS key,
+          tenant_option_values.label,
+          tenant_option_values.sort_order,
+          tenant_option_values.metadata
+        FROM tenant_option_sets
+        INNER JOIN tenant_option_values
+          ON tenant_option_values.option_set_id = tenant_option_sets.id
+         AND tenant_option_values.tenant_id = tenant_option_sets.tenant_id
+        WHERE tenant_option_sets.tenant_id = $1
+          AND tenant_option_sets.set_key = 'bd-sequence-step'
+          AND tenant_option_sets.deleted_at IS NULL
+          AND tenant_option_values.deleted_at IS NULL
+          AND tenant_option_values.is_active = true
+        ORDER BY tenant_option_values.sort_order ASC, tenant_option_values.label ASC
+      `,
+      [tenantId]
+    );
+
+    const validChannels = ["email", "call", "linkedin", "whatsapp", "sms", "task"];
+    return result.rows.map((row, index) => {
+      const metadata = row.metadata ?? {};
+      const channelRaw = metaString(metadata, "channel");
+      const offsetRaw = (metadata as Record<string, unknown>).offsetHours;
+      return {
+        key: row.key,
+        label: row.label,
+        channel: (channelRaw && validChannels.includes(channelRaw) ? channelRaw : "task") as BdSequenceStepDefinition["channel"],
+        offsetHours: typeof offsetRaw === "number" && Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : index * 24,
+        order: row.sort_order,
+        persona: metaString(metadata, "persona"),
+        product: metaString(metadata, "product"),
+        region: metaString(metadata, "region")
+      };
+    });
+  }
+
+  // Catalogs needed to map BDR-computed views (priority, technologies, buyer roles, sequence, engagement).
+  private async loadBdComputeCatalog(client: PoolClient, tenantId: string): Promise<BdComputeCatalog> {
+    return {
+      priorities: await this.loadOptionSetValues(client, tenantId, "bd-account-priority"),
+      technologies: await this.loadOptionSetValues(client, tenantId, "bd-technology"),
+      buyerRoles: await this.loadOptionSetValues(client, tenantId, "bd-buyer-role"),
+      sequenceSteps: await this.loadBdSequenceSteps(client, tenantId),
+      nowIso: new Date().toISOString()
+    };
   }
 
   private async loadAccountsLookup(client: PoolClient, tenantId: string): Promise<AccountLookupSummary[]> {
@@ -694,6 +789,26 @@ export class BusinessDevelopmentService {
               key: "stakeholder_map",
               label: "Stakeholder map",
               description: "Placeholder entry point for future relationship and influence mapping suggestions."
+            },
+            {
+              key: "high_potential_accounts",
+              label: "High-potential accounts",
+              description: "Placeholder entry point for future AI recommendations of high-potential target accounts."
+            },
+            {
+              key: "buying_committee_gap",
+              label: "Buying-committee gaps",
+              description: "Placeholder entry point for future AI suggestions of missing buying-committee roles."
+            },
+            {
+              key: "sequence_message",
+              label: "Personalized sequence message",
+              description: "Placeholder entry point for future AI-personalized outbound sequence messages."
+            },
+            {
+              key: "buying_signal_accounts",
+              label: "Buying-signal accounts",
+              description: "Placeholder entry point for future AI highlighting of accounts showing buying signals."
             }
           ]
         : [],
@@ -762,7 +877,8 @@ export class BusinessDevelopmentService {
   private async loadBdStakeholders(
     client: PoolClient,
     tenantId: string,
-    targetAccountIds: string[]
+    targetAccountIds: string[],
+    buyerRoles: CrmOptionValueSummary[] = []
   ): Promise<Map<string, BdAccountStakeholderSummary[]>> {
     const map = new Map<string, BdAccountStakeholderSummary[]>();
 
@@ -770,6 +886,7 @@ export class BusinessDevelopmentService {
       return map;
     }
 
+    const buyerRoleMap = new Map(buyerRoles.map((option) => [option.key, option]));
     const result = await client.query<{
       id: string;
       target_account_id: string;
@@ -780,6 +897,7 @@ export class BusinessDevelopmentService {
       is_executive: boolean;
       last_engagement_at: Date | null;
       engagement_notes: string | null;
+      metadata: Record<string, unknown> | null;
       created_at: Date;
       updated_at: Date;
       contact_id: string | null;
@@ -805,6 +923,7 @@ export class BusinessDevelopmentService {
           bd_account_stakeholders.is_executive,
           bd_account_stakeholders.last_engagement_at,
           bd_account_stakeholders.engagement_notes,
+          bd_account_stakeholders.metadata,
           bd_account_stakeholders.created_at,
           bd_account_stakeholders.updated_at,
           contacts.id AS contact_id,
@@ -857,6 +976,10 @@ export class BusinessDevelopmentService {
         influenceLevel: normalizeInfluenceLevel(row.influence_level),
         relationshipStrength: normalizeRelationshipStrength(row.relationship_strength),
         isExecutive: row.is_executive,
+        buyerRole: (() => {
+          const buyerRoleKey = metaString(row.metadata, "buyerRoleKey");
+          return buyerRoleKey ? buyerRoleMap.get(buyerRoleKey) ?? null : null;
+        })(),
         lastEngagementAt: toIsoString(row.last_engagement_at),
         engagementNotes: row.engagement_notes,
         createdAt: row.created_at.toISOString(),
@@ -871,10 +994,23 @@ export class BusinessDevelopmentService {
     return map;
   }
 
-  private mapBdSummary(row: BdTargetAccountRow): BdTargetAccountSummary {
+  private mapBdSummary(row: BdTargetAccountRow, catalog: BdComputeCatalog): BdTargetAccountSummary {
+    const metadata = getMetadata(row.metadata);
+    const priorityKey = metaString(metadata, "priorityKey");
+    const technologyKeys = metaStringArray(metadata, "technologies");
+    const priorityMap = new Map(catalog.priorities.map((option) => [option.key, option]));
+    const technologyMap = new Map(catalog.technologies.map((option) => [option.key, option]));
+    const engagementSignals =
+      metadata.engagementSignals && typeof metadata.engagementSignals === "object"
+        ? (metadata.engagementSignals as Partial<BdEngagementSignals>)
+        : {};
+
     return {
       id: row.id,
       name: row.name,
+      priority: priorityKey ? priorityMap.get(priorityKey) ?? null : null,
+      technologies: technologyKeys.map((key) => technologyMap.get(key)).filter((value): value is CrmOptionValueSummary => Boolean(value)),
+      engagement: evaluateBdEngagement(engagementSignals),
       account: row.account_id
         ? { id: row.account_id, name: row.account_name ?? "", website: row.account_website }
         : null,
@@ -1044,6 +1180,8 @@ export class BusinessDevelopmentService {
 
       const contactId = await this.ensureContactId(client, actor.tenantId, stakeholder.contactId ?? null);
 
+      const buyerRoleKey = getTrimmedNullableString(stakeholder.buyerRoleKey);
+
       await client.query(
         `
           INSERT INTO bd_account_stakeholders (
@@ -1057,10 +1195,11 @@ export class BusinessDevelopmentService {
             is_executive,
             last_engagement_at,
             engagement_notes,
+            metadata,
             created_by,
             updated_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11, $11)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11::jsonb, $12, $12)
         `,
         [
           actor.tenantId,
@@ -1073,6 +1212,7 @@ export class BusinessDevelopmentService {
           Boolean(stakeholder.isExecutive),
           stakeholder.lastEngagementAt ?? null,
           getTrimmedNullableString(stakeholder.engagementNotes),
+          JSON.stringify(buyerRoleKey ? { buyerRoleKey } : {}),
           actor.userId
         ]
       );
@@ -1089,7 +1229,12 @@ export class BusinessDevelopmentService {
       tiers: await this.loadOptionSetValues(client, actor.tenantId, "bd-account-tier"),
       stages: await this.loadOptionSetValues(client, actor.tenantId, "bd-pipeline-stage"),
       partnershipTypes: await this.loadOptionSetValues(client, actor.tenantId, "bd-partnership-type"),
-      availableScopes: await this.getAvailableScopes(client, actor, "business_development")
+      availableScopes: await this.getAvailableScopes(client, actor, "business_development"),
+      priorities: await this.loadOptionSetValues(client, actor.tenantId, "bd-account-priority"),
+      technologies: await this.loadOptionSetValues(client, actor.tenantId, "bd-technology"),
+      buyerRoles: await this.loadOptionSetValues(client, actor.tenantId, "bd-buyer-role"),
+      sequenceSteps: await this.loadBdSequenceSteps(client, actor.tenantId),
+      opportunityStages: await this.loadOptionSetValues(client, actor.tenantId, "opportunity-pipeline")
     }));
   }
 
@@ -1178,8 +1323,9 @@ export class BusinessDevelopmentService {
         listParams
       );
 
+      const catalog = await this.loadBdComputeCatalog(client, actor.tenantId);
       return {
-        targetAccounts: listResult.rows.map((row) => this.mapBdSummary(row)),
+        targetAccounts: listResult.rows.map((row) => this.mapBdSummary(row, catalog)),
         pagination: buildPagination(page, pageSize, total)
       };
     });
@@ -1208,16 +1354,64 @@ export class BusinessDevelopmentService {
       throw new AppError(404, "Target account not found.", undefined, "TARGET_ACCOUNT_NOT_FOUND");
     }
 
-    const stakeholdersMap = await this.loadBdStakeholders(client, actor.tenantId, [targetAccountId]);
+    const catalog = await this.loadBdComputeCatalog(client, actor.tenantId);
+    const stakeholdersMap = await this.loadBdStakeholders(client, actor.tenantId, [targetAccountId], catalog.buyerRoles);
+    const stakeholders = stakeholdersMap.get(targetAccountId) ?? [];
+    const metadata = getMetadata(row.metadata);
+    const sequenceStateRaw =
+      metadata.sequence && typeof metadata.sequence === "object" ? (metadata.sequence as Record<string, unknown>) : {};
+
+    const sequence = evaluateBdSequence({
+      steps: catalog.sequenceSteps,
+      context: {
+        persona: metaString(metadata, "persona"),
+        product: metaStringArray(metadata, "technologies")[0] ?? metaString(metadata, "product"),
+        region: row.region
+      },
+      state: {
+        paused: sequenceStateRaw.paused === true,
+        pauseReason: metaString(sequenceStateRaw, "pauseReason"),
+        completedStepKeys: metaStringArray(sequenceStateRaw, "completedStepKeys")
+      },
+      startIso: row.created_at.toISOString(),
+      nowIso: catalog.nowIso
+    });
+
+    const buyingCommittee = evaluateBuyingCommitteeCompleteness(
+      catalog.buyerRoles,
+      stakeholders.map((stakeholder) => stakeholder.buyerRole?.key)
+    );
 
     return {
-      ...this.mapBdSummary(row),
-      stakeholders: stakeholdersMap.get(targetAccountId) ?? [],
+      ...this.mapBdSummary(row, catalog),
+      stakeholders,
+      buyingCommittee,
+      sequence,
+      handoff: this.readHandoffRecord(metadata),
       territoryPlaceholder: {
         available: false,
         message: "Territory mapping will connect once geographic and account-coverage planning is introduced."
       },
       aiPlaceholders: this.buildBdAiPlaceholders(actor)
+    };
+  }
+
+  private readHandoffRecord(metadata: Record<string, unknown>): BdHandoffRecord | null {
+    const raw = metadata.handoff;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return null;
+    }
+    const source = raw as Record<string, unknown>;
+    const status = source.status === "handed_off" ? "handed_off" : "pending_approval";
+    return {
+      salesOwnerId: metaString(source, "salesOwnerId"),
+      salesOwnerName: metaString(source, "salesOwnerName"),
+      recommendedApproach: metaString(source, "recommendedApproach"),
+      painPoints: metaString(source, "painPoints"),
+      nextMeetingAt: metaString(source, "nextMeetingAt"),
+      status,
+      requestedAt: metaString(source, "requestedAt") ?? new Date().toISOString(),
+      approvalId: metaString(source, "approvalId")
     };
   }
 
@@ -1306,7 +1500,13 @@ export class BusinessDevelopmentService {
           getTrimmedNullableString(input.executiveSponsor),
           getTrimmedNullableString(input.nextStep),
           Boolean(input.isPartnership),
-          JSON.stringify(input.metadata ?? {}),
+          JSON.stringify({
+            ...(input.metadata ?? {}),
+            ...(input.priorityKey !== undefined ? { priorityKey: getTrimmedNullableString(input.priorityKey) } : {}),
+            ...(input.technologies !== undefined
+              ? { technologies: input.technologies.map((value) => value.trim()).filter((value) => value.length > 0) }
+              : {})
+          }),
           actor.userId
         ]
       );
@@ -1349,6 +1549,51 @@ export class BusinessDevelopmentService {
       );
       this.assertBdMutation(actor, keys);
       await this.getBdOwnerId(client, actor.tenantId, targetAccountId);
+
+      // Load current metadata so BDR fields stored in JSONB (priority/technologies/sequence/engagement) merge.
+      const currentMetadataResult = await client.query<{ metadata: Record<string, unknown> | null }>(
+        `SELECT metadata FROM bd_target_accounts WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+        [targetAccountId, actor.tenantId]
+      );
+      const currentMetadata = getMetadata(currentMetadataResult.rows[0]?.metadata);
+      const nextMetadata: Record<string, unknown> = { ...currentMetadata, ...(input.metadata ?? {}) };
+      let metadataChanged = keys.includes("metadata");
+
+      if (keys.includes("priorityKey")) {
+        nextMetadata.priorityKey = getTrimmedNullableString(input.priorityKey);
+        metadataChanged = true;
+      }
+      if (keys.includes("technologies") && input.technologies) {
+        nextMetadata.technologies = input.technologies.map((value) => value.trim()).filter((value) => value.length > 0);
+        metadataChanged = true;
+      }
+      if (keys.includes("engagementSignals") && input.engagementSignals) {
+        const currentSignals =
+          currentMetadata.engagementSignals && typeof currentMetadata.engagementSignals === "object"
+            ? (currentMetadata.engagementSignals as Record<string, unknown>)
+            : {};
+        nextMetadata.engagementSignals = { ...currentSignals, ...input.engagementSignals };
+        metadataChanged = true;
+      }
+      if (keys.includes("sequence") && input.sequence) {
+        const currentSequence =
+          currentMetadata.sequence && typeof currentMetadata.sequence === "object"
+            ? (currentMetadata.sequence as Record<string, unknown>)
+            : {};
+        const completedStepKeys = metaStringArray(currentSequence, "completedStepKeys");
+        if (input.sequence.completeStepKey && !completedStepKeys.includes(input.sequence.completeStepKey.trim())) {
+          completedStepKeys.push(input.sequence.completeStepKey.trim());
+        }
+        // A logged reply pauses the sequence (BDR-003).
+        const paused = input.sequence.logReply ? true : input.sequence.paused ?? currentSequence.paused === true;
+        const pauseReason = input.sequence.logReply
+          ? getTrimmedNullableString(input.sequence.pauseReason) ?? "Reply received"
+          : input.sequence.paused === false
+            ? null
+            : getTrimmedNullableString(input.sequence.pauseReason) ?? metaString(currentSequence, "pauseReason");
+        nextMetadata.sequence = { paused, pauseReason, completedStepKeys };
+        metadataChanged = true;
+      }
 
       const assignments: string[] = [];
       const params: unknown[] = [targetAccountId, actor.tenantId, actor.userId];
@@ -1423,8 +1668,8 @@ export class BusinessDevelopmentService {
       if (keys.includes("isPartnership")) {
         pushAssignment("is_partnership", Boolean(input.isPartnership));
       }
-      if (keys.includes("metadata")) {
-        pushAssignment("metadata", JSON.stringify(input.metadata ?? {}), "::jsonb");
+      if (metadataChanged) {
+        pushAssignment("metadata", JSON.stringify(nextMetadata), "::jsonb");
       }
 
       if (assignments.length > 0) {
@@ -1497,6 +1742,331 @@ export class BusinessDevelopmentService {
 
       return { success: true };
     });
+  }
+
+  private async resolveDefaultOptionValueId(client: PoolClient, tenantId: string, setKey: string): Promise<string> {
+    const result = await client.query<{ id: string }>(
+      `
+        SELECT tenant_option_values.id
+        FROM tenant_option_sets
+        INNER JOIN tenant_option_values
+          ON tenant_option_values.option_set_id = tenant_option_sets.id
+         AND tenant_option_values.tenant_id = tenant_option_sets.tenant_id
+        WHERE tenant_option_sets.tenant_id = $1
+          AND tenant_option_sets.set_key = $2
+          AND tenant_option_sets.deleted_at IS NULL
+          AND tenant_option_values.deleted_at IS NULL
+          AND tenant_option_values.is_active = true
+        ORDER BY tenant_option_values.is_default DESC, tenant_option_values.sort_order ASC
+        LIMIT 1
+      `,
+      [tenantId, setKey]
+    );
+    const id = result.rows[0]?.id;
+    if (!id) {
+      throw new AppError(400, `No options are configured for ${setKey}.`, undefined, "OPTION_SET_EMPTY");
+    }
+    return id;
+  }
+
+  // BDR-001: bulk import target accounts with duplicate detection.
+  async importBdTargetAccounts(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    input: BdImportRequestBody
+  ): Promise<BdImportResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withTransaction(async (client) => {
+      this.assertBdMutation(actor, ["name"]);
+
+      const existing = await client.query<{ name: string }>(
+        `SELECT LOWER(name) AS name FROM bd_target_accounts WHERE tenant_id = $1 AND deleted_at IS NULL`,
+        [actor.tenantId]
+      );
+      const seen = new Set(existing.rows.map((row) => row.name));
+      const defaultTierId = await this.resolveDefaultOptionValueId(client, actor.tenantId, "bd-account-tier");
+      const defaultStageId = await this.resolveDefaultOptionValueId(client, actor.tenantId, "bd-pipeline-stage");
+
+      const skipped: BdImportSkippedEntry[] = [];
+      let createdCount = 0;
+
+      for (const entry of input.accounts) {
+        const name = entry.name?.trim() ?? "";
+        if (name.length === 0) {
+          skipped.push({ name: entry.name ?? "", reason: "Missing name" });
+          continue;
+        }
+        if (seen.has(name.toLowerCase())) {
+          skipped.push({ name, reason: "Duplicate name" });
+          continue;
+        }
+        seen.add(name.toLowerCase());
+
+        const accountId = await this.ensureAccountId(client, actor.tenantId, entry.accountId ?? null);
+        const tierOptionId = entry.tierKey
+          ? await this.resolveOptionValueId(client, actor.tenantId, "bd-account-tier", entry.tierKey, "BD account tier")
+          : defaultTierId;
+        const stageOptionId = entry.stageKey
+          ? await this.resolveOptionValueId(client, actor.tenantId, "bd-pipeline-stage", entry.stageKey, "BD pipeline stage")
+          : defaultStageId;
+
+        await client.query(
+          `
+            INSERT INTO bd_target_accounts (
+              tenant_id, account_id, owner_id, name, industry, region,
+              tier_option_id, stage_option_id, annual_revenue, employee_count, metadata, created_by, updated_by
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $12)
+          `,
+          [
+            actor.tenantId,
+            accountId,
+            actor.userId,
+            name,
+            getTrimmedNullableString(entry.industry),
+            getTrimmedNullableString(entry.region),
+            tierOptionId,
+            stageOptionId,
+            entry.annualRevenue ?? null,
+            entry.employeeCount ?? null,
+            JSON.stringify({
+              ...(entry.priorityKey ? { priorityKey: entry.priorityKey.trim() } : {}),
+              ...(entry.technologies
+                ? { technologies: entry.technologies.map((value) => value.trim()).filter((value) => value.length > 0) }
+                : {}),
+              importedAt: new Date().toISOString()
+            }),
+            actor.userId
+          ]
+        );
+        createdCount += 1;
+      }
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "bd.target_account.import",
+        resourceType: "bd_target_account",
+        resourceId: null,
+        status: "success",
+        metadata: { createdCount, skippedCount: skipped.length }
+      });
+
+      const catalog = await this.loadBdComputeCatalog(client, actor.tenantId);
+      const listResult = await client.query<BdTargetAccountRow>(
+        `
+          SELECT ${this.bdSelectColumns()}
+          ${this.bdFromClause()}
+          WHERE bd_target_accounts.tenant_id = $1 AND bd_target_accounts.deleted_at IS NULL
+          ORDER BY bd_target_accounts.created_at DESC
+          LIMIT 50
+        `,
+        [actor.tenantId]
+      );
+
+      return {
+        createdCount,
+        skipped,
+        targetAccounts: listResult.rows.map((row) => this.mapBdSummary(row, catalog))
+      };
+    });
+  }
+
+  // BDR-004: convert an engaged target account into an opportunity.
+  async convertBdTargetAccount(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    targetAccountId: string,
+    input: BdConvertRequestBody
+  ): Promise<BdConvertResponse> {
+    this.assertEnabled();
+
+    const opportunityId = await this.databaseService.withTransaction(async (client) => {
+      this.assertBdMutation(actor, ["name"]);
+      const accountResult = await client.query<{
+        account_id: string | null;
+        owner_id: string | null;
+        name: string;
+        metadata: Record<string, unknown> | null;
+      }>(
+        `SELECT account_id, owner_id, name, metadata FROM bd_target_accounts WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+        [targetAccountId, actor.tenantId]
+      );
+      const targetAccount = accountResult.rows[0];
+      if (!targetAccount) {
+        throw new AppError(404, "Target account not found.", undefined, "TARGET_ACCOUNT_NOT_FOUND");
+      }
+      if (!targetAccount.account_id) {
+        throw new AppError(400, "Link a CRM account to this target before converting.", undefined, "BD_ACCOUNT_REQUIRED");
+      }
+
+      const ownerId = await this.ensureOwnerId(client, actor.tenantId, input.ownerId ?? targetAccount.owner_id ?? actor.userId);
+      const stageOptionId = await this.resolveOptionValueId(
+        client,
+        actor.tenantId,
+        "opportunity-pipeline",
+        input.stageKey,
+        "Opportunity stage"
+      );
+      const sourceOptionId = await this.resolveDefaultOptionValueId(client, actor.tenantId, "opportunity-source");
+      const outcomeStatusOptionId = await this.resolveOptionValueId(
+        client,
+        actor.tenantId,
+        "opportunity-outcome-status",
+        "open",
+        "Opportunity outcome status"
+      );
+
+      const opportunityResult = await client.query<{ id: string }>(
+        `
+          INSERT INTO opportunities (
+            tenant_id, account_id, primary_contact_id, owner_id, name, stage_option_id, source_option_id,
+            outcome_status_option_id, amount, probability, expected_close_date, competitor, next_step,
+            win_loss_reason, custom_fields, metadata, created_by, updated_by
+          )
+          VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8, NULL, $9::date, NULL, $10, NULL, '{}'::jsonb, $11::jsonb, $12, $12)
+          RETURNING id
+        `,
+        [
+          actor.tenantId,
+          targetAccount.account_id,
+          ownerId,
+          getTrimmedNullableString(input.opportunityName) ?? `${targetAccount.name.trim()} Opportunity`,
+          stageOptionId,
+          sourceOptionId,
+          outcomeStatusOptionId,
+          input.amount,
+          getTrimmedNullableString(input.expectedCloseDate),
+          getTrimmedNullableString(input.nextStep),
+          JSON.stringify({ convertedFromBdTargetAccountId: targetAccountId }),
+          actor.userId
+        ]
+      );
+      const nextOpportunityId = opportunityResult.rows[0]?.id;
+      if (!nextOpportunityId) {
+        throw new AppError(500, "Opportunity creation failed.", undefined, "OPPORTUNITY_CREATE_FAILED");
+      }
+
+      const nextMetadata = {
+        ...getMetadata(targetAccount.metadata),
+        convertedOpportunityId: nextOpportunityId,
+        convertedAt: new Date().toISOString()
+      };
+      await client.query(
+        `UPDATE bd_target_accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [targetAccountId, actor.tenantId, JSON.stringify(nextMetadata), actor.userId]
+      );
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "bd.target_account.convert",
+        resourceType: "bd_target_account",
+        resourceId: targetAccountId,
+        status: "success",
+        metadata: { opportunityId: nextOpportunityId }
+      });
+
+      return nextOpportunityId;
+    });
+
+    const detail = await this.databaseService.withClient(async (client) => this.loadBdDetail(client, actor, targetAccountId));
+    return { opportunityId, targetAccount: detail };
+  }
+
+  // BDR-005: strategic account handoff to enterprise sales (notification + optional manager approval).
+  async handoffBdTargetAccount(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    targetAccountId: string,
+    input: BdHandoffRequestBody
+  ): Promise<BdHandoffResponse> {
+    this.assertEnabled();
+
+    const result = await this.databaseService.withTransaction(async (client) => {
+      this.assertBdMutation(actor, ["name"]);
+      const accountResult = await client.query<{ name: string; metadata: Record<string, unknown> | null }>(
+        `SELECT name, metadata FROM bd_target_accounts WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+        [targetAccountId, actor.tenantId]
+      );
+      const targetAccount = accountResult.rows[0];
+      if (!targetAccount) {
+        throw new AppError(404, "Target account not found.", undefined, "TARGET_ACCOUNT_NOT_FOUND");
+      }
+
+      const salesOwnerId = await this.ensureOwnerId(client, actor.tenantId, input.salesOwnerId);
+      if (!salesOwnerId) {
+        throw new AppError(400, "A sales owner is required for handoff.", undefined, "VALIDATION_ERROR");
+      }
+      const recommendedApproach = getTrimmedNullableString(input.recommendedApproach);
+      if (!recommendedApproach) {
+        throw new AppError(400, "A recommended approach is required for handoff.", undefined, "VALIDATION_ERROR");
+      }
+      const requireApproval = Boolean(input.requireApproval);
+      const linkedRecord = { entityType: "bd_target_account", entityId: targetAccountId };
+
+      // Notify the receiving sales owner (BDR-005).
+      const notification = await this.notificationService.createNotificationWithClient(client, actor, audit, {
+        notificationType: "record_assignment",
+        recipientUserId: salesOwnerId,
+        title: `Strategic account handoff: ${targetAccount.name}`,
+        message: recommendedApproach,
+        linkedRecord,
+        metadata: { painPoints: getTrimmedNullableString(input.painPoints), nextMeetingAt: input.nextMeetingAt ?? null }
+      });
+
+      let approvalId: string | null = null;
+      if (requireApproval) {
+        const approverUserId = await this.ensureOwnerId(client, actor.tenantId, input.approverUserId ?? null);
+        if (!approverUserId) {
+          throw new AppError(400, "A manager approver is required when approval is requested.", undefined, "VALIDATION_ERROR");
+        }
+        const approval = await this.approvalService.createApprovalWithClient(client, actor, audit, {
+          approvalType: "strategic_handoff_approval",
+          title: `Reassign strategic account: ${targetAccount.name}`,
+          description: recommendedApproach,
+          approverUserId,
+          linkedRecord,
+          metadata: { salesOwnerId }
+        });
+        approvalId = approval.id;
+      }
+
+      const handoffRecord: BdHandoffRecord = {
+        salesOwnerId,
+        salesOwnerName: null,
+        recommendedApproach,
+        painPoints: getTrimmedNullableString(input.painPoints),
+        nextMeetingAt: input.nextMeetingAt ?? null,
+        status: requireApproval ? "pending_approval" : "handed_off",
+        requestedAt: new Date().toISOString(),
+        approvalId
+      };
+      const nextMetadata = { ...getMetadata(targetAccount.metadata), handoff: handoffRecord };
+
+      // Without approval the reassignment takes effect immediately; otherwise it waits for approval.
+      if (requireApproval) {
+        await client.query(
+          `UPDATE bd_target_accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+          [targetAccountId, actor.tenantId, JSON.stringify(nextMetadata), actor.userId]
+        );
+      } else {
+        await client.query(
+          `UPDATE bd_target_accounts SET owner_id = $3, metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+          [targetAccountId, actor.tenantId, salesOwnerId, JSON.stringify(nextMetadata), actor.userId]
+        );
+      }
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "bd.target_account.handoff",
+        resourceType: "bd_target_account",
+        resourceId: targetAccountId,
+        status: "success",
+        metadata: { salesOwnerId, requireApproval, approvalId }
+      });
+
+      return { notificationId: notification.id, approvalId };
+    });
+
+    const detail = await this.databaseService.withClient(async (client) => this.loadBdDetail(client, actor, targetAccountId));
+    return { targetAccount: detail, notificationId: result.notificationId, approvalId: result.approvalId };
   }
 
   // ==========================================================================
@@ -2295,6 +2865,14 @@ export class BusinessDevelopmentService {
       return { success: true };
     });
   }
+}
+
+interface BdComputeCatalog {
+  priorities: CrmOptionValueSummary[];
+  technologies: CrmOptionValueSummary[];
+  buyerRoles: CrmOptionValueSummary[];
+  sequenceSteps: BdSequenceStepDefinition[];
+  nowIso: string;
 }
 
 interface BdTargetAccountRow {

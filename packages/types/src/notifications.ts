@@ -161,7 +161,8 @@ export const approvalTypes = [
   "partner_approval",
   "reseller_approval",
   "sensitive_ai_action_approval",
-  "customer_escalation_approval"
+  "customer_escalation_approval",
+  "strategic_handoff_approval"
 ] as const;
 
 export type ApprovalType = (typeof approvalTypes)[number];
@@ -224,6 +225,11 @@ export const approvalTypeCatalog: ApprovalTypeDefinition[] = [
     key: "customer_escalation_approval",
     label: "Customer escalation approval",
     description: "Approval routing for escalations affecting customer delivery or risk."
+  },
+  {
+    key: "strategic_handoff_approval",
+    label: "Strategic handoff approval",
+    description: "Manager approval for reassigning a strategic target account to enterprise sales (BDR-005)."
   }
 ];
 

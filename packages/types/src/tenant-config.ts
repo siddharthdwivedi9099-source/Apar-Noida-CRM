@@ -1276,6 +1276,73 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "bd-account-priority",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Account Priority",
+    description: "Outbound prioritization for target accounts (BDR-001).",
+    values: [
+      { key: "strategic", label: "Strategic", color: "#6366f1", sortOrder: 0 },
+      { key: "high", label: "High", color: "#ef4444", sortOrder: 1 },
+      { key: "medium", label: "Medium", color: "#f59e0b", sortOrder: 2, isDefault: true },
+      { key: "low", label: "Low", color: "#64748b", sortOrder: 3 }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
+    setKey: "bd-technology",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Account Technology",
+    description: "Technology stack tags used to segment target accounts (BDR-001).",
+    values: [
+      { key: "salesforce", label: "Salesforce", sortOrder: 0, isDefault: true },
+      { key: "microsoft", label: "Microsoft", sortOrder: 1 },
+      { key: "aws", label: "AWS", sortOrder: 2 },
+      { key: "azure", label: "Azure", sortOrder: 3 },
+      { key: "gcp", label: "Google Cloud", sortOrder: 4 },
+      { key: "sap", label: "SAP", sortOrder: 5 },
+      { key: "oracle", label: "Oracle", sortOrder: 6 },
+      { key: "custom", label: "Custom / In-house", sortOrder: 7 }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
+    setKey: "bd-buyer-role",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Buyer Role",
+    description: "Buying-committee roles for stakeholder mapping (BDR-002).",
+    values: [
+      { key: "decision_maker", label: "Decision Maker", sortOrder: 0, isDefault: true },
+      { key: "influencer", label: "Influencer", sortOrder: 1 },
+      { key: "evaluator", label: "Evaluator", sortOrder: 2 },
+      { key: "procurement", label: "Procurement", sortOrder: 3 },
+      { key: "finance", label: "Finance", sortOrder: 4 },
+      { key: "technical", label: "Technical", sortOrder: 5 },
+      { key: "user", label: "User", sortOrder: 6 },
+      { key: "executive", label: "Executive", sortOrder: 7 }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
+    setKey: "bd-sequence-step",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Outbound Sequence",
+    description:
+      "Configurable outbound sequence steps (BDR-003). `metadata.channel` is the touch type, `metadata.offsetHours` the offset from sequence start, and optional `metadata.persona`/`product`/`region` target the step.",
+    values: [
+      { key: "email_day0", label: "Day 0 - Intro email", sortOrder: 0, isDefault: true, metadata: { channel: "email", offsetHours: 0 } },
+      { key: "linkedin_day1", label: "Day 1 - LinkedIn touch", sortOrder: 1, metadata: { channel: "linkedin", offsetHours: 24 } },
+      { key: "call_day2", label: "Day 2 - Call", sortOrder: 2, metadata: { channel: "call", offsetHours: 48 } },
+      { key: "email_day4", label: "Day 4 - Value email", sortOrder: 3, metadata: { channel: "email", offsetHours: 96 } },
+      { key: "whatsapp_day6", label: "Day 6 - WhatsApp/SMS", sortOrder: 4, metadata: { channel: "whatsapp", offsetHours: 144 } },
+      { key: "task_day8", label: "Day 8 - Breakup task", sortOrder: 5, metadata: { channel: "task", offsetHours: 192 } }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
     setKey: "presales-request-type",
     moduleKey: "presales",
     kind: "dropdown",

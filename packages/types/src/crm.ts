@@ -1609,7 +1609,13 @@ export interface BdPlaceholderSurface {
 }
 
 export interface BdAiPlaceholderAction {
-  key: "account_research_brief" | "stakeholder_map";
+  key:
+    | "account_research_brief"
+    | "stakeholder_map"
+    | "high_potential_accounts"
+    | "buying_committee_gap"
+    | "sequence_message"
+    | "buying_signal_accounts";
   label: string;
   description: string;
 }
@@ -1627,6 +1633,8 @@ export interface BdAccountStakeholderSummary {
   influenceLevel: BdInfluenceLevel;
   relationshipStrength: BdRelationshipStrength;
   isExecutive: boolean;
+  // BDR-002 buying-committee role.
+  buyerRole: CrmOptionValueSummary | null;
   lastEngagementAt: string | null;
   engagementNotes: string | null;
   createdAt: string;
@@ -1641,6 +1649,7 @@ export interface BdAccountStakeholderInput {
   influenceLevel?: BdInfluenceLevel;
   relationshipStrength?: BdRelationshipStrength;
   isExecutive?: boolean;
+  buyerRoleKey?: string | null;
   lastEngagementAt?: string | null;
   engagementNotes?: string | null;
 }
@@ -1663,6 +1672,10 @@ export interface BdTargetAccountSummary {
   isPartnership: boolean;
   stakeholderCount: number;
   executiveStakeholderCount: number;
+  // BDR-001 segmentation + BDR-004 engagement.
+  priority: CrmOptionValueSummary | null;
+  technologies: CrmOptionValueSummary[];
+  engagement: BdEngagementView;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -1670,6 +1683,10 @@ export interface BdTargetAccountSummary {
 
 export interface BdTargetAccountDetail extends BdTargetAccountSummary {
   stakeholders: BdAccountStakeholderSummary[];
+  // BDR-002 buying-committee completeness + BDR-003 sequence + BDR-005 handoff.
+  buyingCommittee: BdBuyingCommitteeView;
+  sequence: BdSequenceView;
+  handoff: BdHandoffRecord | null;
   territoryPlaceholder: BdPlaceholderSurface;
   aiPlaceholders: BdAiPlaceholderSummary;
 }
@@ -1690,6 +1707,8 @@ export interface CreateBdTargetAccountRequestBody {
   nextStep?: string | null;
   isPartnership?: boolean;
   stakeholders?: BdAccountStakeholderInput[];
+  priorityKey?: string | null;
+  technologies?: string[];
   metadata?: Record<string, unknown>;
 }
 
@@ -1709,6 +1728,11 @@ export interface UpdateBdTargetAccountRequestBody {
   nextStep?: string | null;
   isPartnership?: boolean;
   stakeholders?: BdAccountStakeholderInput[];
+  priorityKey?: string | null;
+  technologies?: string[];
+  // BDR-003 sequence controls + BDR-004 engagement-signal capture.
+  sequence?: UpdateBdSequenceInput;
+  engagementSignals?: Partial<BdEngagementSignals>;
   metadata?: Record<string, unknown>;
 }
 
@@ -1729,6 +1753,164 @@ export interface BdTargetAccountOptionsResponse {
   stages: CrmOptionValueSummary[];
   partnershipTypes: CrmOptionValueSummary[];
   availableScopes: BdPipelineScope[];
+  // Persona 8 (BDR) configuration.
+  priorities: CrmOptionValueSummary[];
+  technologies: CrmOptionValueSummary[];
+  buyerRoles: CrmOptionValueSummary[];
+  sequenceSteps: BdSequenceStepDefinition[];
+  opportunityStages: CrmOptionValueSummary[];
+}
+
+// ---- Persona 8 (BDR) enhancements ---------------------------------------------------------------
+
+// BDR-003: outbound sequence.
+export const bdSequenceChannels = ["email", "call", "linkedin", "whatsapp", "sms", "task"] as const;
+export type BdSequenceChannel = (typeof bdSequenceChannels)[number];
+
+export interface BdSequenceStepDefinition {
+  key: string;
+  label: string;
+  channel: BdSequenceChannel;
+  offsetHours: number;
+  order: number;
+  // Optional targeting; the step only applies when it matches the account's persona/product/region.
+  persona: string | null;
+  product: string | null;
+  region: string | null;
+}
+
+export const bdSequenceStepStatuses = ["completed", "overdue", "due", "upcoming"] as const;
+export type BdSequenceStepStatus = (typeof bdSequenceStepStatuses)[number];
+
+export interface BdSequenceStepView extends BdSequenceStepDefinition {
+  completed: boolean;
+  dueAt: string | null;
+  status: BdSequenceStepStatus;
+}
+
+export interface BdSequenceView {
+  configured: boolean;
+  paused: boolean;
+  pauseReason: string | null;
+  steps: BdSequenceStepView[];
+  currentStep: BdSequenceStepView | null;
+  nextDueAt: string | null;
+  completedCount: number;
+  totalCount: number;
+}
+
+export interface UpdateBdSequenceInput {
+  paused?: boolean;
+  pauseReason?: string | null;
+  completeStepKey?: string;
+  // A logged reply pauses the sequence (BDR-003).
+  logReply?: boolean;
+}
+
+// BDR-004: account engagement score.
+export interface BdEngagementSignals {
+  opens: number;
+  clicks: number;
+  websiteVisits: number;
+  eventAttendance: number;
+  replies: number;
+  meetings: number;
+  stakeholderEngagement: number;
+}
+
+export const bdEngagementBands = ["cold", "warming", "hot"] as const;
+export type BdEngagementBand = (typeof bdEngagementBands)[number];
+
+export interface BdEngagementView {
+  score: number;
+  band: BdEngagementBand;
+  buyingSignal: boolean;
+  signals: BdEngagementSignals;
+}
+
+// BDR-002: buying-committee completeness.
+export interface BdBuyingCommitteeRole {
+  key: string;
+  label: string;
+  covered: boolean;
+}
+
+export interface BdBuyingCommitteeView {
+  score: number;
+  total: number;
+  covered: number;
+  roles: BdBuyingCommitteeRole[];
+  missingRoles: BdBuyingCommitteeRole[];
+}
+
+// BDR-005: strategic handoff record.
+export interface BdHandoffRecord {
+  salesOwnerId: string | null;
+  salesOwnerName: string | null;
+  recommendedApproach: string | null;
+  painPoints: string | null;
+  nextMeetingAt: string | null;
+  status: "pending_approval" | "handed_off";
+  requestedAt: string;
+  approvalId: string | null;
+}
+
+export interface BdImportAccountInput {
+  name: string;
+  accountId?: string | null;
+  industry?: string | null;
+  region?: string | null;
+  tierKey?: string | null;
+  stageKey?: string | null;
+  priorityKey?: string | null;
+  technologies?: string[];
+  annualRevenue?: number | null;
+  employeeCount?: number | null;
+}
+
+export interface BdImportRequestBody {
+  accounts: BdImportAccountInput[];
+}
+
+export interface BdImportSkippedEntry {
+  name: string;
+  reason: string;
+}
+
+export interface BdImportResponse {
+  createdCount: number;
+  skipped: BdImportSkippedEntry[];
+  targetAccounts: BdTargetAccountSummary[];
+}
+
+export interface BdConvertRequestBody {
+  opportunityName?: string | null;
+  stageKey: string;
+  amount: number;
+  expectedCloseDate: string;
+  nextStep: string;
+  ownerId?: string | null;
+}
+
+export interface BdConvertResponse {
+  opportunityId: string;
+  targetAccount: BdTargetAccountDetail;
+}
+
+export interface BdHandoffRequestBody {
+  salesOwnerId: string;
+  recommendedApproach: string;
+  painPoints?: string | null;
+  nextMeetingAt?: string | null;
+  requireApproval?: boolean;
+  // Manager who approves the reassignment when requireApproval is true.
+  approverUserId?: string | null;
+}
+
+export interface BdHandoffResponse {
+  targetAccount: BdTargetAccountDetail;
+  notificationId: string | null;
+  approvalId: string | null;
 }
 
 export const presalesPipelineScopes = ["mine", "team", "all"] as const;

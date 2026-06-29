@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
 import { ListToolbar } from "@/components/crm/list-toolbar";
+import { BusinessDevelopmentActions } from "@/components/business-development/business-development-actions";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -33,6 +34,8 @@ interface CreateFormState {
   marketOpportunityNotes: string;
   nextStep: string;
   isPartnership: boolean;
+  priorityKey: string;
+  technologies: string[];
 }
 
 function buildInitialFormState(options: BdTargetAccountOptionsResponse | null): CreateFormState {
@@ -49,7 +52,9 @@ function buildInitialFormState(options: BdTargetAccountOptionsResponse | null): 
     executiveSponsor: "",
     marketOpportunityNotes: "",
     nextStep: "",
-    isPartnership: false
+    isPartnership: false,
+    priorityKey: options?.priorities.find((priority) => priority.isDefault)?.key ?? "",
+    technologies: []
   };
 }
 
@@ -66,6 +71,15 @@ export function BusinessDevelopmentPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const canCreate = hasAnyPermission(["business_development.create", "business_development.configure"]);
+  const canUpdate = hasAnyPermission([
+    "business_development.edit",
+    "business_development.assign",
+    "business_development.approve",
+    "business_development.configure",
+    "business_development.manage_workflow"
+  ]);
+  const [importText, setImportText] = useState("");
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const targetAccounts = useMemo(() => data?.targetAccounts ?? [], [data?.targetAccounts]);
 
@@ -189,7 +203,9 @@ export function BusinessDevelopmentPage() {
       executiveSponsor: formState.executiveSponsor.trim() || null,
       marketOpportunityNotes: formState.marketOpportunityNotes.trim() || null,
       nextStep: formState.nextStep.trim() || null,
-      isPartnership: formState.isPartnership
+      isPartnership: formState.isPartnership,
+      priorityKey: formState.priorityKey || null,
+      technologies: formState.technologies
     };
 
     try {
@@ -204,6 +220,47 @@ export function BusinessDevelopmentPage() {
       setSelectedId(response.targetAccount.id);
     } catch (error) {
       setFormError(getErrorMessage(error));
+    }
+  }
+
+  async function reloadDetail() {
+    if (!accessToken || !selectedId) {
+      return;
+    }
+    try {
+      const response = await apiRequest<{ targetAccount: BdTargetAccountDetail }>(`/business-development/${selectedId}`, {
+        method: "GET",
+        accessToken
+      });
+      setDetail(response.targetAccount);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    }
+  }
+
+  async function handleImport() {
+    if (!accessToken) {
+      return;
+    }
+    const accounts = importText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((name) => ({ name }));
+    if (accounts.length === 0) {
+      return;
+    }
+    setImportMessage(null);
+    try {
+      const response = await apiRequest<{ createdCount: number; skipped: { name: string }[] }>(
+        "/business-development/import",
+        { method: "POST", accessToken, body: { accounts } }
+      );
+      setImportText("");
+      setImportMessage(`Imported ${response.createdCount}; skipped ${response.skipped.length} (duplicates).`);
+      await loadList();
+    } catch (error) {
+      setImportMessage(getErrorMessage(error));
     }
   }
 
@@ -402,6 +459,46 @@ export function BusinessDevelopmentPage() {
                   onChange={(event) => setFormState((current) => ({ ...current, nextStep: event.target.value }))}
                 />
               </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium">Priority</span>
+                <select
+                  className={selectClassName}
+                  value={formState.priorityKey}
+                  onChange={(event) => setFormState((current) => ({ ...current, priorityKey: event.target.value }))}
+                >
+                  <option value="">Not set</option>
+                  {options.priorities.map((priority) => (
+                    <option key={priority.key} value={priority.key}>
+                      {priority.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="space-y-2">
+                <span className="text-sm font-medium">Technologies</span>
+                <div className="flex flex-wrap gap-2">
+                  {options.technologies.map((tech) => {
+                    const checked = formState.technologies.includes(tech.key);
+                    return (
+                      <label key={tech.key} className="flex items-center gap-2 rounded-[1rem] bg-background/75 px-3 py-1 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) =>
+                            setFormState((current) => ({
+                              ...current,
+                              technologies: event.target.checked
+                                ? [...current.technologies, tech.key]
+                                : current.technologies.filter((key) => key !== tech.key)
+                            }))
+                          }
+                        />
+                        {tech.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
               {formError ? <p className="text-sm text-rose-600 md:col-span-2">{formError}</p> : null}
               <div className="flex gap-3 md:col-span-2">
                 <Button type="submit">Create target account</Button>
@@ -410,6 +507,30 @@ export function BusinessDevelopmentPage() {
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canCreate ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Import target accounts</CardTitle>
+            <CardDescription>
+              Paste account names (one per line). Duplicate names are skipped during import (BDR-001).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <textarea
+              className={textareaClassName}
+              rows={3}
+              value={importText}
+              onChange={(event) => setImportText(event.target.value)}
+              placeholder={"Acme Corp\nGlobex\nInitech"}
+            />
+            {importMessage ? <p className="text-sm text-muted-foreground">{importMessage}</p> : null}
+            <Button type="button" variant="outline" onClick={() => void handleImport()} disabled={importText.trim().length === 0}>
+              Import accounts
+            </Button>
           </CardContent>
         </Card>
       ) : null}
@@ -483,7 +604,21 @@ export function BusinessDevelopmentPage() {
           </CardContent>
         </Card>
 
-        <BusinessDevelopmentDetailCard detail={detail} />
+        <div className="space-y-6">
+          <BusinessDevelopmentDetailCard detail={detail} />
+          {detail && options ? (
+            <BusinessDevelopmentActions
+              detail={detail}
+              options={options}
+              accessToken={accessToken}
+              canUpdate={canUpdate}
+              onReload={async () => {
+                await loadList();
+                await reloadDetail();
+              }}
+            />
+          ) : null}
+        </div>
       </section>
     </div>
   );

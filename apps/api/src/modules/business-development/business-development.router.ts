@@ -11,6 +11,9 @@ import {
   presalesPriorities,
   presalesRequestSortFields,
   presalesRequirementCategories,
+  type BdConvertRequestBody,
+  type BdHandoffRequestBody,
+  type BdImportRequestBody,
   type CreateBdTargetAccountRequestBody,
   type CreatePresalesRequestRequestBody,
   type BdTargetAccountListQuery,
@@ -52,9 +55,27 @@ const bdStakeholderSchema = z.object({
   influenceLevel: z.enum(bdInfluenceLevels).optional(),
   relationshipStrength: z.enum(bdRelationshipStrengths).optional(),
   isExecutive: z.boolean().optional(),
+  buyerRoleKey: z.string().min(2).max(160).nullable().optional(),
   lastEngagementAt: z.string().datetime().nullable().optional(),
   engagementNotes: z.string().max(2000).nullable().optional()
 });
+
+const bdSegmentationFields = {
+  priorityKey: z.string().min(2).max(160).nullable().optional(),
+  technologies: z.array(z.string().min(1).max(160)).max(30).optional()
+};
+
+const bdEngagementSignalsSchema = z
+  .object({
+    opens: z.coerce.number().int().min(0).optional(),
+    clicks: z.coerce.number().int().min(0).optional(),
+    websiteVisits: z.coerce.number().int().min(0).optional(),
+    eventAttendance: z.coerce.number().int().min(0).optional(),
+    replies: z.coerce.number().int().min(0).optional(),
+    meetings: z.coerce.number().int().min(0).optional(),
+    stakeholderEngagement: z.coerce.number().int().min(0).optional()
+  })
+  .strict();
 
 const bdListQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
@@ -86,6 +107,7 @@ const bdCreateSchema = z.object({
   nextStep: z.string().max(4000).nullable().optional(),
   isPartnership: z.boolean().optional(),
   stakeholders: z.array(bdStakeholderSchema).max(100).optional(),
+  ...bdSegmentationFields,
   metadata: recordSchema.optional()
 });
 
@@ -105,10 +127,58 @@ const bdUpdateSchema = z.object({
   nextStep: z.string().max(4000).nullable().optional(),
   isPartnership: z.boolean().optional(),
   stakeholders: z.array(bdStakeholderSchema).max(100).optional(),
+  ...bdSegmentationFields,
+  sequence: z
+    .object({
+      paused: z.boolean().optional(),
+      pauseReason: z.string().max(2000).nullable().optional(),
+      completeStepKey: z.string().min(1).max(160).optional(),
+      logReply: z.boolean().optional()
+    })
+    .optional(),
+  engagementSignals: bdEngagementSignalsSchema.optional(),
   metadata: recordSchema.optional()
 });
 
 const targetAccountIdSchema = z.object({ targetAccountId: uuidSchema });
+
+const bdImportSchema = z.object({
+  accounts: z
+    .array(
+      z.object({
+        name: z.string().min(2).max(200),
+        accountId: uuidSchema.nullable().optional(),
+        industry: z.string().max(200).nullable().optional(),
+        region: z.string().max(200).nullable().optional(),
+        tierKey: z.string().min(2).max(160).nullable().optional(),
+        stageKey: z.string().min(2).max(160).nullable().optional(),
+        priorityKey: z.string().min(2).max(160).nullable().optional(),
+        technologies: z.array(z.string().min(1).max(160)).max(30).optional(),
+        annualRevenue: z.coerce.number().min(0).nullable().optional(),
+        employeeCount: z.coerce.number().int().min(0).nullable().optional()
+      })
+    )
+    .min(1)
+    .max(200)
+});
+
+const bdConvertSchema = z.object({
+  opportunityName: z.string().max(200).nullable().optional(),
+  stageKey: z.string().min(2).max(160),
+  amount: z.coerce.number().min(0),
+  expectedCloseDate: dateOnlySchema,
+  nextStep: z.string().min(1).max(4000),
+  ownerId: uuidSchema.nullable().optional()
+});
+
+const bdHandoffSchema = z.object({
+  salesOwnerId: uuidSchema,
+  recommendedApproach: z.string().min(1).max(8000),
+  painPoints: z.string().max(8000).nullable().optional(),
+  nextMeetingAt: z.string().datetime().nullable().optional(),
+  requireApproval: z.boolean().optional(),
+  approverUserId: uuidSchema.nullable().optional()
+});
 
 const presalesRequirementSchema = z.object({
   id: uuidSchema.optional(),
@@ -282,12 +352,61 @@ export function createBusinessDevelopmentRouter({ databaseService }: RouterDepen
     })
   );
 
+  router.post(
+    "/import",
+    requirePermissions({ oneOf: bdCreatePermissions }),
+    validateRequest({ body: bdImportSchema }),
+    asyncHandler(async (request, response) => {
+      response
+        .status(201)
+        .json(
+          await service.importBdTargetAccounts(request.auth!, getAuditMetadata(request), request.body as BdImportRequestBody)
+        );
+    })
+  );
+
   router.get(
     "/:targetAccountId",
     requirePermissions({ oneOf: bdReadPermissions }),
     validateRequest({ params: targetAccountIdSchema }),
     asyncHandler(async (request, response) => {
       response.status(200).json(await service.getBdTargetAccount(request.auth!, request.params.targetAccountId));
+    })
+  );
+
+  router.post(
+    "/:targetAccountId/convert",
+    requirePermissions({ oneOf: bdUpdatePermissions }),
+    validateRequest({ params: targetAccountIdSchema, body: bdConvertSchema }),
+    asyncHandler(async (request, response) => {
+      response
+        .status(201)
+        .json(
+          await service.convertBdTargetAccount(
+            request.auth!,
+            getAuditMetadata(request),
+            request.params.targetAccountId,
+            request.body as BdConvertRequestBody
+          )
+        );
+    })
+  );
+
+  router.post(
+    "/:targetAccountId/handoff",
+    requirePermissions({ oneOf: bdUpdatePermissions }),
+    validateRequest({ params: targetAccountIdSchema, body: bdHandoffSchema }),
+    asyncHandler(async (request, response) => {
+      response
+        .status(201)
+        .json(
+          await service.handoffBdTargetAccount(
+            request.auth!,
+            getAuditMetadata(request),
+            request.params.targetAccountId,
+            request.body as BdHandoffRequestBody
+          )
+        );
     })
   );
 
