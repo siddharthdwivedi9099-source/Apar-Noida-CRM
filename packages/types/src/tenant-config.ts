@@ -1449,6 +1449,36 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     metadata: { seeded: true, category: "proposals" }
   },
   {
+    setKey: "payment-term",
+    moduleKey: "sales",
+    kind: "dropdown",
+    name: "Payment Term",
+    description: "Quote/contract payment terms; non-standard terms require finance approval (FIN-003).",
+    values: [
+      { key: "net_30", label: "Net 30", color: "#22c55e", sortOrder: 0, isDefault: true, metadata: { standard: true } },
+      { key: "net_45", label: "Net 45", color: "#0ea5e9", sortOrder: 1, metadata: { standard: true } },
+      { key: "net_60", label: "Net 60", color: "#6366f1", sortOrder: 2, metadata: { standard: true } },
+      { key: "advance", label: "Advance Payment", color: "#f59e0b", sortOrder: 3, metadata: { standard: false } },
+      { key: "milestone", label: "Milestone-based", color: "#8b5cf6", sortOrder: 4, metadata: { standard: false } },
+      { key: "custom", label: "Custom", color: "#ef4444", sortOrder: 5, metadata: { standard: false } }
+    ],
+    metadata: { seeded: true, category: "commercial" }
+  },
+  {
+    setKey: "discount-approval-tier",
+    moduleKey: "sales",
+    kind: "dropdown",
+    name: "Discount Approval Tier",
+    description: "Configurable discount approval matrix; thresholdPct is the upper discount bound for each tier (FIN-002).",
+    values: [
+      { key: "standard", label: "Standard (auto)", color: "#22c55e", sortOrder: 0, isDefault: true, metadata: { thresholdPct: 10, requiresApproval: false, approverRole: null } },
+      { key: "manager", label: "Manager", color: "#0ea5e9", sortOrder: 1, metadata: { thresholdPct: 20, requiresApproval: true, approverRole: "sales-manager" } },
+      { key: "finance", label: "Finance", color: "#f59e0b", sortOrder: 2, metadata: { thresholdPct: 35, requiresApproval: true, approverRole: "finance" } },
+      { key: "executive", label: "Executive", color: "#ef4444", sortOrder: 3, metadata: { thresholdPct: 100, requiresApproval: true, approverRole: "sales-head" } }
+    ],
+    metadata: { seeded: true, category: "commercial" }
+  },
+  {
     setKey: "partner-type",
     moduleKey: "partners",
     kind: "dropdown",

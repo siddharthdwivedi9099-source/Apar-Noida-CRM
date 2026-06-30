@@ -166,7 +166,9 @@ export const approvalTypes = [
   "opportunity_reactivation_approval",
   "deal_review_approval",
   "configuration_change_approval",
-  "delivery_risk_approval"
+  "delivery_risk_approval",
+  "payment_terms_approval",
+  "partner_commission_approval"
 ] as const;
 
 export type ApprovalType = (typeof approvalTypes)[number];
@@ -254,6 +256,16 @@ export const approvalTypeCatalog: ApprovalTypeDefinition[] = [
     key: "delivery_risk_approval",
     label: "Delivery risk approval",
     description: "Leadership sign-off for high delivery-risk deals before closure (SA-005)."
+  },
+  {
+    key: "payment_terms_approval",
+    label: "Payment terms approval",
+    description: "Finance sign-off for non-standard payment terms (FIN-003)."
+  },
+  {
+    key: "partner_commission_approval",
+    label: "Partner commission approval",
+    description: "Finance sign-off for partner commission payout before disbursement (FIN-004)."
   }
 ];
 
