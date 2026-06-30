@@ -1,4 +1,5 @@
 import type { SlaStatus } from "./lead-assignment.js";
+import type { OpportunityArchitectureSummary } from "./solution-architecture.js";
 
 export const crmEntityTypes = [
   "lead",
@@ -1288,6 +1289,8 @@ export interface OpportunityDetail extends OpportunitySummary {
   enterprise: OpportunityEnterpriseView;
   // Persona 12 (Sales Manager) deal-review history.
   managerDealReviews: OpportunityDealReviewEntry[];
+  // Persona 15 (Solution Architect) summary (full detail via /solution-architecture).
+  architectureSummary: OpportunityArchitectureSummary;
   aiPlaceholders: OpportunityAiPlaceholderSummary;
 }
 

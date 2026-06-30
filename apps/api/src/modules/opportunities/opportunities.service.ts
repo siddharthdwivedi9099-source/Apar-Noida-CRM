@@ -14,6 +14,7 @@ import type {
   ManagerPerformanceResponse,
   ManagerPipelineResponse,
   OpportunityAcceptanceState,
+  OpportunityArchitectureSummary,
   OpportunityDealReviewEntry,
   SetOpportunityForecastRequestBody,
   OpportunityAiPlaceholderSummary,
@@ -57,6 +58,7 @@ import type {
   UpdateOpportunityRequestBody
 } from "@crm/types";
 import { evaluateBuyingCommitteeCompleteness, evaluateDiscovery } from "@crm/types";
+import { deliveryRiskDimensions, evaluateTechnicalDiscovery, summarizeDeliveryRisk, technicalDiscoveryFieldKeys } from "@crm/types";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
@@ -2318,6 +2320,7 @@ export class OpportunityService {
         execWorkspace: this.buildExecWorkspace(row, stakeholders, aeConfig),
         enterprise: await this.buildEnterpriseView(client, actor, row, tenderDefs),
         managerDealReviews: this.readManagerDealReviews(row.metadata),
+        architectureSummary: this.readArchitectureSummary(row.metadata),
         productsServicesPlaceholder: {
           available: false as const,
           message: "Products and services will connect to a governed catalog in a later commercial configuration phase."
@@ -3409,6 +3412,36 @@ export class OpportunityService {
   }
 
   // ---- Persona 12 (Sales Manager) --------------------------------------------------------------
+
+  private readArchitectureSummary(metadata: Record<string, unknown> | null | undefined): OpportunityArchitectureSummary {
+    const architecture = getRecord(getMetadata(metadata).architecture);
+    const archRecord = getRecord(architecture.architecture);
+    const hasArchitecture = Object.keys(archRecord).length > 0;
+    const integrations = Array.isArray(architecture.integrations) ? architecture.integrations : [];
+    const discovery = getRecord(architecture.technicalDiscovery);
+    const discoveryValues: Record<string, string | null> = {};
+    for (const key of technicalDiscoveryFieldKeys) {
+      const value = discovery[key];
+      discoveryValues[key] = typeof value === "string" ? value : null;
+    }
+    const riskRecord = getRecord(architecture.deliveryRisk);
+    const dimensions = getRecord(riskRecord.dimensions);
+    const levels: Record<string, "low" | "medium" | "high"> = {};
+    for (const dimension of deliveryRiskDimensions) {
+      const level = getRecord(dimensions[dimension]).level;
+      levels[dimension] = level === "medium" || level === "high" ? level : "low";
+    }
+    const hasRisk = Object.keys(dimensions).length > 0;
+    const statusValue = riskRecord.status;
+    return {
+      hasArchitecture,
+      architectureStatus: hasArchitecture ? (archRecord.status === "approved" ? "approved" : "draft") : null,
+      integrationCount: integrations.length,
+      deliveryRiskLevel: hasRisk ? summarizeDeliveryRisk(levels).overall : null,
+      deliveryRiskStatus: statusValue === "submitted" || statusValue === "approved" || statusValue === "flagged" ? statusValue : hasRisk ? "open" : null,
+      technicalDiscoveryComplete: evaluateTechnicalDiscovery(discoveryValues).complete
+    };
+  }
 
   private readManagerDealReviews(metadata: Record<string, unknown> | null | undefined): OpportunityDealReviewEntry[] {
     const raw = getMetadata(metadata).managerDealReviews;

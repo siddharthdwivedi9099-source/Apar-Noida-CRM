@@ -165,7 +165,8 @@ export const approvalTypes = [
   "strategic_handoff_approval",
   "opportunity_reactivation_approval",
   "deal_review_approval",
-  "configuration_change_approval"
+  "configuration_change_approval",
+  "delivery_risk_approval"
 ] as const;
 
 export type ApprovalType = (typeof approvalTypes)[number];
@@ -248,6 +249,11 @@ export const approvalTypeCatalog: ApprovalTypeDefinition[] = [
     key: "configuration_change_approval",
     label: "Configuration change approval",
     description: "Sales Head sign-off for RevOps-proposed sales-process changes before publish (SH-005)."
+  },
+  {
+    key: "delivery_risk_approval",
+    label: "Delivery risk approval",
+    description: "Leadership sign-off for high delivery-risk deals before closure (SA-005)."
   }
 ];
 

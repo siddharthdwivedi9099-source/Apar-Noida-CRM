@@ -16,6 +16,7 @@ export * from "./lead-inside-sales.js";
 export * from "./lead-sdr.js";
 export * from "./bd-resolvers.js";
 export * from "./sales-leadership.js";
+export * from "./solution-architecture.js";
 export * from "./core-crm-metadata.js";
 export * from "./persona-access-metadata.js";
 export * from "./ai.js";

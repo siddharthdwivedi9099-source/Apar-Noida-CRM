@@ -22,6 +22,7 @@ import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { OpportunityExecActions } from "@/components/opportunities/opportunity-exec-actions";
 import { OpportunityEnterpriseActions } from "@/components/opportunities/opportunity-enterprise-actions";
 import { OpportunityManagerCard } from "@/components/opportunities/opportunity-manager-card";
+import { SolutionArchitecturePanel } from "@/components/opportunities/solution-architecture-panel";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import {
@@ -421,6 +422,12 @@ export function OpportunityDetailPage() {
         accessToken={accessToken}
         canManage={canManage}
         onReload={loadOpportunity}
+      />
+
+      <SolutionArchitecturePanel
+        opportunityId={opportunity.id}
+        accessToken={accessToken}
+        canManage={canEdit}
       />
 
       {(() => {
