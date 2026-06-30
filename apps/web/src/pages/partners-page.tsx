@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { PartnerManagementPanel } from "@/components/partners/partner-management-panel";
 import { PartnerChannelPanel } from "@/components/partners/partner-channel-panel";
+import { PartnerPortalPanel } from "@/components/partners/partner-portal-panel";
 
 const ONBOARDING_NEXT_STATUS: Record<PartnerOnboardingTaskStatus, PartnerOnboardingTaskStatus> = {
   pending: "in_progress",
@@ -556,6 +557,8 @@ export function PartnersPage() {
       {selectedId ? <PartnerManagementPanel partnerId={selectedId} accessToken={accessToken} canManage={canEdit} /> : null}
 
       <PartnerChannelPanel accessToken={accessToken} canManage={canEdit} />
+
+      <PartnerPortalPanel accessToken={accessToken} canManage={canRegisterDeal} />
     </div>
   );
 }

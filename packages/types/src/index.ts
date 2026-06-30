@@ -21,6 +21,7 @@ export * from "./proposals.js";
 export * from "./commercial.js";
 export * from "./legal.js";
 export * from "./partner-management.js";
+export * from "./partner-portal.js";
 export * from "./core-crm-metadata.js";
 export * from "./persona-access-metadata.js";
 export * from "./ai.js";
