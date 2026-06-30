@@ -23,6 +23,7 @@ import { OpportunityExecActions } from "@/components/opportunities/opportunity-e
 import { OpportunityEnterpriseActions } from "@/components/opportunities/opportunity-enterprise-actions";
 import { OpportunityManagerCard } from "@/components/opportunities/opportunity-manager-card";
 import { SolutionArchitecturePanel } from "@/components/opportunities/solution-architecture-panel";
+import { ProposalBidPanel } from "@/components/opportunities/proposal-bid-panel";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import {
@@ -425,6 +426,12 @@ export function OpportunityDetailPage() {
       />
 
       <SolutionArchitecturePanel
+        opportunityId={opportunity.id}
+        accessToken={accessToken}
+        canManage={canEdit}
+      />
+
+      <ProposalBidPanel
         opportunityId={opportunity.id}
         accessToken={accessToken}
         canManage={canEdit}

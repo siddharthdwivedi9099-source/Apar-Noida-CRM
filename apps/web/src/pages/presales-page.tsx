@@ -19,6 +19,7 @@ import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { PresalesDeliveryPanels } from "@/components/presales/presales-delivery-panels";
+import { ProposalContentLibrary } from "@/components/presales/proposal-content-library";
 
 const PRIORITIES: PresalesPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -503,6 +504,8 @@ export function PresalesPage() {
           />
         ) : null}
       </section>
+
+      <ProposalContentLibrary accessToken={accessToken} canManage={canEdit} />
     </div>
   );
 }

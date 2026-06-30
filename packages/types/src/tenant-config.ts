@@ -1417,6 +1417,38 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "proposal-request-status",
+    moduleKey: "presales",
+    kind: "dropdown",
+    name: "Proposal Request Status",
+    description: "Lifecycle states for proposal/bid requests (PB-001).",
+    values: [
+      { key: "draft", label: "Draft", color: "#94a3b8", sortOrder: 0, isDefault: true },
+      { key: "in_progress", label: "In Progress", color: "#06b6d4", sortOrder: 1 },
+      { key: "in_review", label: "In Review", color: "#0ea5e9", sortOrder: 2 },
+      { key: "approved", label: "Approved", color: "#8b5cf6", sortOrder: 3 },
+      { key: "submitted", label: "Submitted", color: "#22c55e", sortOrder: 4 },
+      { key: "archived", label: "Archived", color: "#64748b", sortOrder: 5 }
+    ],
+    metadata: { seeded: true, category: "proposals" }
+  },
+  {
+    setKey: "proposal-content-category",
+    moduleKey: "presales",
+    kind: "dropdown",
+    name: "Proposal Content Category",
+    description: "Approved proposal content-library categories (PB-004).",
+    values: [
+      { key: "product_description", label: "Product Description", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "case_study", label: "Case Study", color: "#22c55e", sortOrder: 1 },
+      { key: "security_response", label: "Security Response", color: "#ef4444", sortOrder: 2 },
+      { key: "implementation_methodology", label: "Implementation Methodology", color: "#6366f1", sortOrder: 3 },
+      { key: "pricing_assumptions", label: "Pricing Assumptions", color: "#f59e0b", sortOrder: 4 },
+      { key: "company_profile", label: "Company Profile", color: "#14b8a6", sortOrder: 5 }
+    ],
+    metadata: { seeded: true, category: "proposals" }
+  },
+  {
     setKey: "partner-type",
     moduleKey: "partners",
     kind: "dropdown",
