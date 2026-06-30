@@ -1,5 +1,6 @@
 import type { SlaStatus } from "./lead-assignment.js";
 import type { OpportunityArchitectureSummary } from "./solution-architecture.js";
+import type { OpportunityLegalSummary } from "./legal.js";
 
 export const crmEntityTypes = [
   "lead",
@@ -1291,6 +1292,8 @@ export interface OpportunityDetail extends OpportunitySummary {
   managerDealReviews: OpportunityDealReviewEntry[];
   // Persona 15 (Solution Architect) summary (full detail via /solution-architecture).
   architectureSummary: OpportunityArchitectureSummary;
+  // Persona 18 (Legal / Contract Reviewer) summary (full detail via /legal).
+  legalSummary: OpportunityLegalSummary;
   aiPlaceholders: OpportunityAiPlaceholderSummary;
 }
 

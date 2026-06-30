@@ -19,6 +19,7 @@ export * from "./sales-leadership.js";
 export * from "./solution-architecture.js";
 export * from "./proposals.js";
 export * from "./commercial.js";
+export * from "./legal.js";
 export * from "./core-crm-metadata.js";
 export * from "./persona-access-metadata.js";
 export * from "./ai.js";

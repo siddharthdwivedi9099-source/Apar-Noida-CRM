@@ -15,6 +15,7 @@ import type {
   ManagerPipelineResponse,
   OpportunityAcceptanceState,
   OpportunityArchitectureSummary,
+  OpportunityLegalSummary,
   OpportunityDealReviewEntry,
   SetOpportunityForecastRequestBody,
   OpportunityAiPlaceholderSummary,
@@ -59,6 +60,7 @@ import type {
 } from "@crm/types";
 import { evaluateBuyingCommitteeCompleteness, evaluateDiscovery } from "@crm/types";
 import { deliveryRiskDimensions, evaluateTechnicalDiscovery, summarizeDeliveryRisk, technicalDiscoveryFieldKeys } from "@crm/types";
+import { evaluateLegalClauses, evaluateLegalSla } from "@crm/types";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
@@ -2321,6 +2323,7 @@ export class OpportunityService {
         enterprise: await this.buildEnterpriseView(client, actor, row, tenderDefs),
         managerDealReviews: this.readManagerDealReviews(row.metadata),
         architectureSummary: this.readArchitectureSummary(row.metadata),
+        legalSummary: this.readLegalSummary(row.metadata),
         productsServicesPlaceholder: {
           available: false as const,
           message: "Products and services will connect to a governed catalog in a later commercial configuration phase."
@@ -3440,6 +3443,27 @@ export class OpportunityService {
       deliveryRiskLevel: hasRisk ? summarizeDeliveryRisk(levels).overall : null,
       deliveryRiskStatus: statusValue === "submitted" || statusValue === "approved" || statusValue === "flagged" ? statusValue : hasRisk ? "open" : null,
       technicalDiscoveryComplete: evaluateTechnicalDiscovery(discoveryValues).complete
+    };
+  }
+
+  private readLegalSummary(metadata: Record<string, unknown> | null | undefined): OpportunityLegalSummary {
+    const legal = getRecord(getMetadata(metadata).legal);
+    const initialized = Object.keys(legal).length > 0;
+    const clausesRaw = Array.isArray(legal.clauses) ? legal.clauses : [];
+    const clauseInputs = clausesRaw.map((raw) => {
+      const clause = getRecord(raw);
+      const status = clause.status;
+      return { status: (["standard", "modified", "rejected", "high_risk", "accepted"].includes(status as string) ? status : "standard") as "standard" | "modified" | "rejected" | "high_risk" | "accepted", approvalApproved: false };
+    });
+    const riskValue = legal.riskLevel;
+    const slaDueAt = typeof legal.slaDueAt === "string" ? legal.slaDueAt : null;
+    return {
+      initialized,
+      riskLevel: riskValue === "low" || riskValue === "medium" || riskValue === "high" ? riskValue : null,
+      slaStatus: evaluateLegalSla(slaDueAt),
+      hasUnresolvedHighRisk: evaluateLegalClauses(clauseInputs).hasUnresolvedHighRisk,
+      contractApproved: legal.contractApproved === true,
+      closureReady: legal.closureReady === true
     };
   }
 

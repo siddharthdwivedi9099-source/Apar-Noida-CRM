@@ -168,7 +168,8 @@ export const approvalTypes = [
   "configuration_change_approval",
   "delivery_risk_approval",
   "payment_terms_approval",
-  "partner_commission_approval"
+  "partner_commission_approval",
+  "legal_clause_approval"
 ] as const;
 
 export type ApprovalType = (typeof approvalTypes)[number];
@@ -266,6 +267,11 @@ export const approvalTypeCatalog: ApprovalTypeDefinition[] = [
     key: "partner_commission_approval",
     label: "Partner commission approval",
     description: "Finance sign-off for partner commission payout before disbursement (FIN-004)."
+  },
+  {
+    key: "legal_clause_approval",
+    label: "Legal clause approval",
+    description: "Leadership sign-off to accept a high-risk contract clause (LEG-002)."
   }
 ];
 

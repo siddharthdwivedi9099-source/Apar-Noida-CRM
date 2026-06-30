@@ -1479,6 +1479,22 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     metadata: { seeded: true, category: "commercial" }
   },
   {
+    setKey: "legal-contract-type",
+    moduleKey: "sales",
+    kind: "dropdown",
+    name: "Legal Contract Type",
+    description: "Contract document types routed for legal review (LEG-001).",
+    values: [
+      { key: "nda", label: "NDA", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "msa", label: "Master Service Agreement", color: "#6366f1", sortOrder: 1 },
+      { key: "sow", label: "Statement of Work", color: "#22c55e", sortOrder: 2 },
+      { key: "dpa", label: "Data Processing Agreement", color: "#ef4444", sortOrder: 3 },
+      { key: "order_form", label: "Order Form", color: "#f59e0b", sortOrder: 4 },
+      { key: "amendment", label: "Amendment", color: "#8b5cf6", sortOrder: 5 }
+    ],
+    metadata: { seeded: true, category: "legal" }
+  },
+  {
     setKey: "partner-type",
     moduleKey: "partners",
     kind: "dropdown",

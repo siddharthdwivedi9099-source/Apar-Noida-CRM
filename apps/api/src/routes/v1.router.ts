@@ -30,6 +30,7 @@ import { createSalesLeadershipRouter } from "../modules/sales-leadership/sales-l
 import { createSolutionArchitectureRouter } from "../modules/solution-architecture/solution-architecture.router.js";
 import { createProposalsRouter } from "../modules/proposals/proposals.router.js";
 import { createCommercialRouter } from "../modules/commercial/commercial.router.js";
+import { createLegalRouter } from "../modules/legal/legal.router.js";
 import { createSocialRouter } from "../modules/social/social.router.js";
 import { createSupportRouter } from "../modules/support/support.router.js";
 import { createTrainingRouter } from "../modules/training/training.router.js";
@@ -85,6 +86,7 @@ export function createV1Router({
   router.use("/solution-architecture", createSolutionArchitectureRouter({ databaseService }));
   router.use("/proposals", createProposalsRouter({ databaseService }));
   router.use("/commercial", createCommercialRouter({ databaseService }));
+  router.use("/legal", createLegalRouter({ databaseService }));
   router.use("/social", createSocialRouter({ databaseService }));
   router.use("/support", createSupportRouter({ databaseService }));
   router.use("/customer-success", createCustomerSuccessRouter({ databaseService }));
