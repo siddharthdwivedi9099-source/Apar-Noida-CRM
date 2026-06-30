@@ -22,7 +22,14 @@ import {
   type UpdateBdPartnerReferralRequestBody,
   type CreatePresalesRequestRequestBody,
   type BdTargetAccountListQuery,
+  type PresalesDemoFeedbackRequestBody,
+  type PresalesDemoWorkspaceRequestBody,
+  type PresalesFitmentReviewRequestBody,
+  type PresalesGapTaskRequestBody,
+  type PresalesPocPlanRequestBody,
+  type PresalesPocSignOffRequestBody,
   type PresalesRequestListQuery,
+  type PresalesTriageRequestBody,
   type UpdateBdTargetAccountRequestBody,
   type UpdatePresalesRequestRequestBody
 } from "@crm/types";
@@ -227,7 +234,59 @@ const presalesRequirementSchema = z.object({
   response: z.string().max(4000).nullable().optional(),
   complianceStatus: z.enum(presalesComplianceStatuses).optional(),
   priority: z.enum(presalesPriorities).optional(),
-  sortOrder: z.coerce.number().int().min(0).optional()
+  sortOrder: z.coerce.number().int().min(0).optional(),
+  customization: z.string().max(4000).nullable().optional(),
+  integration: z.string().max(4000).nullable().optional(),
+  dependency: z.string().max(4000).nullable().optional(),
+  risk: z.string().max(4000).nullable().optional()
+});
+
+// ---- Persona 14 (Presales Consultant) action schemas -------------------------------------------
+const nullableText = (max: number) => z.string().max(max).nullable().optional();
+const presalesTriageSchema = z.object({
+  action: z.enum(["accepted", "rejected", "info_requested"]),
+  note: nullableText(4000)
+});
+const presalesDemoWorkspaceSchema = z.object({
+  painPoints: nullableText(8000),
+  useCases: nullableText(8000),
+  audience: nullableText(4000),
+  modules: nullableText(4000),
+  competitors: nullableText(4000),
+  objections: nullableText(8000),
+  expectedOutcome: nullableText(4000),
+  demoFlowNotes: nullableText(8000),
+  checklist: z.array(z.string().max(160)).max(50).optional()
+});
+const presalesDemoFeedbackSchema = z.object({
+  attendees: nullableText(4000),
+  modulesShown: nullableText(4000),
+  questions: nullableText(8000),
+  objections: nullableText(8000),
+  positiveSignals: nullableText(8000),
+  gaps: nullableText(8000),
+  nextSteps: nullableText(8000),
+  opportunityStageKey: z.string().min(1).max(160).nullable().optional()
+});
+const presalesGapTaskSchema = z.object({
+  requirementId: uuidSchema,
+  assigneeId: uuidSchema.nullable().optional(),
+  dueAt: z.string().datetime().nullable().optional(),
+  asChangeRequest: z.boolean().optional()
+});
+const presalesFitmentReviewSchema = z.object({ reviewerId: uuidSchema, note: nullableText(4000) });
+const presalesPocPlanSchema = z.object({
+  objective: nullableText(4000),
+  scope: nullableText(8000),
+  successCriteria: nullableText(8000),
+  timeline: nullableText(4000),
+  responsibilities: nullableText(8000),
+  demoData: nullableText(4000)
+});
+const presalesPocSignOffSchema = z.object({
+  outcome: z.enum(["success", "fail"]),
+  customerFeedback: nullableText(8000),
+  probability: z.coerce.number().int().min(0).max(100).nullable().optional()
 });
 
 const presalesListQuerySchema = z.object({
@@ -625,6 +684,64 @@ export function createPresalesRouter({ databaseService }: RouterDependencies) {
       response
         .status(200)
         .json(await service.deletePresalesRequest(request.auth!, getAuditMetadata(request), request.params.requestId));
+    })
+  );
+
+  // ---- Persona 14 (Presales Consultant) delivery actions ----------------------------------------
+  router.post(
+    "/:requestId/triage",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesTriageSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.triagePresalesRequest(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesTriageRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/demo-workspace",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesDemoWorkspaceSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.upsertPresalesDemoWorkspace(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesDemoWorkspaceRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/demo-feedback",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesDemoFeedbackSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.capturePresalesDemoFeedback(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesDemoFeedbackRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/fitment/gap-task",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesGapTaskSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(await service.createPresalesGapTask(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesGapTaskRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/fitment/review",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesFitmentReviewSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.requestPresalesFitmentReview(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesFitmentReviewRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/poc",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesPocPlanSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.upsertPresalesPocPlan(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesPocPlanRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/poc/sign-off",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesPocSignOffSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.signOffPresalesPoc(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesPocSignOffRequestBody));
     })
   );
 

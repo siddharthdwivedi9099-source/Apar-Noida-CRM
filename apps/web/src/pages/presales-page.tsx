@@ -18,6 +18,7 @@ import { formatDateOnly, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { PresalesDeliveryPanels } from "@/components/presales/presales-delivery-panels";
 
 const PRIORITIES: PresalesPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -66,6 +67,8 @@ export function PresalesPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const canCreate = hasAnyPermission(["presales.create", "presales.configure"]);
+  const canEdit = hasAnyPermission(["presales.edit", "presales.assign", "presales.configure"]);
+  const [detailRefresh, setDetailRefresh] = useState(0);
 
   const requests = useMemo(() => data?.requests ?? [], [data?.requests]);
 
@@ -160,7 +163,7 @@ export function PresalesPage() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, selectedId]);
+  }, [accessToken, selectedId, detailRefresh]);
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
@@ -489,6 +492,16 @@ export function PresalesPage() {
         </Card>
 
         <PresalesDetailCard detail={detail} />
+
+        {detail && options ? (
+          <PresalesDeliveryPanels
+            detail={detail}
+            options={options}
+            accessToken={accessToken}
+            canEdit={canEdit}
+            onReload={() => setDetailRefresh((value) => value + 1)}
+          />
+        ) : null}
       </section>
     </div>
   );

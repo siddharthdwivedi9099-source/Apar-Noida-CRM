@@ -1398,6 +1398,25 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "presales-demo-checklist",
+    moduleKey: "presales",
+    kind: "dropdown",
+    name: "Presales Demo Checklist",
+    description: "Configurable preparation checklist for tailored presales demos (PS-002).",
+    values: [
+      { key: "environment_ready", label: "Demo environment ready", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "data_seeded", label: "Demo data seeded", color: "#22c55e", sortOrder: 1 },
+      { key: "script_prepared", label: "Demo script prepared", color: "#6366f1", sortOrder: 2 },
+      { key: "stakeholders_confirmed", label: "Stakeholders confirmed", color: "#f59e0b", sortOrder: 3 },
+      { key: "objections_prepared", label: "Objection handling prepared", color: "#8b5cf6", sortOrder: 4 },
+      { key: "success_criteria_aligned", label: "Success criteria aligned", color: "#14b8a6", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "presales"
+    }
+  },
+  {
     setKey: "partner-type",
     moduleKey: "partners",
     kind: "dropdown",

@@ -2694,6 +2694,11 @@ export interface PresalesRequirementSummary {
   complianceStatus: PresalesComplianceStatus;
   priority: PresalesPriority;
   sortOrder: number;
+  // PS-004 solution fitment detail (stored in requirement metadata).
+  customization: string | null;
+  integration: string | null;
+  dependency: string | null;
+  risk: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -2707,6 +2712,10 @@ export interface PresalesRequirementInput {
   complianceStatus?: PresalesComplianceStatus;
   priority?: PresalesPriority;
   sortOrder?: number;
+  customization?: string | null;
+  integration?: string | null;
+  dependency?: string | null;
+  risk?: string | null;
 }
 
 export interface PresalesRequestSummary {
@@ -2721,6 +2730,8 @@ export interface PresalesRequestSummary {
   assignee: CrmLookupUserSummary | null;
   dueDate: string | null;
   summary: string | null;
+  product: string | null;
+  triageStatus: PresalesTriageStatus | null;
   requirementCount: number;
   metRequirementCount: number;
   gapRequirementCount: number;
@@ -2729,9 +2740,131 @@ export interface PresalesRequestSummary {
   updatedAt: string;
 }
 
+// ---- Persona 14 (Presales Consultant) delivery state -------------------------------------------
+
+export const presalesTriageStatuses = ["accepted", "rejected", "info_requested"] as const;
+export type PresalesTriageStatus = (typeof presalesTriageStatuses)[number];
+
+export interface PresalesTriageState {
+  status: PresalesTriageStatus;
+  note: string | null;
+  decidedBy: CrmLookupUserSummary | null;
+  decidedAt: string;
+}
+
+export interface PresalesDemoWorkspace {
+  painPoints: string | null;
+  useCases: string | null;
+  audience: string | null;
+  modules: string | null;
+  competitors: string | null;
+  objections: string | null;
+  expectedOutcome: string | null;
+  demoFlowNotes: string | null;
+  checklist: string[];
+  updatedAt: string | null;
+}
+
+export interface PresalesDemoFeedback {
+  attendees: string | null;
+  modulesShown: string | null;
+  questions: string | null;
+  objections: string | null;
+  positiveSignals: string | null;
+  gaps: string | null;
+  nextSteps: string | null;
+  capturedBy: CrmLookupUserSummary | null;
+  capturedAt: string | null;
+}
+
+export interface PresalesFitmentReview {
+  reviewer: CrmLookupUserSummary | null;
+  note: string | null;
+  requestedBy: CrmLookupUserSummary | null;
+  requestedAt: string;
+}
+
+export interface PresalesPocSignOff {
+  outcome: "success" | "fail";
+  customerFeedback: string | null;
+  signedOffBy: CrmLookupUserSummary | null;
+  signedOffAt: string;
+}
+
+export interface PresalesPocPlan {
+  objective: string | null;
+  scope: string | null;
+  successCriteria: string | null;
+  timeline: string | null;
+  responsibilities: string | null;
+  demoData: string | null;
+  signOff: PresalesPocSignOff | null;
+  updatedAt: string | null;
+}
+
+export interface PresalesTriageRequestBody {
+  action: PresalesTriageStatus;
+  note?: string | null;
+}
+
+export interface PresalesDemoWorkspaceRequestBody {
+  painPoints?: string | null;
+  useCases?: string | null;
+  audience?: string | null;
+  modules?: string | null;
+  competitors?: string | null;
+  objections?: string | null;
+  expectedOutcome?: string | null;
+  demoFlowNotes?: string | null;
+  checklist?: string[];
+}
+
+export interface PresalesDemoFeedbackRequestBody {
+  attendees?: string | null;
+  modulesShown?: string | null;
+  questions?: string | null;
+  objections?: string | null;
+  positiveSignals?: string | null;
+  gaps?: string | null;
+  nextSteps?: string | null;
+  opportunityStageKey?: string | null;
+}
+
+export interface PresalesGapTaskRequestBody {
+  requirementId: string;
+  assigneeId?: string | null;
+  dueAt?: string | null;
+  asChangeRequest?: boolean;
+}
+
+export interface PresalesFitmentReviewRequestBody {
+  reviewerId: string;
+  note?: string | null;
+}
+
+export interface PresalesPocPlanRequestBody {
+  objective?: string | null;
+  scope?: string | null;
+  successCriteria?: string | null;
+  timeline?: string | null;
+  responsibilities?: string | null;
+  demoData?: string | null;
+}
+
+export interface PresalesPocSignOffRequestBody {
+  outcome: "success" | "fail";
+  customerFeedback?: string | null;
+  probability?: number | null;
+}
+
 export interface PresalesRequestDetail extends PresalesRequestSummary {
   technicalRequirements: string | null;
   proposalContent: string | null;
+  triage: PresalesTriageState | null;
+  demoWorkspace: PresalesDemoWorkspace | null;
+  demoFeedback: PresalesDemoFeedback | null;
+  fitmentReview: PresalesFitmentReview | null;
+  poc: PresalesPocPlan | null;
   requirements: PresalesRequirementSummary[];
   demoCalendarPlaceholder: PresalesPlaceholderSurface;
   solutionRepositoryPlaceholder: PresalesPlaceholderSurface;
@@ -2788,6 +2921,7 @@ export interface PresalesRequestOptionsResponse {
   requestTypes: CrmOptionValueSummary[];
   statuses: CrmOptionValueSummary[];
   priorities: PresalesPriority[];
+  demoChecklistItems: CrmOptionValueSummary[];
   availableScopes: PresalesPipelineScope[];
 }
 
