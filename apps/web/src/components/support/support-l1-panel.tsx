@@ -113,7 +113,8 @@ export function SupportL1Panel({ ticketId, options, accessToken, canManage, onRe
               <span>{rec.title} {rec.category ? <span className="text-xs text-muted-foreground">· {rec.category.label}</span> : null} <Badge variant="muted">match {rec.score}</Badge></span>
               {canManage ? (
                 <span className="flex gap-2">
-                  <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run(`kb-y-${rec.articleId}`, () => apiRequest(`/support/tickets/${ticketId}/kb-usage`, { method: "POST", accessToken, body: { articleId: rec.articleId, helpful: true } }), "Article used (helpful).")}>Use · helpful</Button>
+                  <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run(`kb-i-${rec.articleId}`, () => apiRequest(`/support/tickets/${ticketId}/kb-insert`, { method: "POST", accessToken, body: { articleId: rec.articleId } }), "Template inserted as reply.")}>Insert as reply</Button>
+                  <Button type="button" variant="ghost" disabled={busy !== null} onClick={() => void run(`kb-y-${rec.articleId}`, () => apiRequest(`/support/tickets/${ticketId}/kb-usage`, { method: "POST", accessToken, body: { articleId: rec.articleId, helpful: true } }), "Marked helpful.")}>Helpful</Button>
                   <Button type="button" variant="ghost" disabled={busy !== null} onClick={() => void run(`kb-n-${rec.articleId}`, () => apiRequest(`/support/tickets/${ticketId}/kb-usage`, { method: "POST", accessToken, body: { articleId: rec.articleId, helpful: false } }), "Feedback logged.")}>Not helpful</Button>
                 </span>
               ) : null}

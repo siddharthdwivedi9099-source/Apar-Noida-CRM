@@ -1098,6 +1098,11 @@ export class SupportService {
       return nextTicketId;
     });
 
+    // L1-001: auto-acknowledgement on intake (opt-in so portal/API callers are unaffected).
+    if (input.autoAcknowledge) {
+      await this.acknowledgeTicket(actor, audit, ticketId);
+    }
+
     return this.getTicket(actor, ticketId);
   }
 
@@ -1583,6 +1588,23 @@ export class SupportService {
         aiPlaceholder: { available: false, message: "AI knowledge-base recommendation will connect with the governed AI Gateway." }
       };
     });
+  }
+
+  // L1-003: insert an approved knowledge article as a customer reply (response template).
+  async insertKbTemplate(actor: ActorContext, audit: AuditMetadata, ticketId: string, articleId: string): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    const article = await this.databaseService.withClient((client) =>
+      client.query<{ title: string; summary: string | null; body: string | null }>(
+        `SELECT title, summary, body FROM support_knowledge_articles WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [articleId, actor.tenantId]
+      )
+    );
+    if (article.rowCount === 0) {
+      throw new AppError(404, "Knowledge article not found.", undefined, "NOT_FOUND");
+    }
+    const template = article.rows[0].summary?.trim() || article.rows[0].body?.trim() || article.rows[0].title;
+    await this.addTicketMessage(actor, audit, ticketId, { body: template, messageType: "customer_reply" });
+    return this.logKbUsage(actor, audit, ticketId, { articleId, helpful: true, note: "inserted as response template" });
   }
 
   async logKbUsage(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: LogKbUsageRequestBody): Promise<SupportTicketResponse> {

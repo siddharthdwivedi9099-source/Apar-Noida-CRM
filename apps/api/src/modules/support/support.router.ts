@@ -315,6 +315,9 @@ export function createSupportRouter({ databaseService }: RouterDependencies) {
   router.post("/tickets/:ticketId/kb-usage", requirePermissions({ oneOf: messagePermissions }), validateRequest({ params: ticketIdSchema, body: kbUsageSchema }), asyncHandler(async (request, response) => {
     response.status(200).json(await service.logKbUsage(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as LogKbUsageRequestBody));
   }));
+  router.post("/tickets/:ticketId/kb-insert", requirePermissions({ oneOf: messagePermissions }), validateRequest({ params: ticketIdSchema, body: z.object({ articleId: uuidSchema }) }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.insertKbTemplate(request.auth!, getAuditMetadata(request), request.params.ticketId, (request.body as { articleId: string }).articleId));
+  }));
   router.post("/tickets/:ticketId/escalate", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: escalateSchema }), asyncHandler(async (request, response) => {
     response.status(200).json(await service.escalateTicket(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as EscalateTicketRequestBody));
   }));

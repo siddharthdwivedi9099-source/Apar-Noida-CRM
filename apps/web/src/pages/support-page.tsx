@@ -227,6 +227,7 @@ export function SupportPage() {
       contactId: ticketForm.contactId || null,
       assigneeId: ticketForm.assigneeId || null,
       slaPolicyId: ticketForm.slaPolicyId || null,
+      autoAcknowledge: true,
       customFields
     };
 

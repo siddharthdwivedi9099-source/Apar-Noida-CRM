@@ -3658,6 +3658,8 @@ export interface CreateSupportTicketRequestBody {
   escalationStatus?: SupportEscalationStatus;
   rootCause?: string | null;
   resolutionNotes?: string | null;
+  // L1-001: send an auto-acknowledgement customer reply on intake.
+  autoAcknowledge?: boolean;
   metadata?: Record<string, unknown>;
   customFields?: Record<string, unknown>;
 }
