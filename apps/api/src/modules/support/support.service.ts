@@ -1076,7 +1076,7 @@ export class SupportService {
           firstResponseMinutes,
           resolutionMinutes,
           JSON.stringify(customFields),
-          JSON.stringify(input.metadata ?? {}),
+          JSON.stringify({ ...(input.metadata ?? {}), ...(Array.isArray(input.attachments) && input.attachments.length > 0 ? { attachments: input.attachments.filter((ref) => typeof ref === "string") } : {}) }),
           actor.userId
         ]
       );
@@ -1504,6 +1504,25 @@ export class SupportService {
     this.assertEnabled();
     const list = await this.listTickets(actor, { ...query, page: 1, pageSize: 200 });
     const open = list.tickets.filter((ticket) => ticket.status?.key !== "closed" && ticket.status?.key !== "resolved");
+    // L1-002: customer tier = the customer-success account segment (accounts have no native tier).
+    const csAccountIds = [...new Set(open.map((ticket) => ticket.customerSuccessAccount?.id).filter((id): id is string => Boolean(id)))];
+    const tierByAccount = new Map<string, CrmOptionValueSummary>();
+    if (csAccountIds.length > 0) {
+      await this.databaseService.withClient(async (client) => {
+        const result = await client.query<{ account_id: string; seg_id: string; seg_key: string; seg_label: string; seg_color: string | null; seg_is_default: boolean; seg_is_active: boolean }>(
+          `
+            SELECT csa.account_id, sv.id AS seg_id, sv.value_key AS seg_key, sv.label AS seg_label, sv.color AS seg_color, sv.is_default AS seg_is_default, sv.is_active AS seg_is_active
+            FROM customer_success_accounts csa
+            INNER JOIN tenant_option_values sv ON sv.id = csa.segment_option_id AND sv.tenant_id = csa.tenant_id
+            WHERE csa.tenant_id = $1 AND csa.deleted_at IS NULL AND csa.account_id = ANY($2::uuid[])
+          `,
+          [actor.tenantId, csAccountIds]
+        );
+        for (const row of result.rows) {
+          tierByAccount.set(row.account_id, { id: row.seg_id, key: row.seg_key, label: row.seg_label, description: null, color: row.seg_color, isDefault: row.seg_is_default, isActive: row.seg_is_active });
+        }
+      });
+    }
     let breachedCount = 0;
     let atRiskCount = 0;
     const entries = open.map((ticket) => {
@@ -1515,6 +1534,7 @@ export class SupportService {
         ticketId: ticket.id,
         subject: ticket.subject,
         customerName: ticket.account?.name ?? null,
+        customerTier: (ticket.customerSuccessAccount?.id ? tierByAccount.get(ticket.customerSuccessAccount.id) : undefined) ?? null,
         category: ticket.category,
         priority: ticket.priority,
         status: ticket.status,
@@ -1637,10 +1657,28 @@ export class SupportService {
         l2OwnerId = owner.rows[0].id;
       }
       const escalation = { reason, troubleshooting: input.troubleshooting?.trim() || null, logs: input.logs?.trim() || null, screenshots: input.screenshots?.trim() || null, impact: input.impact?.trim() || null, urgency: input.urgency ?? null, escalatedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email }, escalatedAt: new Date().toISOString() };
-      await client.query(
-        `UPDATE support_tickets SET escalation_status = 'escalated', owner_id = $3, metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
-        [ticketId, actor.tenantId, l2OwnerId, JSON.stringify({ ...ticket.metadata, escalation }), actor.userId]
-      );
+      // L1-004: optionally switch SLA policy on escalation (recomputes the resolution due time).
+      let slaPolicyId: string | null = null;
+      let resolutionMinutes: number | null = null;
+      if (input.slaPolicyId) {
+        slaPolicyId = await this.ensureSlaPolicyId(client, actor.tenantId, input.slaPolicyId);
+        if (slaPolicyId) {
+          const policy = await client.query<{ resolution_minutes: number }>(`SELECT resolution_minutes FROM support_sla_policies WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`, [slaPolicyId, actor.tenantId]);
+          resolutionMinutes = policy.rows[0]?.resolution_minutes ?? null;
+        }
+      }
+      if (slaPolicyId && resolutionMinutes !== null) {
+        (escalation as Record<string, unknown>).slaChangedTo = slaPolicyId;
+        await client.query(
+          `UPDATE support_tickets SET escalation_status = 'escalated', owner_id = $3, sla_policy_id = $6, resolution_due_at = NOW() + ($7::int * interval '1 minute'), metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+          [ticketId, actor.tenantId, l2OwnerId, JSON.stringify({ ...ticket.metadata, escalation }), actor.userId, slaPolicyId, resolutionMinutes]
+        );
+      } else {
+        await client.query(
+          `UPDATE support_tickets SET escalation_status = 'escalated', owner_id = $3, metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+          [ticketId, actor.tenantId, l2OwnerId, JSON.stringify({ ...ticket.metadata, escalation }), actor.userId]
+        );
+      }
       if (l2OwnerId && l2OwnerId !== actor.userId) {
         await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: l2OwnerId, title: "Ticket escalated to you (L2)", message: reason, linkedRecord: { entityType: "ticket", entityId: ticketId } });
       }

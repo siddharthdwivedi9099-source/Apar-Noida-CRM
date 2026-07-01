@@ -106,6 +106,7 @@ export interface SupportQueueEntry {
   ticketId: string;
   subject: string;
   customerName: string | null;
+  customerTier: CrmOptionValueSummary | null;
   category: CrmOptionValueSummary | null;
   priority: CrmOptionValueSummary | null;
   status: CrmOptionValueSummary | null;
@@ -163,6 +164,8 @@ export interface EscalateTicketRequestBody {
   urgency?: SupportUrgencyLevel;
   l2OwnerId?: string | null;
   notifyCustomer?: boolean;
+  // L1-004: optionally switch the SLA policy on escalation (recomputes the resolution due time).
+  slaPolicyId?: string | null;
 }
 
 export interface CloseTicketRequestBody {

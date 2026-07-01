@@ -38,7 +38,7 @@ export function SupportQueuePanel({ accessToken, onSelect }: SupportQueuePanelPr
         {errorMessage ? <p className="text-sm text-rose-600">{errorMessage}</p> : null}
         {queue.entries.length === 0 ? <p className="text-sm text-muted-foreground">Queue is clear.</p> : queue.entries.slice(0, 20).map((entry) => (
           <button key={entry.ticketId} type="button" onClick={() => onSelect?.(entry.ticketId)} className="flex w-full flex-wrap items-center justify-between gap-2 rounded-[1rem] bg-background/75 p-2 text-left text-sm transition hover:bg-secondary/60">
-            <span>{entry.subject} · {entry.customerName ?? "—"}</span>
+            <span>{entry.subject} · {entry.customerName ?? "—"}{entry.customerTier ? ` · ${entry.customerTier.label}` : ""}</span>
             <span className="flex items-center gap-2">
               {entry.priority ? <Badge variant="muted">{entry.priority.label}</Badge> : null}
               <Badge variant={entry.slaRisk === "breached" ? "default" : "muted"}>SLA {entry.slaRisk}</Badge>

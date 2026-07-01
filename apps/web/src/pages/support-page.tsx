@@ -41,6 +41,7 @@ interface TicketFormState {
   contactId: string;
   assigneeId: string;
   slaPolicyId: string;
+  attachments: string;
   customFields: Record<string, CrmCustomFieldFormValue>;
 }
 
@@ -61,6 +62,7 @@ function buildTicketFormState(options: SupportTicketOptionsResponse | null): Tic
     contactId: "",
     assigneeId: "",
     slaPolicyId: "",
+    attachments: "",
     customFields: {}
   };
 }
@@ -228,6 +230,7 @@ export function SupportPage() {
       assigneeId: ticketForm.assigneeId || null,
       slaPolicyId: ticketForm.slaPolicyId || null,
       autoAcknowledge: true,
+      attachments: ticketForm.attachments.split(",").map((ref) => ref.trim()).filter((ref) => ref.length > 0),
       customFields
     };
 
@@ -422,6 +425,10 @@ export function SupportPage() {
               <label className="space-y-2 md:col-span-2">
                 <span className="text-sm font-medium">Description</span>
                 <textarea className={textareaClassName} rows={3} value={ticketForm.description} onChange={(event) => setTicketForm((current) => ({ ...current, description: event.target.value }))} />
+              </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-sm font-medium">Attachments (comma-separated references / URLs)</span>
+                <input className={selectClassName} value={ticketForm.attachments} onChange={(event) => setTicketForm((current) => ({ ...current, attachments: event.target.value }))} />
               </label>
 
               {customFieldDefinitions.length > 0 ? (

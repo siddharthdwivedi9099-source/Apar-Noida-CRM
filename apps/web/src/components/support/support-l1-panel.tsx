@@ -22,7 +22,7 @@ export function SupportL1Panel({ ticketId, options, accessToken, canManage, onRe
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [escalate, setEscalate] = useState({ reason: "", troubleshooting: "", impact: "", l2OwnerId: "", notifyCustomer: false });
+  const [escalate, setEscalate] = useState({ reason: "", troubleshooting: "", impact: "", l2OwnerId: "", notifyCustomer: false, slaPolicyId: "" });
   const [close, setClose] = useState({ resolutionSummary: "", rootCauseCategoryKey: "", requestCustomerConfirmation: true });
 
   async function load() {
@@ -67,7 +67,7 @@ export function SupportL1Panel({ ticketId, options, accessToken, canManage, onRe
 
   function handleEscalate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void run("escalate", () => apiRequest(`/support/tickets/${ticketId}/escalate`, { method: "POST", accessToken, body: { reason: escalate.reason.trim(), troubleshooting: escalate.troubleshooting || null, impact: escalate.impact || null, l2OwnerId: escalate.l2OwnerId || null, notifyCustomer: escalate.notifyCustomer } }), "Ticket escalated to L2.");
+    void run("escalate", () => apiRequest(`/support/tickets/${ticketId}/escalate`, { method: "POST", accessToken, body: { reason: escalate.reason.trim(), troubleshooting: escalate.troubleshooting || null, impact: escalate.impact || null, l2OwnerId: escalate.l2OwnerId || null, notifyCustomer: escalate.notifyCustomer, slaPolicyId: escalate.slaPolicyId || null } }), "Ticket escalated to L2.");
   }
 
   function handleClose(event: FormEvent<HTMLFormElement>) {
@@ -137,6 +137,10 @@ export function SupportL1Panel({ ticketId, options, accessToken, canManage, onRe
                   <select className={selectClassName} value={escalate.l2OwnerId} onChange={(event) => setEscalate((c) => ({ ...c, l2OwnerId: event.target.value }))} disabled={busy !== null}>
                     <option value="">Assign L2 owner…</option>
                     {options.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.displayName}</option>)}
+                  </select>
+                  <select className={selectClassName} value={escalate.slaPolicyId} onChange={(event) => setEscalate((c) => ({ ...c, slaPolicyId: event.target.value }))} disabled={busy !== null}>
+                    <option value="">Keep SLA policy</option>
+                    {options.slaPolicies.map((policy) => <option key={policy.id} value={policy.id}>Switch SLA: {policy.name}</option>)}
                   </select>
                   <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={escalate.notifyCustomer} onChange={(event) => setEscalate((c) => ({ ...c, notifyCustomer: event.target.checked }))} disabled={busy !== null} /> Notify customer</label>
                 </div>

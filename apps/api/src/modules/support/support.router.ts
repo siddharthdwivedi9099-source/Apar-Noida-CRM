@@ -75,6 +75,8 @@ const ticketCreateSchema = z.object({
   escalationStatus: z.enum(supportEscalationStatuses).optional(),
   rootCause: z.string().max(4000).nullable().optional(),
   resolutionNotes: z.string().max(8000).nullable().optional(),
+  autoAcknowledge: z.boolean().optional(),
+  attachments: z.array(z.string().max(1000)).max(20).optional(),
   metadata: recordSchema.optional(),
   customFields: recordSchema.optional()
 });
@@ -138,7 +140,8 @@ const escalateSchema = z.object({
   impact: l1NullableText(2000),
   urgency: z.enum(["low", "medium", "high", "urgent"]).optional(),
   l2OwnerId: uuidSchema.nullable().optional(),
-  notifyCustomer: z.boolean().optional()
+  notifyCustomer: z.boolean().optional(),
+  slaPolicyId: uuidSchema.nullable().optional()
 });
 const closeSchema = z.object({ resolutionSummary: z.string().min(1).max(8000), rootCauseCategoryKey: z.string().min(1).max(160).nullable().optional(), requestCustomerConfirmation: z.boolean().optional() });
 

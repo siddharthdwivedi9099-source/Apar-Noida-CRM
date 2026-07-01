@@ -3660,6 +3660,8 @@ export interface CreateSupportTicketRequestBody {
   resolutionNotes?: string | null;
   // L1-001: send an auto-acknowledgement customer reply on intake.
   autoAcknowledge?: boolean;
+  // L1-001: attachment references captured at intake (stored in ticket metadata).
+  attachments?: string[];
   metadata?: Record<string, unknown>;
   customFields?: Record<string, unknown>;
 }
