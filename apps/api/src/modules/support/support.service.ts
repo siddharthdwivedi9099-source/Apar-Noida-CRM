@@ -29,8 +29,15 @@ import type {
   SupportTicketSummary,
   SupportTicketsResponse,
   RoleSummary,
-  UpdateSupportTicketRequestBody
+  UpdateSupportTicketRequestBody,
+  CloseTicketRequestBody,
+  EscalateTicketRequestBody,
+  LogKbUsageRequestBody,
+  SupportKbRecommendationsResponse,
+  SupportQueueResponse,
+  TicketIntakeAssistResponse
 } from "@crm/types";
+import { computeQueueWeight, rankKnowledgeArticles, suggestTicketClassification } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import {
@@ -40,6 +47,7 @@ import {
 } from "../../common/custom-fields.js";
 import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
 
 const SUPPORT_TICKET_ENTITY_KEY = "support_ticket";
 
@@ -235,10 +243,14 @@ function computeSlaStatus(row: SupportTicketRow): SupportSlaStatus {
 }
 
 export class SupportService {
+  private readonly notificationService: NotificationService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
-  ) {}
+  ) {
+    this.notificationService = new NotificationService(databaseService, config);
+  }
 
   private assertEnabled() {
     if (!this.databaseService.isEnabled()) {
@@ -797,6 +809,7 @@ export class SupportService {
         categories: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-category"),
         sources: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-source"),
         knowledgeCategories: await this.loadOptionSetValues(client, actor.tenantId, "support-knowledge-category"),
+        rootCauses: await this.loadOptionSetValues(client, actor.tenantId, "support-root-cause"),
         slaPolicies: (await this.loadSlaPolicies(client, actor.tenantId)).policies,
         availableScopes: await this.getAvailableScopes(client, actor),
         fieldDefinitions,
@@ -1465,6 +1478,185 @@ export class SupportService {
       }
     });
 
+    return this.getTicket(actor, ticketId);
+  }
+
+  // ---- Persona 21 (Support Agent L1) -----------------------------------------------------------
+
+  private async loadTicketBasics(client: PoolClient, tenantId: string, ticketId: string) {
+    const result = await client.query<{ id: string; subject: string; description: string | null; account_id: string | null; owner_id: string | null; metadata: Record<string, unknown> | null }>(
+      `SELECT id, subject, description, account_id, owner_id, metadata FROM support_tickets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [ticketId, tenantId]
+    );
+    if (result.rowCount === 0) {
+      throw new AppError(404, "Support ticket not found.", undefined, "SUPPORT_TICKET_NOT_FOUND");
+    }
+    return { ...result.rows[0], metadata: getMetadata(result.rows[0].metadata) };
+  }
+
+  // L1-002
+  async getSupportQueue(actor: ActorContext, query: SupportTicketListQuery): Promise<SupportQueueResponse> {
+    this.assertEnabled();
+    const list = await this.listTickets(actor, { ...query, page: 1, pageSize: 200 });
+    const open = list.tickets.filter((ticket) => ticket.status?.key !== "closed" && ticket.status?.key !== "resolved");
+    let breachedCount = 0;
+    let atRiskCount = 0;
+    const entries = open.map((ticket) => {
+      const due = ticket.sla.resolutionDueAt ? Date.parse(ticket.sla.resolutionDueAt) : null;
+      const risk = ticket.sla.resolutionBreached ? "breached" : due !== null && due - Date.now() <= 60 * 60 * 1000 ? "at_risk" : "on_track";
+      if (risk === "breached") breachedCount += 1;
+      else if (risk === "at_risk") atRiskCount += 1;
+      return {
+        ticketId: ticket.id,
+        subject: ticket.subject,
+        customerName: ticket.account?.name ?? null,
+        category: ticket.category,
+        priority: ticket.priority,
+        status: ticket.status,
+        owner: ticket.owner,
+        slaDueAt: ticket.sla.resolutionDueAt,
+        slaStatus: null,
+        slaRisk: risk as "on_track" | "at_risk" | "breached",
+        breachAlert: ticket.sla.resolutionBreached || ticket.sla.firstResponseBreached,
+        queueWeight: computeQueueWeight(risk as "on_track" | "at_risk" | "breached", ticket.priority?.key ?? null)
+      };
+    });
+    entries.sort((a, b) => a.queueWeight - b.queueWeight || (a.slaDueAt ?? "9999").localeCompare(b.slaDueAt ?? "9999"));
+    return { entries, breachedCount, atRiskCount };
+  }
+
+  // L1-001
+  async getIntakeAssist(actor: ActorContext, ticketId: string): Promise<TicketIntakeAssistResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const firstWords = ticket.subject.split(/\s+/).filter((word) => word.length > 3).slice(0, 2).join(" ");
+      const duplicates = ticket.account_id
+        ? await client.query<{ id: string; subject: string; created_at: Date; status_id: string; status_key: string; status_label: string; status_color: string | null; status_is_default: boolean; status_is_active: boolean }>(
+            `
+              SELECT t.id, t.subject, t.created_at, sv.id AS status_id, sv.value_key AS status_key, sv.label AS status_label, sv.color AS status_color, sv.is_default AS status_is_default, sv.is_active AS status_is_active
+              FROM support_tickets t
+              INNER JOIN tenant_option_values sv ON sv.id = t.status_option_id AND sv.tenant_id = t.tenant_id
+              WHERE t.tenant_id = $1 AND t.deleted_at IS NULL AND t.account_id = $2 AND t.id <> $3
+                AND sv.value_key NOT IN ('closed', 'resolved')
+                AND ($4 = '' OR t.subject ILIKE '%' || $4 || '%')
+              ORDER BY t.created_at DESC LIMIT 5
+            `,
+            [actor.tenantId, ticket.account_id, ticketId, firstWords]
+          )
+        : { rows: [] as never[] };
+      return {
+        duplicates: duplicates.rows.map((row) => ({
+          ticketId: row.id,
+          subject: row.subject,
+          status: { id: row.status_id, key: row.status_key, label: row.status_label, description: null, color: row.status_color, isDefault: row.status_is_default, isActive: row.status_is_active },
+          createdAt: row.created_at.toISOString()
+        })),
+        classification: suggestTicketClassification(ticket.subject, ticket.description),
+        aiPlaceholder: { available: false, message: "AI ticket classification will connect with the governed AI Gateway." }
+      };
+    });
+  }
+
+  async acknowledgeTicket(actor: ActorContext, audit: AuditMetadata, ticketId: string): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, acknowledgedAt: new Date().toISOString() }), actor.userId]);
+    });
+    return this.addTicketMessage(actor, audit, ticketId, { body: "Thank you for contacting support. Your ticket has been received and an agent will respond shortly.", messageType: "customer_reply" });
+  }
+
+  // L1-003
+  async getKbRecommendations(actor: ActorContext, ticketId: string): Promise<SupportKbRecommendationsResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const articles = await this.listKnowledgeArticles(actor);
+      const ranked = rankKnowledgeArticles(`${ticket.subject} ${ticket.description ?? ""}`, articles.articles.map((article) => ({ id: article.id, title: article.title, body: article.body })));
+      const byId = new Map(articles.articles.map((article) => [article.id, article]));
+      return {
+        recommendations: ranked.slice(0, 5).map((entry) => {
+          const article = byId.get(entry.id)!;
+          return { articleId: article.id, title: article.title, category: article.category, score: entry.score };
+        }),
+        aiPlaceholder: { available: false, message: "AI knowledge-base recommendation will connect with the governed AI Gateway." }
+      };
+    });
+  }
+
+  async logKbUsage(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: LogKbUsageRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const usage = Array.isArray(ticket.metadata.kbUsage) ? ticket.metadata.kbUsage : [];
+      const entry = { articleId: input.articleId, helpful: Boolean(input.helpful), note: input.note?.trim() || null, by: actor.userId, at: new Date().toISOString() };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, kbUsage: [...usage, entry] }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.kb.usage", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { articleId: input.articleId, helpful: entry.helpful } });
+    });
+    return this.linkArticleToTicket(actor, audit, ticketId, input.articleId);
+  }
+
+  // L1-004
+  async escalateTicket(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: EscalateTicketRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    const reason = input.reason?.trim();
+    if (!reason) {
+      throw new AppError(400, "An escalation reason is required.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      let l2OwnerId = ticket.owner_id;
+      if (input.l2OwnerId) {
+        const owner = await client.query<{ id: string }>(`SELECT id FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [input.l2OwnerId, actor.tenantId]);
+        if (owner.rowCount === 0) {
+          throw new AppError(400, "The L2 owner was not found.", undefined, "VALIDATION_ERROR");
+        }
+        l2OwnerId = owner.rows[0].id;
+      }
+      const escalation = { reason, troubleshooting: input.troubleshooting?.trim() || null, logs: input.logs?.trim() || null, screenshots: input.screenshots?.trim() || null, impact: input.impact?.trim() || null, urgency: input.urgency ?? null, escalatedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email }, escalatedAt: new Date().toISOString() };
+      await client.query(
+        `UPDATE support_tickets SET escalation_status = 'escalated', owner_id = $3, metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [ticketId, actor.tenantId, l2OwnerId, JSON.stringify({ ...ticket.metadata, escalation }), actor.userId]
+      );
+      if (l2OwnerId && l2OwnerId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: l2OwnerId, title: "Ticket escalated to you (L2)", message: reason, linkedRecord: { entityType: "ticket", entityId: ticketId } });
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "support.ticket.escalate", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { l2OwnerId } });
+    });
+    if (input.notifyCustomer) {
+      await this.addTicketMessage(actor, audit, ticketId, { body: "Your ticket has been escalated to our specialist team for further investigation.", messageType: "customer_reply" });
+    }
+    return this.getTicket(actor, ticketId);
+  }
+
+  // L1-005
+  async closeTicket(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: CloseTicketRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    const summary = input.resolutionSummary?.trim();
+    if (!summary) {
+      throw new AppError(400, "A resolution summary is required.", undefined, "VALIDATION_ERROR");
+    }
+    const requestConfirmation = Boolean(input.requestCustomerConfirmation);
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      let rootCauseLabel: string | null = null;
+      if (input.rootCauseCategoryKey) {
+        const rootCauses = await this.loadOptionSetValues(client, actor.tenantId, "support-root-cause");
+        rootCauseLabel = rootCauses.find((value) => value.key === input.rootCauseCategoryKey)?.label ?? null;
+        if (!rootCauseLabel) {
+          throw new AppError(400, "Unknown root cause category.", undefined, "VALIDATION_ERROR");
+        }
+      }
+      const statusId = await this.resolveOptionValueId(client, actor.tenantId, "support-ticket-status", requestConfirmation ? "resolved" : "closed", "Support ticket status");
+      const csat = { requested: true, requestedAt: new Date().toISOString(), awaitingConfirmation: requestConfirmation };
+      await client.query(
+        `UPDATE support_tickets SET status_option_id = $3, resolution_notes = $4, root_cause = $5, resolved_at = NOW(), metadata = $6::jsonb, updated_by = $7 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [ticketId, actor.tenantId, statusId, summary, rootCauseLabel, JSON.stringify({ ...ticket.metadata, csat }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "support.ticket.close", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { requestConfirmation, rootCause: rootCauseLabel } });
+    });
+    await this.addTicketMessage(actor, audit, ticketId, { body: `Resolution: ${summary}${requestConfirmation ? "\n\nPlease confirm this resolves your issue. We'd also appreciate your feedback via the CSAT survey." : ""}`, messageType: "customer_reply" });
     return this.getTicket(actor, ticketId);
   }
 }

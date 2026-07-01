@@ -1102,6 +1102,26 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "support-root-cause",
+    moduleKey: "support",
+    kind: "dropdown",
+    name: "Support Root Cause",
+    description: "Root-cause categories captured at ticket closure (L1-005).",
+    values: [
+      { key: "user_error", label: "User Error", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "configuration", label: "Configuration", color: "#0ea5e9", sortOrder: 1 },
+      { key: "software_defect", label: "Software Defect", color: "#ef4444", sortOrder: 2 },
+      { key: "integration", label: "Integration", color: "#14b8a6", sortOrder: 3 },
+      { key: "data_issue", label: "Data Issue", color: "#f59e0b", sortOrder: 4 },
+      { key: "training_gap", label: "Training Gap", color: "#8b5cf6", sortOrder: 5 },
+      { key: "third_party", label: "Third Party", color: "#a16207", sortOrder: 6 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "support"
+    }
+  },
+  {
     setKey: "customer-success-stage",
     moduleKey: "customer_success",
     kind: "customer_success_stage",

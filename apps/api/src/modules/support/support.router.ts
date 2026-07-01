@@ -12,7 +12,10 @@ import {
   type CreateSupportTicketMessageRequestBody,
   type CreateSupportTicketRequestBody,
   type SupportTicketListQuery,
-  type UpdateSupportTicketRequestBody
+  type UpdateSupportTicketRequestBody,
+  type CloseTicketRequestBody,
+  type EscalateTicketRequestBody,
+  type LogKbUsageRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -123,6 +126,21 @@ const articleCreateSchema = z.object({
 const linkArticleSchema = z.object({ articleId: uuidSchema });
 
 const ticketIdSchema = z.object({ ticketId: uuidSchema });
+
+// ---- Persona 21 (Support Agent L1) schemas -----------------------------------------------------
+const l1NullableText = (max: number) => z.string().max(max).nullable().optional();
+const kbUsageSchema = z.object({ articleId: uuidSchema, helpful: z.boolean(), note: l1NullableText(2000) });
+const escalateSchema = z.object({
+  reason: z.string().min(1).max(4000),
+  troubleshooting: l1NullableText(8000),
+  logs: l1NullableText(8000),
+  screenshots: l1NullableText(4000),
+  impact: l1NullableText(2000),
+  urgency: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  l2OwnerId: uuidSchema.nullable().optional(),
+  notifyCustomer: z.boolean().optional()
+});
+const closeSchema = z.object({ resolutionSummary: z.string().min(1).max(8000), rootCauseCategoryKey: z.string().min(1).max(160).nullable().optional(), requestCustomerConfirmation: z.boolean().optional() });
 
 const readPermissions: string[] = [
   "support.view",
@@ -280,6 +298,29 @@ export function createSupportRouter({ databaseService }: RouterDependencies) {
       );
     })
   );
+
+  // ---- Persona 21 (Support Agent L1) routes ----------------------------------------------------
+  router.get("/queue", requirePermissions({ oneOf: readPermissions }), validateRequest({ query: ticketListQuerySchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getSupportQueue(request.auth!, request.query as SupportTicketListQuery));
+  }));
+  router.get("/tickets/:ticketId/intake-assist", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: ticketIdSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getIntakeAssist(request.auth!, request.params.ticketId));
+  }));
+  router.post("/tickets/:ticketId/acknowledge", requirePermissions({ oneOf: messagePermissions }), validateRequest({ params: ticketIdSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.acknowledgeTicket(request.auth!, getAuditMetadata(request), request.params.ticketId));
+  }));
+  router.get("/tickets/:ticketId/kb-recommendations", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: ticketIdSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getKbRecommendations(request.auth!, request.params.ticketId));
+  }));
+  router.post("/tickets/:ticketId/kb-usage", requirePermissions({ oneOf: messagePermissions }), validateRequest({ params: ticketIdSchema, body: kbUsageSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.logKbUsage(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as LogKbUsageRequestBody));
+  }));
+  router.post("/tickets/:ticketId/escalate", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: escalateSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.escalateTicket(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as EscalateTicketRequestBody));
+  }));
+  router.post("/tickets/:ticketId/close", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: closeSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.closeTicket(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as CloseTicketRequestBody));
+  }));
 
   return router;
 }

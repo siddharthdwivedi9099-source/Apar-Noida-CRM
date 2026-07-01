@@ -28,6 +28,8 @@ import {
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { SupportL1Panel } from "@/components/support/support-l1-panel";
+import { SupportQueuePanel } from "@/components/support/support-queue-panel";
 
 interface TicketFormState {
   subject: string;
@@ -602,6 +604,18 @@ export function SupportPage() {
           </CardContent>
         </Card>
       </section>
+
+      <SupportQueuePanel accessToken={accessToken} onSelect={setSelectedId} />
+
+      {selectedId && options ? (
+        <SupportL1Panel
+          ticketId={selectedId}
+          options={options}
+          accessToken={accessToken}
+          canManage={canEdit}
+          onReload={() => { if (selectedId) void loadDetail(selectedId); }}
+        />
+      ) : null}
     </div>
   );
 }

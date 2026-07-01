@@ -3700,6 +3700,7 @@ export interface SupportTicketOptionsResponse {
   categories: CrmOptionValueSummary[];
   sources: CrmOptionValueSummary[];
   knowledgeCategories: CrmOptionValueSummary[];
+  rootCauses: CrmOptionValueSummary[];
   slaPolicies: SupportSlaPolicySummary[];
   availableScopes: SupportTicketScope[];
   fieldDefinitions: CrmFieldDefinition[];
