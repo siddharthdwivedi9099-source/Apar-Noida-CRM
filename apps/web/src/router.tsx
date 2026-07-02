@@ -9,6 +9,7 @@ import { AccountFormPage } from "./pages/account-form-page";
 import { AccountsPage } from "./pages/accounts-page";
 import { AdminSettingsPage } from "./pages/admin-settings-page";
 import { AdminPage } from "./pages/admin-page";
+import { AdminConfigurationPage } from "./pages/admin-configuration-page";
 import { AiAssistantPage } from "./pages/ai-assistant-page";
 import { AgentRegistryPage } from "./pages/agent-registry-page";
 import { PromptRegistryPage } from "./pages/prompt-registry-page";
@@ -455,6 +456,19 @@ export const router = createBrowserRouter([
                 moduleKey="admin"
               >
                 <AdminPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "admin/configuration",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.admin}
+                title="Configuration versioning requires administrative permissions."
+                description="Only authorized admins can draft, publish, and roll back tenant configuration."
+                moduleKey="admin"
+              >
+                <AdminConfigurationPage />
               </PermissionRoute>
             )
           },

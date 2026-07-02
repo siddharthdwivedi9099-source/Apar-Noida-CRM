@@ -397,6 +397,10 @@ export class ConfigurationService {
     body: SaveConfigurationDraftRequestBody
   ): Promise<ConfigurationVersion> {
     this.ensureEnabled();
+    // ADMIN-006: every configuration change must carry a reason for the audit trail.
+    if (!body.changeReason?.trim()) {
+      throw new AppError(400, "A change reason is required to create a configuration version.", undefined, "CONFIG_CHANGE_REASON_REQUIRED");
+    }
     const snapshot = body.snapshot ?? (await this.assembleSnapshot(actor));
     const validation = validateConfigurationSnapshot(snapshot);
 

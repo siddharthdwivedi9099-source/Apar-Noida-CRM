@@ -1,4 +1,4 @@
-import { Palette, Settings2, ShieldCheck, Shapes, SlidersHorizontal, Type } from "lucide-react";
+import { GitBranch, Palette, Settings2, ShieldCheck, Shapes, SlidersHorizontal, Type } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -46,6 +46,12 @@ const adminNavItems: AdminNavItem[] = [
     title: "RBAC",
     description: "Roles, permissions, and user assignment controls.",
     icon: ShieldCheck
+  },
+  {
+    href: "/admin/configuration",
+    title: "Configuration",
+    description: "Version, validate, publish, and roll back tenant configuration.",
+    icon: GitBranch
   }
 ];
 

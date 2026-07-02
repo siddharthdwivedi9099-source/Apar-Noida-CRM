@@ -38,7 +38,8 @@ const upsertDefinitionSchema = z.object({
   definition: z.record(z.unknown())
 });
 const saveDraftSchema = z.object({
-  changeReason: z.string().max(500).optional(),
+  // ADMIN-006: configuration changes require a reason.
+  changeReason: z.string().trim().min(3).max(500),
   snapshot: snapshotSchema.optional()
 });
 const importSchema = z.object({

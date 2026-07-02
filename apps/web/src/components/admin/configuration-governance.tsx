@@ -73,12 +73,12 @@ export function ConfigurationGovernance({ accessToken }: ConfigurationGovernance
         {errorMessage ? <p className="text-sm text-rose-600">{errorMessage}</p> : null}
 
         <div className="flex flex-wrap items-end gap-2 rounded-[1rem] border border-border/60 p-3">
-          <Input placeholder="Change summary" value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy !== null} />
+          <Input placeholder="Change reason (required)" value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy !== null} />
           <Button
             type="button"
-            disabled={busy !== null}
+            disabled={busy !== null || reason.trim().length < 3}
             onClick={() => void run("propose", async () => {
-              await apiRequest("/configuration/versions", { method: "POST", accessToken, body: { changeReason: reason || null } });
+              await apiRequest("/configuration/versions", { method: "POST", accessToken, body: { changeReason: reason.trim() } });
               setReason("");
             }, "Draft change proposed from current configuration.")}
           >
