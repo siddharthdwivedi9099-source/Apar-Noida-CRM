@@ -35,9 +35,18 @@ import type {
   LogKbUsageRequestBody,
   SupportKbRecommendationsResponse,
   SupportQueueResponse,
-  TicketIntakeAssistResponse
+  TicketIntakeAssistResponse,
+  CreateArticleFromTicketRequestBody,
+  EscalateBugRequestBody,
+  L2InvestigationResponse,
+  PublishKnowledgeArticleRequestBody,
+  RequestRcaShareRequestBody,
+  UpdateBugStatusRequestBody,
+  UpdateInvestigationRequestBody,
+  UpsertRcaRequestBody
 } from "@crm/types";
 import { computeQueueWeight, rankKnowledgeArticles, suggestTicketClassification } from "@crm/types";
+import { bugSeverities, bugSyncStatuses, isRcaRequired } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import {
@@ -48,6 +57,8 @@ import {
 import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
 import { NotificationService } from "../notifications/notifications.service.js";
+import { ApprovalService } from "../approvals/approvals.service.js";
+import { randomUUID } from "node:crypto";
 
 const SUPPORT_TICKET_ENTITY_KEY = "support_ticket";
 
@@ -244,12 +255,14 @@ function computeSlaStatus(row: SupportTicketRow): SupportSlaStatus {
 
 export class SupportService {
   private readonly notificationService: NotificationService;
+  private readonly approvalService: ApprovalService;
 
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
   ) {
     this.notificationService = new NotificationService(databaseService, config);
+    this.approvalService = new ApprovalService(databaseService, config);
   }
 
   private assertEnabled() {
@@ -1489,8 +1502,13 @@ export class SupportService {
   // ---- Persona 21 (Support Agent L1) -----------------------------------------------------------
 
   private async loadTicketBasics(client: PoolClient, tenantId: string, ticketId: string) {
-    const result = await client.query<{ id: string; subject: string; description: string | null; account_id: string | null; owner_id: string | null; metadata: Record<string, unknown> | null }>(
-      `SELECT id, subject, description, account_id, owner_id, metadata FROM support_tickets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+    const result = await client.query<{ id: string; subject: string; description: string | null; account_id: string | null; owner_id: string | null; priority_key: string | null; metadata: Record<string, unknown> | null }>(
+      `
+        SELECT t.id, t.subject, t.description, t.account_id, t.owner_id, pv.value_key AS priority_key, t.metadata
+        FROM support_tickets t
+        LEFT JOIN tenant_option_values pv ON pv.id = t.priority_option_id AND pv.tenant_id = t.tenant_id
+        WHERE t.id = $1 AND t.tenant_id = $2 AND t.deleted_at IS NULL
+      `,
       [ticketId, tenantId]
     );
     if (result.rowCount === 0) {
@@ -1700,6 +1718,10 @@ export class SupportService {
     const requestConfirmation = Boolean(input.requestCustomerConfirmation);
     await this.databaseService.withTransaction(async (client) => {
       const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      // L2-003: RCA is mandatory for critical incidents before closure.
+      if (isRcaRequired(ticket.priority_key) && !getMetadata(ticket.metadata.rca as Record<string, unknown> | undefined).rootCause) {
+        throw new AppError(409, "A root-cause analysis (RCA) is required before closing a critical incident.", undefined, "RCA_REQUIRED");
+      }
       let rootCauseLabel: string | null = null;
       if (input.rootCauseCategoryKey) {
         const rootCauses = await this.loadOptionSetValues(client, actor.tenantId, "support-root-cause");
@@ -1718,6 +1740,277 @@ export class SupportService {
     });
     await this.addTicketMessage(actor, audit, ticketId, { body: `Resolution: ${summary}${requestConfirmation ? "\n\nPlease confirm this resolves your issue. We'd also appreciate your feedback via the CSAT survey." : ""}`, messageType: "customer_reply" });
     return this.getTicket(actor, ticketId);
+  }
+
+  // ---- Persona 22 (Support Agent L2 / Technical Support) ---------------------------------------
+
+  private mapL2StoredUser(value: unknown): CrmLookupUserSummary | null {
+    const record = getMetadata(value as Record<string, unknown> | undefined);
+    const id = typeof record.id === "string" ? record.id : null;
+    if (!id) {
+      return null;
+    }
+    return { id, displayName: typeof record.displayName === "string" ? record.displayName : "", email: typeof record.email === "string" ? record.email : "", teamName: null, departmentName: null };
+  }
+
+  // L2-001
+  async getInvestigation(actor: ActorContext, ticketId: string): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    const { ticket } = await this.getTicket(actor, ticketId);
+    return this.databaseService.withClient(async (client) => {
+      const metadata = getMetadata(ticket.metadata);
+      const investigation = getMetadata(metadata.investigation as Record<string, unknown> | undefined);
+      const str = (record: Record<string, unknown>, key: string) => (typeof record[key] === "string" && (record[key] as string).length > 0 ? (record[key] as string) : null);
+
+      const priorTickets = ticket.account?.id
+        ? await client.query<{ id: string; subject: string; created_at: Date; status_id: string; status_key: string; status_label: string; status_color: string | null; status_is_default: boolean; status_is_active: boolean }>(
+            `
+              SELECT t.id, t.subject, t.created_at, sv.id AS status_id, sv.value_key AS status_key, sv.label AS status_label, sv.color AS status_color, sv.is_default AS status_is_default, sv.is_active AS status_is_active
+              FROM support_tickets t
+              INNER JOIN tenant_option_values sv ON sv.id = t.status_option_id AND sv.tenant_id = t.tenant_id
+              WHERE t.tenant_id = $1 AND t.deleted_at IS NULL AND t.account_id = $2 AND t.id <> $3
+              ORDER BY t.created_at DESC LIMIT 10
+            `,
+            [actor.tenantId, ticket.account.id, ticketId]
+          )
+        : { rows: [] as never[] };
+
+      const bugRaw = getMetadata(metadata.bugEscalation as Record<string, unknown> | undefined);
+      const bugEscalation = bugRaw.escalatedAt
+        ? {
+            stepsToReproduce: str(bugRaw, "stepsToReproduce"),
+            expectedResult: str(bugRaw, "expectedResult"),
+            actualResult: str(bugRaw, "actualResult"),
+            environment: str(bugRaw, "environment"),
+            logs: str(bugRaw, "logs"),
+            severity: (bugSeverities.includes(bugRaw.severity as never) ? bugRaw.severity : "medium") as (typeof bugSeverities)[number],
+            customerImpact: str(bugRaw, "customerImpact"),
+            engineeringRef: str(bugRaw, "engineeringRef"),
+            syncStatus: (bugSyncStatuses.includes(bugRaw.syncStatus as never) ? bugRaw.syncStatus : "open") as (typeof bugSyncStatuses)[number],
+            escalatedBy: this.mapL2StoredUser(bugRaw.escalatedBy),
+            escalatedAt: str(bugRaw, "escalatedAt") ?? new Date(0).toISOString(),
+            updatedAt: str(bugRaw, "updatedAt")
+          }
+        : null;
+
+      const rcaRaw = getMetadata(metadata.rca as Record<string, unknown> | undefined);
+      let rca = null;
+      if (Object.keys(rcaRaw).length > 0) {
+        const shareApprovalId = str(rcaRaw, "shareApprovalId");
+        let shareApprovalStatus: string | null = null;
+        if (shareApprovalId) {
+          const approval = await client.query<{ status: string }>(`SELECT status FROM approval_requests WHERE id = $1 AND tenant_id = $2`, [shareApprovalId, actor.tenantId]);
+          shareApprovalStatus = approval.rows[0]?.status ?? null;
+        }
+        rca = {
+          rootCause: str(rcaRaw, "rootCause"),
+          impact: str(rcaRaw, "impact"),
+          timeline: str(rcaRaw, "timeline"),
+          resolution: str(rcaRaw, "resolution"),
+          preventiveAction: str(rcaRaw, "preventiveAction"),
+          owner: this.mapL2StoredUser(rcaRaw.owner),
+          dueDate: str(rcaRaw, "dueDate"),
+          shareApprovalId,
+          shareApprovalStatus,
+          shareable: shareApprovalStatus === "approved",
+          updatedAt: str(rcaRaw, "updatedAt")
+        };
+      }
+
+      const notesRaw = Array.isArray(investigation.notes) ? investigation.notes : [];
+      return {
+        investigation: {
+          ticketId,
+          subject: ticket.subject,
+          slaStatus: null,
+          slaDueAt: ticket.sla?.resolutionDueAt ?? null,
+          environment: str(investigation, "environment"),
+          configuration: str(investigation, "configuration"),
+          logs: str(investigation, "logs"),
+          attachments: Array.isArray(metadata.attachments) ? metadata.attachments.filter((ref): ref is string => typeof ref === "string") : [],
+          notes: notesRaw
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+            .map((entry) => ({ id: typeof entry.id === "string" ? entry.id : randomUUID(), note: typeof entry.note === "string" ? entry.note : "", author: this.mapL2StoredUser(entry.author), createdAt: typeof entry.createdAt === "string" ? entry.createdAt : new Date(0).toISOString() })),
+          priorTickets: priorTickets.rows.map((row) => ({ ticketId: row.id, subject: row.subject, status: { id: row.status_id, key: row.status_key, label: row.status_label, description: null, color: row.status_color, isDefault: row.status_is_default, isActive: row.status_is_active }, createdAt: row.created_at.toISOString() })),
+          bugEscalation,
+          rca,
+          rcaRequired: isRcaRequired(ticket.priority?.key ?? null),
+          aiPlaceholder: { available: false, message: "AI similar-issue summarization and article formatting will connect with the governed AI Gateway." }
+        }
+      };
+    });
+  }
+
+  async updateInvestigation(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: UpdateInvestigationRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const investigation = getMetadata(ticket.metadata.investigation as Record<string, unknown> | undefined);
+      const trimmedOrKeep = (next: string | null | undefined, key: string) => (next !== undefined ? (next?.trim() || null) : investigation[key] ?? null);
+      const notes = Array.isArray(investigation.notes) ? investigation.notes : [];
+      if (input.note && input.note.trim()) {
+        notes.push({ id: randomUUID(), note: input.note.trim(), author: { id: actor.userId, displayName: actor.displayName, email: actor.email }, createdAt: new Date().toISOString() });
+      }
+      const next = { ...investigation, environment: trimmedOrKeep(input.environment, "environment"), configuration: trimmedOrKeep(input.configuration, "configuration"), logs: trimmedOrKeep(input.logs, "logs"), notes, updatedAt: new Date().toISOString() };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, investigation: next }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.l2.investigation.update", resourceType: "support_ticket", resourceId: ticketId, status: "success" });
+    });
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  // L2-002
+  async escalateBug(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: EscalateBugRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    const steps = input.stepsToReproduce?.trim();
+    if (!steps) {
+      throw new AppError(400, "Steps to reproduce are required to escalate a bug.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const existing = getMetadata(ticket.metadata.bugEscalation as Record<string, unknown> | undefined);
+      const bugEscalation = {
+        ...existing,
+        stepsToReproduce: steps,
+        expectedResult: input.expectedResult?.trim() || null,
+        actualResult: input.actualResult?.trim() || null,
+        environment: input.environment?.trim() || null,
+        logs: input.logs?.trim() || null,
+        severity: bugSeverities.includes(input.severity as never) ? input.severity : "medium",
+        customerImpact: input.customerImpact?.trim() || null,
+        engineeringRef: input.engineeringRef?.trim() || existing.engineeringRef || null,
+        syncStatus: existing.syncStatus ?? "open",
+        escalatedBy: existing.escalatedBy ?? { id: actor.userId, displayName: actor.displayName, email: actor.email },
+        escalatedAt: existing.escalatedAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, bugEscalation }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.l2.bug.escalate", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { severity: bugEscalation.severity } });
+    });
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  async updateBugStatus(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: UpdateBugStatusRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    if (!bugSyncStatuses.includes(input.syncStatus)) {
+      throw new AppError(400, "Invalid bug sync status.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const existing = getMetadata(ticket.metadata.bugEscalation as Record<string, unknown> | undefined);
+      if (!existing.escalatedAt) {
+        throw new AppError(409, "No engineering escalation exists for this ticket.", undefined, "INVALID_STATE");
+      }
+      const bugEscalation = { ...existing, syncStatus: input.syncStatus, engineeringRef: input.engineeringRef?.trim() || existing.engineeringRef || null, updatedAt: new Date().toISOString() };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, bugEscalation }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.l2.bug.status", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { syncStatus: input.syncStatus } });
+    });
+    if (input.generateCustomerUpdate) {
+      await this.addTicketMessage(actor, audit, ticketId, { body: `Engineering update: the reported issue is now "${input.syncStatus.replace(/_/g, " ")}".`, messageType: "customer_reply" });
+    }
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  // L2-003
+  async upsertRca(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: UpsertRcaRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const existing = getMetadata(ticket.metadata.rca as Record<string, unknown> | undefined);
+      let owner = existing.owner;
+      if (input.ownerId !== undefined) {
+        if (input.ownerId) {
+          const ownerRow = await client.query<{ id: string; display_name: string; email: string }>(`SELECT id, display_name, email FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [input.ownerId, actor.tenantId]);
+          if (ownerRow.rowCount === 0) {
+            throw new AppError(400, "RCA owner was not found.", undefined, "VALIDATION_ERROR");
+          }
+          owner = { id: ownerRow.rows[0].id, displayName: ownerRow.rows[0].display_name, email: ownerRow.rows[0].email };
+        } else {
+          owner = null;
+        }
+      }
+      const pick = (next: string | null | undefined, key: string) => (next !== undefined ? (next?.trim() || null) : existing[key] ?? null);
+      const rca = {
+        ...existing,
+        rootCause: pick(input.rootCause, "rootCause"),
+        impact: pick(input.impact, "impact"),
+        timeline: pick(input.timeline, "timeline"),
+        resolution: pick(input.resolution, "resolution"),
+        preventiveAction: pick(input.preventiveAction, "preventiveAction"),
+        owner,
+        dueDate: pick(input.dueDate, "dueDate"),
+        updatedAt: new Date().toISOString()
+      };
+      await client.query(`UPDATE support_tickets SET root_cause = COALESCE($3, root_cause), metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, rca.rootCause, JSON.stringify({ ...ticket.metadata, rca }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.l2.rca.upsert", resourceType: "support_ticket", resourceId: ticketId, status: "success" });
+    });
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  async requestRcaShare(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: RequestRcaShareRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    let subject = "";
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      subject = ticket.subject;
+      if (!getMetadata(ticket.metadata.rca as Record<string, unknown> | undefined).rootCause) {
+        throw new AppError(409, "Capture the RCA before requesting a share approval.", undefined, "INVALID_STATE");
+      }
+    });
+    const approval = await this.approvalService.createApproval(actor, audit, {
+      approvalType: "rca_share_approval",
+      title: `Share RCA with customer: ${subject}`,
+      description: input.note?.trim() || "Approval to share the root-cause analysis with the customer (L2-003).",
+      approverUserId: input.approverUserId,
+      linkedRecord: { entityType: "ticket", entityId: ticketId },
+      metadata: { ticketId }
+    });
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const rca = getMetadata(ticket.metadata.rca as Record<string, unknown> | undefined);
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, rca: { ...rca, shareApprovalId: approval.approval.id } }), actor.userId]);
+    });
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  // L2-004
+  async createArticleFromTicket(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: CreateArticleFromTicketRequestBody): Promise<SupportKnowledgeArticleResponse> {
+    this.assertEnabled();
+    const ticket = await this.loadTicketBasicsWithClient(actor.tenantId, ticketId);
+    const title = input.title?.trim() || `KB: ${ticket.subject}`;
+    const body = input.body?.trim() || (typeof ticket.metadata.rca === "object" ? (getMetadata(ticket.metadata.rca as Record<string, unknown>).resolution as string) : null) || ticket.description || "";
+    const article = await this.createKnowledgeArticle(actor, audit, {
+      title,
+      categoryKey: input.categoryKey ?? null,
+      summary: input.summary?.trim() || ticket.subject,
+      body,
+      status: "draft",
+      metadata: { sourceTicketId: ticketId, createdFromTicket: true }
+    });
+    await this.linkArticleToTicket(actor, audit, ticketId, article.article.id);
+    return article;
+  }
+
+  async publishKnowledgeArticle(actor: ActorContext, audit: AuditMetadata, articleId: string, input: PublishKnowledgeArticleRequestBody): Promise<SupportKnowledgeArticleResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const existing = await client.query<{ id: string; metadata: Record<string, unknown> | null }>(`SELECT id, metadata FROM support_knowledge_articles WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [articleId, actor.tenantId]);
+      if (existing.rowCount === 0) {
+        throw new AppError(404, "Knowledge article not found.", undefined, "NOT_FOUND");
+      }
+      const metadata = { ...getMetadata(existing.rows[0].metadata), reviewedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email }, reviewedAt: new Date().toISOString(), reviewNote: input.note?.trim() || null };
+      await client.query(`UPDATE support_knowledge_articles SET status = 'published', metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [articleId, actor.tenantId, JSON.stringify(metadata), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.kb.publish", resourceType: "support_knowledge_article", resourceId: articleId, status: "success" });
+    });
+    const articles = await this.listKnowledgeArticles(actor);
+    const published = articles.articles.find((article) => article.id === articleId);
+    if (!published) {
+      throw new AppError(404, "Knowledge article not found.", undefined, "NOT_FOUND");
+    }
+    return { article: published };
+  }
+
+  private async loadTicketBasicsWithClient(tenantId: string, ticketId: string) {
+    return this.databaseService.withClient((client) => this.loadTicketBasics(client, tenantId, ticketId));
   }
 }
 

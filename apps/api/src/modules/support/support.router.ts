@@ -15,7 +15,14 @@ import {
   type UpdateSupportTicketRequestBody,
   type CloseTicketRequestBody,
   type EscalateTicketRequestBody,
-  type LogKbUsageRequestBody
+  type LogKbUsageRequestBody,
+  type CreateArticleFromTicketRequestBody,
+  type EscalateBugRequestBody,
+  type PublishKnowledgeArticleRequestBody,
+  type RequestRcaShareRequestBody,
+  type UpdateBugStatusRequestBody,
+  type UpdateInvestigationRequestBody,
+  type UpsertRcaRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -144,6 +151,24 @@ const escalateSchema = z.object({
   slaPolicyId: uuidSchema.nullable().optional()
 });
 const closeSchema = z.object({ resolutionSummary: z.string().min(1).max(8000), rootCauseCategoryKey: z.string().min(1).max(160).nullable().optional(), requestCustomerConfirmation: z.boolean().optional() });
+
+// ---- Persona 22 (Support Agent L2) schemas -----------------------------------------------------
+const investigationSchema = z.object({ environment: l1NullableText(8000), configuration: l1NullableText(8000), logs: l1NullableText(20000), note: l1NullableText(8000) });
+const bugEscalationSchema = z.object({
+  stepsToReproduce: z.string().min(1).max(8000),
+  expectedResult: l1NullableText(4000),
+  actualResult: l1NullableText(4000),
+  environment: l1NullableText(4000),
+  logs: l1NullableText(20000),
+  severity: z.enum(["low", "medium", "high", "critical"]).optional(),
+  customerImpact: l1NullableText(4000),
+  engineeringRef: l1NullableText(400)
+});
+const bugStatusSchema = z.object({ syncStatus: z.enum(["open", "acknowledged", "in_progress", "fixed", "wont_fix", "released"]), engineeringRef: l1NullableText(400), generateCustomerUpdate: z.boolean().optional() });
+const rcaSchema = z.object({ rootCause: l1NullableText(8000), impact: l1NullableText(4000), timeline: l1NullableText(8000), resolution: l1NullableText(8000), preventiveAction: l1NullableText(8000), ownerId: uuidSchema.nullable().optional(), dueDate: z.string().max(40).nullable().optional() });
+const rcaShareSchema = z.object({ approverUserId: uuidSchema, note: l1NullableText(2000) });
+const articleFromTicketSchema = z.object({ title: l1NullableText(300), categoryKey: z.string().min(1).max(160).nullable().optional(), summary: l1NullableText(2000), body: l1NullableText(20000) });
+const publishArticleSchema = z.object({ note: l1NullableText(2000) });
 
 const readPermissions: string[] = [
   "support.view",
@@ -326,6 +351,32 @@ export function createSupportRouter({ databaseService }: RouterDependencies) {
   }));
   router.post("/tickets/:ticketId/close", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: closeSchema }), asyncHandler(async (request, response) => {
     response.status(200).json(await service.closeTicket(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as CloseTicketRequestBody));
+  }));
+
+  // ---- Persona 22 (Support Agent L2) routes ----------------------------------------------------
+  router.get("/tickets/:ticketId/investigation", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: ticketIdSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getInvestigation(request.auth!, request.params.ticketId));
+  }));
+  router.put("/tickets/:ticketId/investigation", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: investigationSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.updateInvestigation(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as UpdateInvestigationRequestBody));
+  }));
+  router.post("/tickets/:ticketId/bug-escalation", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: bugEscalationSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.escalateBug(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as EscalateBugRequestBody));
+  }));
+  router.post("/tickets/:ticketId/bug-status", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: bugStatusSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.updateBugStatus(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as UpdateBugStatusRequestBody));
+  }));
+  router.put("/tickets/:ticketId/rca", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: rcaSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.upsertRca(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as UpsertRcaRequestBody));
+  }));
+  router.post("/tickets/:ticketId/rca/share", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: rcaShareSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.requestRcaShare(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as RequestRcaShareRequestBody));
+  }));
+  router.post("/tickets/:ticketId/kb-article", requirePermissions({ oneOf: createPermissions }), validateRequest({ params: ticketIdSchema, body: articleFromTicketSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.createArticleFromTicket(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as CreateArticleFromTicketRequestBody));
+  }));
+  router.post("/knowledge-articles/:articleId/publish", requirePermissions({ oneOf: configurePermissions }), validateRequest({ params: z.object({ articleId: uuidSchema }), body: publishArticleSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.publishKnowledgeArticle(request.auth!, getAuditMetadata(request), request.params.articleId, request.body as PublishKnowledgeArticleRequestBody));
   }));
 
   return router;

@@ -169,7 +169,8 @@ export const approvalTypes = [
   "delivery_risk_approval",
   "payment_terms_approval",
   "partner_commission_approval",
-  "legal_clause_approval"
+  "legal_clause_approval",
+  "rca_share_approval"
 ] as const;
 
 export type ApprovalType = (typeof approvalTypes)[number];
@@ -272,6 +273,11 @@ export const approvalTypeCatalog: ApprovalTypeDefinition[] = [
     key: "legal_clause_approval",
     label: "Legal clause approval",
     description: "Leadership sign-off to accept a high-risk contract clause (LEG-002)."
+  },
+  {
+    key: "rca_share_approval",
+    label: "RCA share approval",
+    description: "Approval to share a root-cause analysis with the customer (L2-003)."
   }
 ];
 

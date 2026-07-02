@@ -29,6 +29,7 @@ import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { SupportL1Panel } from "@/components/support/support-l1-panel";
+import { SupportL2Panel } from "@/components/support/support-l2-panel";
 import { SupportQueuePanel } from "@/components/support/support-queue-panel";
 
 interface TicketFormState {
@@ -623,6 +624,10 @@ export function SupportPage() {
           canManage={canEdit}
           onReload={() => { if (selectedId) void loadDetail(selectedId); }}
         />
+      ) : null}
+
+      {selectedId && options ? (
+        <SupportL2Panel ticketId={selectedId} options={options} accessToken={accessToken} canManage={canEdit} />
       ) : null}
     </div>
   );
