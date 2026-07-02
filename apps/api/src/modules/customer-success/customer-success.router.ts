@@ -28,7 +28,16 @@ import {
   type UpdateQbrRequestBody,
   type UpdateRenewalRequestBody,
   type UpsertOnboardingPlanRequestBody,
-  type UpsertSuccessPlanRequestBody
+  type UpsertSuccessPlanRequestBody,
+  onboardingImplementationTypes,
+  goLiveItemStatuses,
+  goLiveChecklistItems,
+  type ProvisionOnboardingRequestBody,
+  type RecordHandoverRequestBody,
+  type RecordKickoffRequestBody,
+  type UpdateGoLiveChecklistRequestBody,
+  type CompleteGoLiveRequestBody,
+  type CompleteOnboardingRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -215,6 +224,40 @@ const qbrIdSchema = z.object({ csAccountId: uuidSchema, qbrId: uuidSchema });
 const renewalIdSchema = z.object({ csAccountId: uuidSchema, renewalId: uuidSchema });
 const escalationIdSchema = z.object({ csAccountId: uuidSchema, escalationId: uuidSchema });
 
+// ---- Persona 24 (CSM — Onboarding) schemas -----------------------------------------------------
+const planIdSchema = z.object({ planId: uuidSchema });
+const csNullableText = (max: number) => z.string().trim().max(max).nullable().optional();
+const provisionSchema = z.object({ opportunityId: uuidSchema, implementationType: z.enum(onboardingImplementationTypes).optional() });
+const handoverSchema = z.object({
+  fields: z.object({
+    contract: csNullableText(8000), scope: csNullableText(8000), products: csNullableText(4000), commitments: csNullableText(8000),
+    stakeholders: csNullableText(4000), timeline: csNullableText(4000), risks: csNullableText(8000), specialTerms: csNullableText(8000),
+    integrations: csNullableText(4000), successCriteria: csNullableText(8000)
+  })
+});
+const kickoffSchema = z.object({
+  scheduledAt: csNullableText(40),
+  attendees: z.array(z.string().trim().max(200)).max(50).optional(),
+  decisions: csNullableText(8000),
+  actionItems: z.array(z.object({ description: z.string().min(1).max(2000), ownerId: uuidSchema.nullable().optional(), dueDate: csNullableText(40) })).max(50).optional(),
+  successCriteriaConfirmed: z.boolean().optional(),
+  markCompleted: z.boolean().optional()
+});
+const goLiveChecklistSchema = z.object({
+  items: z.record(z.enum(goLiveChecklistItems.map((item) => item.key) as [string, ...string[]]), z.enum(goLiveItemStatuses))
+});
+const completeGoLiveSchema = z.object({ goLiveDate: dateOnlySchema });
+const completeOnboardingSchema = z.object({
+  goLiveDate: dateOnlySchema.nullable().optional(),
+  usersTrained: z.coerce.number().int().min(0).nullable().optional(),
+  adoptionBaseline: score.nullable().optional(),
+  openRisks: csNullableText(8000),
+  pendingItems: csNullableText(8000),
+  customerSignOff: z.boolean(),
+  ongoingCsmId: uuidSchema,
+  initialHealthScore: score
+});
+
 const readPermissions: string[] = [
   "customer_success.view",
   "customer_success.create",
@@ -341,6 +384,29 @@ export function createCustomerSuccessRouter({ databaseService }: RouterDependenc
 
   router.patch("/accounts/:csAccountId/escalations/:escalationId", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: escalationIdSchema, body: escalationUpdateSchema }), asyncHandler(async (request, response) => {
     response.status(200).json(await service.updateEscalation(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.params.escalationId, request.body as UpdateEscalationRequestBody));
+  }));
+
+  // ---- Persona 24 (CSM — Onboarding) routes ----------------------------------------------------
+  router.post("/onboarding/provision", requirePermissions({ oneOf: createPermissions }), validateRequest({ body: provisionSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.provisionOnboarding(request.auth!, getAuditMetadata(request), request.body as ProvisionOnboardingRequestBody));
+  }));
+  router.get("/onboarding/:planId", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: planIdSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getOnboardingProject(request.auth!, request.params.planId));
+  }));
+  router.put("/onboarding/:planId/handover", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: handoverSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.recordHandover(request.auth!, getAuditMetadata(request), request.params.planId, request.body as RecordHandoverRequestBody));
+  }));
+  router.post("/onboarding/:planId/kickoff", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: kickoffSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.recordKickoff(request.auth!, getAuditMetadata(request), request.params.planId, request.body as RecordKickoffRequestBody));
+  }));
+  router.put("/onboarding/:planId/go-live-checklist", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: goLiveChecklistSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.updateGoLiveChecklist(request.auth!, getAuditMetadata(request), request.params.planId, request.body as UpdateGoLiveChecklistRequestBody));
+  }));
+  router.post("/onboarding/:planId/go-live", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: completeGoLiveSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.completeGoLive(request.auth!, getAuditMetadata(request), request.params.planId, request.body as CompleteGoLiveRequestBody));
+  }));
+  router.post("/onboarding/:planId/complete", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: completeOnboardingSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.completeOnboarding(request.auth!, getAuditMetadata(request), request.params.planId, request.body as CompleteOnboardingRequestBody));
   }));
 
   return router;

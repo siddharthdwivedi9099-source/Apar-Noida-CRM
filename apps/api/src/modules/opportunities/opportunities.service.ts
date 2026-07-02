@@ -69,6 +69,7 @@ import { DatabaseService } from "../../platform/database/database.service.js";
 import { CrmService } from "../crm/crm.service.js";
 import { NotificationService } from "../notifications/notifications.service.js";
 import { ApprovalService } from "../approvals/approvals.service.js";
+import { CustomerSuccessService } from "../customer-success/customer-success.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -567,6 +568,7 @@ export class OpportunityService {
   private readonly crmService: CrmService;
   private readonly notificationService: NotificationService;
   private readonly approvalService: ApprovalService;
+  private readonly customerSuccessService: CustomerSuccessService;
 
   constructor(
     private readonly databaseService: DatabaseService,
@@ -575,6 +577,7 @@ export class OpportunityService {
     this.crmService = new CrmService(databaseService, config);
     this.notificationService = new NotificationService(databaseService, config);
     this.approvalService = new ApprovalService(databaseService, config);
+    this.customerSuccessService = new CustomerSuccessService(databaseService, config);
   }
 
   private assertEnabled() {
@@ -3222,6 +3225,9 @@ export class OpportunityService {
         linkedRecord: { entityType: "opportunity", entityId: opportunityId }
       });
       await this.recordAuditLog(client, actor, audit, { action: "opportunity.close_won", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { finalValue: input.finalValue, onboardingOwnerId } });
+      // CSMO-002: closed-won deals automatically create an onboarding project (idempotent) with a
+      // handover pre-filled from the close-won data. Runs in the same transaction as the close.
+      await this.customerSuccessService.provisionOnboardingFromOpportunityWithClient(client, actor, audit, { opportunityId });
     });
     return this.getOpportunity(actor, opportunityId);
   }

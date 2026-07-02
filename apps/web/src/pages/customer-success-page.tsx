@@ -19,6 +19,7 @@ import { formatCurrencyAmount, formatDateOnly, selectClassName } from "@/lib/crm
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { CsOnboardingPanel } from "@/components/customer-success/cs-onboarding-panel";
 
 type WorkspaceTab = "onboarding" | "scaled" | "enterprise";
 
@@ -332,6 +333,16 @@ export function CustomerSuccessPage() {
           onRecordHealth={handleRecordHealth}
           onAddRenewal={handleAddRenewal}
         />
+
+        {detail && options && detail.onboardingPlans.length > 0 ? (
+          <CsOnboardingPanel
+            planId={detail.onboardingPlans[0].id}
+            owners={options.owners}
+            accessToken={accessToken}
+            canEdit={canEdit}
+            onReload={() => { if (selectedId) void loadDetail(selectedId); }}
+          />
+        ) : null}
       </section>
     </div>
   );
