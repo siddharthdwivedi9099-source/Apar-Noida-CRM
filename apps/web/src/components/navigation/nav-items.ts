@@ -239,6 +239,14 @@ export const appNavItems: AppNavItem[] = [
     requiredPermissionCodes: routePermissionRequirements.aiAssistant
   },
   {
+    title: "AI Governance",
+    href: "/ai-governance",
+    description: "AI use-case registry, quality dashboard, feedback, and risk.",
+    icon: ShieldCheck,
+    moduleKey: "ai",
+    requiredPermissionCodes: routePermissionRequirements.aiAssistant
+  },
+  {
     title: "Workflows",
     href: "/workflows",
     description: "Configurable triggers, conditions, actions, and run logs.",

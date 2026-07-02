@@ -3,6 +3,7 @@ import { apiConfig } from "@crm/config";
 import { createAiGatewayRouter } from "../modules/ai/ai-gateway.router.js";
 import { createAiRegistryRouter } from "../modules/ai/ai-registry.router.js";
 import { createAiActionsRouter } from "../modules/ai-actions/ai-actions.router.js";
+import { createAiGovernanceRouter } from "../modules/ai-governance/ai-governance.router.js";
 import { createRagRouter } from "../modules/rag/rag.router.js";
 import { createCustomerQueryRouter } from "../modules/customer-query/customer-query.router.js";
 import { createDashboardsRouter } from "../modules/dashboards/dashboards.router.js";
@@ -99,6 +100,7 @@ export function createV1Router({
   router.use("/ai", createAiRegistryRouter({ databaseService }));
   router.use("/ai", createAiActionsRouter({ databaseService }));
   router.use("/ai", createRagRouter({ databaseService }));
+  router.use("/ai-governance", createAiGovernanceRouter({ databaseService }));
   router.use("/customer-query", createCustomerQueryRouter({ databaseService }));
   router.use("/dashboards", createDashboardsRouter({ databaseService, cacheService }));
   router.use("/notifications", createNotificationsRouter({ databaseService }));
