@@ -26,6 +26,7 @@ export * from "./support-l1.js";
 export * from "./support-l2.js";
 export * from "./support-manager.js";
 export * from "./cs-onboarding.js";
+export * from "./cs-scaled.js";
 export * from "./core-crm-metadata.js";
 export * from "./persona-access-metadata.js";
 export * from "./ai.js";

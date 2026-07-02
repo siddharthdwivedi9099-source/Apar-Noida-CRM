@@ -37,7 +37,15 @@ import {
   type RecordKickoffRequestBody,
   type UpdateGoLiveChecklistRequestBody,
   type CompleteGoLiveRequestBody,
-  type CompleteOnboardingRequestBody
+  type CompleteOnboardingRequestBody,
+  healthFactorKeys,
+  healthBands,
+  adoptionCampaignStatuses,
+  type ComputeHealthScoreRequestBody,
+  type CreateAdoptionCampaignRequestBody,
+  type CreateExpansionOpportunityRequestBody,
+  type LowUsageCheckRequestBody,
+  type RenewalPlaybookRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -258,6 +266,49 @@ const completeOnboardingSchema = z.object({
   initialHealthScore: score
 });
 
+// ---- Persona 25 (CSM — Scaled) schemas ---------------------------------------------------------
+const healthFactorsSchema = z.object(Object.fromEntries(healthFactorKeys.map((key) => [key, score.optional()])));
+const computeHealthSchema = z.object({
+  factors: healthFactorsSchema,
+  notes: csNullableText(4000)
+});
+const campaignCriteriaSchema = z.object({
+  minUsage: z.coerce.number().min(0).nullable().optional(),
+  module: csNullableText(160),
+  role: csNullableText(160),
+  segmentKey: csNullableText(160),
+  healthBand: z.enum(healthBands).nullable().optional()
+});
+const createCampaignSchema = z.object({
+  name: z.string().min(1).max(200),
+  criteria: campaignCriteriaSchema,
+  contentTemplate: csNullableText(8000),
+  status: z.enum(adoptionCampaignStatuses).optional()
+});
+const lowUsageSchema = z.object({ metricLabel: z.string().min(1).max(200), current: z.coerce.number().min(0), threshold: z.coerce.number().min(0) });
+const renewalPlaybookSchema = z.object({
+  renewalDate: dateOnlySchema,
+  forecastValue: z.coerce.number().min(0).nullable().optional(),
+  salesOwnerId: uuidSchema.nullable().optional(),
+  financeOwnerId: uuidSchema.nullable().optional(),
+  customerContact: csNullableText(200)
+});
+const expansionSignalsSchema = z.object({
+  usageRatio: z.coerce.number().min(0).nullable().optional(),
+  additionalDepartments: z.coerce.number().int().min(0).nullable().optional(),
+  featureRequests: z.coerce.number().int().min(0).nullable().optional(),
+  userGrowthRate: z.coerce.number().nullable().optional(),
+  productSupportQueries: z.coerce.number().int().min(0).nullable().optional(),
+  engagementScore: score.nullable().optional()
+}).partial();
+const expansionAssessSchema = z.object({ signals: expansionSignalsSchema.optional() });
+const expansionOpportunitySchema = z.object({
+  name: z.string().min(1).max(200),
+  amount: z.coerce.number().min(0).nullable().optional(),
+  salesOwnerId: uuidSchema.nullable().optional(),
+  signals: expansionSignalsSchema.optional()
+});
+
 const readPermissions: string[] = [
   "customer_success.view",
   "customer_success.create",
@@ -407,6 +458,29 @@ export function createCustomerSuccessRouter({ databaseService }: RouterDependenc
   }));
   router.post("/onboarding/:planId/complete", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: completeOnboardingSchema }), asyncHandler(async (request, response) => {
     response.status(200).json(await service.completeOnboarding(request.auth!, getAuditMetadata(request), request.params.planId, request.body as CompleteOnboardingRequestBody));
+  }));
+
+  // ---- Persona 25 (CSM — Scaled) routes --------------------------------------------------------
+  router.post("/accounts/:csAccountId/health-score/compute", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: computeHealthSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.computeAccountHealthScore(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as ComputeHealthScoreRequestBody));
+  }));
+  router.get("/adoption-campaigns", requirePermissions({ oneOf: readPermissions }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.listAdoptionCampaigns(request.auth!));
+  }));
+  router.post("/adoption-campaigns", requirePermissions({ oneOf: createPermissions }), validateRequest({ body: createCampaignSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.createAdoptionCampaign(request.auth!, getAuditMetadata(request), request.body as CreateAdoptionCampaignRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/low-usage-check", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: lowUsageSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.checkLowUsage(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as LowUsageCheckRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/renewal-playbook", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: renewalPlaybookSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.startRenewalPlaybook(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as RenewalPlaybookRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/expansion/assess", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: csAccountIdSchema, body: expansionAssessSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.assessExpansion(request.auth!, request.params.csAccountId, (request.body as { signals?: CreateExpansionOpportunityRequestBody["signals"] }).signals));
+  }));
+  router.post("/accounts/:csAccountId/expansion/opportunity", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: expansionOpportunitySchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.createExpansionOpportunity(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as CreateExpansionOpportunityRequestBody));
   }));
 
   return router;

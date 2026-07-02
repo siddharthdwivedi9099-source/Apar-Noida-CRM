@@ -20,6 +20,7 @@ import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { CsOnboardingPanel } from "@/components/customer-success/cs-onboarding-panel";
+import { CsScaledPanel } from "@/components/customer-success/cs-scaled-panel";
 
 type WorkspaceTab = "onboarding" | "scaled" | "enterprise";
 
@@ -337,6 +338,16 @@ export function CustomerSuccessPage() {
         {detail && options && detail.onboardingPlans.length > 0 ? (
           <CsOnboardingPanel
             planId={detail.onboardingPlans[0].id}
+            owners={options.owners}
+            accessToken={accessToken}
+            canEdit={canEdit}
+            onReload={() => { if (selectedId) void loadDetail(selectedId); }}
+          />
+        ) : null}
+
+        {detail && options ? (
+          <CsScaledPanel
+            csAccountId={detail.id}
             owners={options.owners}
             accessToken={accessToken}
             canEdit={canEdit}

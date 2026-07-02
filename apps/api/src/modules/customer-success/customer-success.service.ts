@@ -73,6 +73,22 @@ import {
   resolveOnboardingTemplate,
   validateHandover
 } from "@crm/types";
+import type {
+  AdoptionCampaignsResponse,
+  AdoptionCampaignResponse,
+  AdoptionCampaignStatus,
+  AdoptionCampaignSummary,
+  ComputeHealthScoreRequestBody,
+  CreateAdoptionCampaignRequestBody,
+  CreateExpansionOpportunityRequestBody,
+  CsExpansionSignalsResponse,
+  CsHealthComputeResponse,
+  CsRenewalPlaybookResponse,
+  HealthBand,
+  LowUsageCheckRequestBody,
+  RenewalPlaybookRequestBody
+} from "@crm/types";
+import { adoptionCampaignStatuses, computeHealthScore, detectExpansionSignals, detectLowUsage, resolveHealthBand } from "@crm/types";
 import type { PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import { AppError } from "../../common/errors/app-error.js";
@@ -2053,6 +2069,235 @@ export class CustomerSuccessService {
     });
     return this.getOnboardingProject(actor, planId);
   }
+
+  // ---- Persona 25 (Customer Success Manager — Scaled) ------------------------------------------
+
+  private async loadCsAccountFull(client: PoolClient, tenantId: string, csAccountId: string) {
+    const result = await client.query<{ id: string; account_id: string; csm_owner_id: string | null; health_score: number | null; segment_key: string | null }>(
+      `SELECT csa.id, csa.account_id, csa.csm_owner_id, csa.health_score, sv.value_key AS segment_key
+       FROM customer_success_accounts csa
+       LEFT JOIN tenant_option_values sv ON sv.id = csa.segment_option_id AND sv.tenant_id = csa.tenant_id
+       WHERE csa.id = $1 AND csa.tenant_id = $2 AND csa.deleted_at IS NULL LIMIT 1`,
+      [csAccountId, tenantId]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      throw new AppError(404, "Customer success account not found.", undefined, "CS_ACCOUNT_NOT_FOUND");
+    }
+    return row;
+  }
+
+  private riskKeyForBand(band: HealthBand): string {
+    return band === "green" ? "healthy" : band === "amber" ? "at_risk" : "critical";
+  }
+
+  // CSMS-001: compute an automated health score from weighted factors and record it to history.
+  async computeAccountHealthScore(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: ComputeHealthScoreRequestBody): Promise<CsHealthComputeResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const result = computeHealthScore(input.factors);
+    await this.databaseService.withTransaction(async (client) => {
+      await this.getCsAccountState(client, actor.tenantId, csAccountId);
+      const riskOptionId = await this.resolveOptionValueId(client, actor.tenantId, "cs-risk-status", this.riskKeyForBand(result.band), "Risk status");
+      const driversText = result.drivers.map((driver) => `${driver.label}: ${driver.subScore} (${driver.impact})`).join("; ");
+      await client.query(
+        `INSERT INTO customer_health_scores (tenant_id, cs_account_id, score, risk_status_option_id, drivers, notes, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $8)`,
+        [actor.tenantId, csAccountId, result.score, riskOptionId, driversText || null, getTrimmedNullableString(input.notes), JSON.stringify({ source: "automated_health_score", band: result.band, factors: input.factors, drivers: result.drivers }), actor.userId]
+      );
+      await client.query(`UPDATE customer_success_accounts SET health_score = $3, risk_status_option_id = $4, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [csAccountId, actor.tenantId, result.score, riskOptionId, actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.health_score.compute", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { score: result.score, band: result.band } });
+    });
+    return { score: result.score, band: result.band, drivers: result.drivers, aiExplanation: { available: false, message: "AI health-driver explanation will connect with the governed AI Gateway; deterministic drivers are shown meanwhile." } };
+  }
+
+  // CSMS-002: adoption campaigns.
+  private mapAdoptionCampaign(row: AdoptionCampaignRow, targetCount: number): AdoptionCampaignSummary {
+    const metrics = getMetadata(row.metrics);
+    return {
+      id: row.id,
+      name: row.name,
+      status: normalizeFromList(adoptionCampaignStatuses, row.status, "draft"),
+      criteria: getMetadata(row.criteria),
+      contentTemplate: row.content_template,
+      targetCount,
+      engagementRate: typeof metrics.engagementRate === "number" ? metrics.engagementRate : null,
+      adoptionImprovement: typeof metrics.adoptionImprovement === "number" ? metrics.adoptionImprovement : null,
+      aiRecommendation: { available: false, message: "AI content + target recommendations will connect with the governed AI Gateway." },
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString()
+    };
+  }
+
+  private async countCampaignTargets(client: PoolClient, tenantId: string, criteria: Record<string, unknown>): Promise<number> {
+    // Target count is estimated from the criteria we can evaluate against CS accounts (segment + health band).
+    const conditions = ["csa.tenant_id = $1", "csa.deleted_at IS NULL"];
+    const params: unknown[] = [tenantId];
+    if (typeof criteria.segmentKey === "string") {
+      params.push(criteria.segmentKey);
+      conditions.push(`sv.value_key = $${params.length}`);
+    }
+    if (criteria.healthBand === "green") conditions.push("csa.health_score >= 75");
+    else if (criteria.healthBand === "amber") conditions.push("csa.health_score >= 50 AND csa.health_score < 75");
+    else if (criteria.healthBand === "red") conditions.push("csa.health_score < 50");
+    const result = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM customer_success_accounts csa LEFT JOIN tenant_option_values sv ON sv.id = csa.segment_option_id AND sv.tenant_id = csa.tenant_id WHERE ${conditions.join(" AND ")}`,
+      params
+    );
+    return Number(result.rows[0]?.count ?? "0");
+  }
+
+  async listAdoptionCampaigns(actor: ActorContext): Promise<AdoptionCampaignsResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<AdoptionCampaignRow>(
+        `SELECT id, name, status, criteria, content_template, metrics, created_at, updated_at FROM cs_adoption_campaigns WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100`,
+        [actor.tenantId]
+      );
+      const campaigns: AdoptionCampaignSummary[] = [];
+      for (const row of result.rows) {
+        campaigns.push(this.mapAdoptionCampaign(row, await this.countCampaignTargets(client, actor.tenantId, getMetadata(row.criteria))));
+      }
+      return { campaigns };
+    });
+  }
+
+  async createAdoptionCampaign(actor: ActorContext, audit: AuditMetadata, input: CreateAdoptionCampaignRequestBody): Promise<AdoptionCampaignResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const name = input.name?.trim();
+    if (!name) {
+      throw new AppError(400, "A campaign name is required.", undefined, "VALIDATION_ERROR");
+    }
+    const status: AdoptionCampaignStatus = normalizeFromList(adoptionCampaignStatuses, input.status, "draft");
+    const campaignId = await this.databaseService.withTransaction(async (client) => {
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO cs_adoption_campaigns (tenant_id, owner_id, name, status, criteria, content_template, metrics, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, '{}'::jsonb, $2, $2) RETURNING id`,
+        [actor.tenantId, actor.userId, name, status, JSON.stringify(input.criteria ?? {}), getTrimmedNullableString(input.contentTemplate)]
+      );
+      const id = inserted.rows[0].id;
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.adoption_campaign.create", resourceType: "cs_adoption_campaign", resourceId: id, status: "success" });
+      return id;
+    });
+    return this.databaseService.withClient(async (client) => {
+      const row = (await client.query<AdoptionCampaignRow>(`SELECT id, name, status, criteria, content_template, metrics, created_at, updated_at FROM cs_adoption_campaigns WHERE id = $1 AND tenant_id = $2`, [campaignId, actor.tenantId])).rows[0];
+      return { campaign: this.mapAdoptionCampaign(row, await this.countCampaignTargets(client, actor.tenantId, getMetadata(row.criteria))) };
+    });
+  }
+
+  // CSMS-003: low-usage alert — opens a tracked risk (escalation) with a playbook + template.
+  async checkLowUsage(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: LowUsageCheckRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const result = detectLowUsage(input.current, input.threshold);
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      if (result.low) {
+        const suggestedTemplate = `Hi — we noticed ${input.metricLabel} has dropped below the expected level. Can we schedule 20 minutes to help your team get more value?`;
+        await client.query(
+          `INSERT INTO escalations (tenant_id, cs_account_id, owner_id, title, severity, status, description, metadata, created_by, updated_by)
+           VALUES ($1, $2, $3, $4, $5, 'open', $6, $7::jsonb, $8, $8)`,
+          [
+            actor.tenantId, csAccountId, account.csm_owner_id, `Low usage: ${input.metricLabel}`, result.severity,
+            `Usage ${input.current} is below the threshold ${input.threshold} (deficit ${result.deficit}).`,
+            JSON.stringify({ playbook: "low_usage_recovery", metricLabel: input.metricLabel, current: input.current, threshold: input.threshold, suggestedTemplate }), actor.userId
+          ]
+        );
+        await this.recordAuditLog(client, actor, audit, { action: "customer_success.low_usage.alert", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { metricLabel: input.metricLabel, severity: result.severity } });
+      }
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSMS-004: renewal reminder playbook — renewal + cross-functional tasks + risk visibility.
+  async startRenewalPlaybook(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: RenewalPlaybookRequestBody): Promise<CsRenewalPlaybookResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    return this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      const statusOptionId = await this.resolveOptionValueId(client, actor.tenantId, "cs-renewal-status", "not_started", "Renewal status");
+      const salesOwnerId = await this.ensureUserId(client, actor.tenantId, input.salesOwnerId ?? null, "INVALID_OWNER", "sales owner");
+      const financeOwnerId = await this.ensureUserId(client, actor.tenantId, input.financeOwnerId ?? null, "INVALID_OWNER", "finance owner");
+
+      const renewal = await client.query<{ id: string }>(
+        `INSERT INTO renewals (tenant_id, cs_account_id, owner_id, renewal_date, status_option_id, forecast_value, strategy, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8::jsonb, $9, $9) RETURNING id`,
+        [actor.tenantId, csAccountId, account.csm_owner_id, input.renewalDate, statusOptionId, input.forecastValue ?? null, "Renewal playbook", JSON.stringify({ playbook: "renewal", customerContact: getTrimmedNullableString(input.customerContact) }), actor.userId]
+      );
+      const renewalId = renewal.rows[0].id;
+
+      const taskIds: string[] = [];
+      const dueAt = new Date(input.renewalDate);
+      const addTask = async (assigneeId: string | null, title: string) => {
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO crm_tasks (tenant_id, entity_type, entity_id, owner_user_id, assignee_user_id, title, due_at, priority, status, metadata, created_by, updated_by)
+           VALUES ($1, 'customer_success_account', $2, $3, $4, $5, $6::timestamptz, 'high', 'open', $7::jsonb, $8, $8) RETURNING id`,
+          [actor.tenantId, csAccountId, account.csm_owner_id, assigneeId, title, isNaN(dueAt.getTime()) ? null : dueAt.toISOString(), JSON.stringify({ playbook: "renewal", renewalId }), actor.userId]
+        );
+        taskIds.push(inserted.rows[0].id);
+        if (assigneeId && assigneeId !== actor.userId) {
+          await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: assigneeId, title, message: `Renewal playbook task due ${input.renewalDate}.`, linkedRecord: { entityType: "customer_success_account", entityId: csAccountId } });
+        }
+      };
+      await addTask(account.csm_owner_id, "CSM: own the renewal and confirm health");
+      await addTask(salesOwnerId, "Sales: prepare the renewal quote");
+      await addTask(financeOwnerId, "Finance: validate billing and payment status");
+      // Customer-contact task stays with the CSM (external contact captured in the title/metadata).
+      await addTask(account.csm_owner_id, `Customer contact: engage ${getTrimmedNullableString(input.customerContact) ?? "the primary contact"}`);
+
+      const openEsc = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM escalations WHERE tenant_id = $1 AND cs_account_id = $2 AND deleted_at IS NULL AND status IN ('open', 'in_progress')`, [actor.tenantId, csAccountId]);
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.renewal_playbook.start", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { renewalId, renewalDate: input.renewalDate } });
+
+      return { renewalId, taskIds, healthScore: account.health_score, openEscalationCount: Number(openEsc.rows[0]?.count ?? "0") };
+    });
+  }
+
+  // CSMS-005: expansion-signal assessment (deterministic; AI recommender is a placeholder).
+  async assessExpansion(actor: ActorContext, csAccountId: string, input: CreateExpansionOpportunityRequestBody["signals"]): Promise<CsExpansionSignalsResponse> {
+    this.assertEnabled();
+    await this.databaseService.withClient((client) => this.getCsAccountState(client, actor.tenantId, csAccountId));
+    return { assessment: detectExpansionSignals(input), aiRecommendation: { available: false, message: "AI expansion-signal detection and recommendation will connect with the governed AI Gateway." } };
+  }
+
+  // CSMS-005: turn an expansion recommendation into a pipeline opportunity + notify the sales owner.
+  async createExpansionOpportunity(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: CreateExpansionOpportunityRequestBody): Promise<{ opportunityId: string; salesOwnerId: string | null }> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const name = input.name?.trim();
+    if (!name) {
+      throw new AppError(400, "An opportunity name is required.", undefined, "VALIDATION_ERROR");
+    }
+    return this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      const salesOwnerId = (await this.ensureUserId(client, actor.tenantId, input.salesOwnerId ?? null, "INVALID_OWNER", "sales owner")) ?? account.csm_owner_id;
+      const stageOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-pipeline", "qualification", "Opportunity stage");
+      const sourceOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-source", "expansion", "Opportunity source");
+      const outcomeOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-outcome-status", "open", "Opportunity outcome status");
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO opportunities (tenant_id, account_id, owner_id, name, stage_option_id, source_option_id, outcome_status_option_id, amount, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $10) RETURNING id`,
+        [actor.tenantId, account.account_id, salesOwnerId, name, stageOptionId, sourceOptionId, outcomeOptionId, input.amount ?? null, JSON.stringify({ expansion: { sourceCsAccountId: csAccountId, signals: detectExpansionSignals(input.signals) } }), actor.userId]
+      );
+      const opportunityId = inserted.rows[0].id;
+      if (salesOwnerId && salesOwnerId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: salesOwnerId, title: `Expansion opportunity: ${name}`, message: "Customer success flagged an expansion signal and created this opportunity.", linkedRecord: { entityType: "opportunity", entityId: opportunityId } });
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.expansion.create_opportunity", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { csAccountId, salesOwnerId } });
+      return { opportunityId, salesOwnerId };
+    });
+  }
+}
+
+interface AdoptionCampaignRow {
+  id: string;
+  name: string;
+  status: string;
+  criteria: Record<string, unknown> | null;
+  content_template: string | null;
+  metrics: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
 }
 
 interface CsAccountRow {
