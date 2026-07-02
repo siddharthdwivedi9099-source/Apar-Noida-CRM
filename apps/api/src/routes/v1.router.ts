@@ -10,6 +10,7 @@ import { createWorkflowsRouter } from "../modules/workflows/workflows.router.js"
 import { createApprovalsRouter } from "../modules/approvals/approvals.router.js";
 import { createAuditRouter } from "../modules/audit/audit.router.js";
 import { createObservabilityRouter } from "../modules/observability/observability.router.js";
+import { createSystemRouter } from "../modules/system/system.router.js";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
 import {
   createBusinessDevelopmentRouter,
@@ -105,6 +106,7 @@ export function createV1Router({
   router.use("/workflows", createWorkflowsRouter({ databaseService }));
   router.use("/audit", createAuditRouter({ databaseService }));
   router.use("/observability", createObservabilityRouter({ databaseService, cacheService, jobMonitorService }));
+  router.use("/system", createSystemRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;

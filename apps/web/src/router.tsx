@@ -10,6 +10,7 @@ import { AccountsPage } from "./pages/accounts-page";
 import { AdminSettingsPage } from "./pages/admin-settings-page";
 import { AdminPage } from "./pages/admin-page";
 import { AdminConfigurationPage } from "./pages/admin-configuration-page";
+import { AdminSystemPage } from "./pages/admin-system-page";
 import { AiAssistantPage } from "./pages/ai-assistant-page";
 import { AgentRegistryPage } from "./pages/agent-registry-page";
 import { PromptRegistryPage } from "./pages/prompt-registry-page";
@@ -469,6 +470,19 @@ export const router = createBrowserRouter([
                 moduleKey="admin"
               >
                 <AdminConfigurationPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "admin/system",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.admin}
+                title="System administration requires administrative permissions."
+                description="Only authorized admins can manage integrations, environments, and backups."
+                moduleKey="admin"
+              >
+                <AdminSystemPage />
               </PermissionRoute>
             )
           },
