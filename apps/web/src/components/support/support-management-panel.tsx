@@ -45,15 +45,20 @@ export function SupportManagementPanel({ accessToken, options, canManage, select
   const [escalationOwner, setEscalationOwner] = useState("");
   const [csat, setCsat] = useState({ score: "5", comment: "" });
 
+  // Prefer the team roll-up, but fall back to the widest scope the manager can actually
+  // read (a manager with no team only has "mine"/"all"), so the panel never 403s.
+  const scopes = options.availableScopes ?? [];
+  const scope = scopes.includes("team") ? "team" : scopes.includes("all") ? "all" : "mine";
+
   async function load() {
     if (!accessToken || !canManage) {
       return;
     }
     try {
       const [perf, work, esc] = await Promise.all([
-        apiRequest<SupportTeamPerformanceResponse>("/support/management/performance?scope=team", { method: "GET", accessToken }),
-        apiRequest<SupportWorkloadResponse>("/support/management/workload?scope=team", { method: "GET", accessToken }),
-        apiRequest<SupportEscalationOversightResponse>("/support/management/escalations?scope=team", { method: "GET", accessToken })
+        apiRequest<SupportTeamPerformanceResponse>(`/support/management/performance?scope=${scope}`, { method: "GET", accessToken }),
+        apiRequest<SupportWorkloadResponse>(`/support/management/workload?scope=${scope}`, { method: "GET", accessToken }),
+        apiRequest<SupportEscalationOversightResponse>(`/support/management/escalations?scope=${scope}`, { method: "GET", accessToken })
       ]);
       setPerformance(perf);
       setWorkload(work);
