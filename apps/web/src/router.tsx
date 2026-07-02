@@ -53,6 +53,7 @@ import { ResellersPage } from "./pages/resellers-page";
 import { LeadDetailPage } from "./pages/lead-detail-page";
 import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
+import { DataQualityPage } from "./pages/data-quality-page";
 import { LoginPage } from "./pages/login-page";
 import { ModuleSettingsPage } from "./pages/module-settings-page";
 import { OpportunityDetailPage } from "./pages/opportunity-detail-page";
@@ -497,6 +498,19 @@ export const router = createBrowserRouter([
                 moduleKey="leads"
               >
                 <LeadsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "data-quality",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.leads}
+                title="Data quality access is limited by role."
+                description="Open data quality with a role that includes Leads access."
+                moduleKey="leads"
+              >
+                <DataQualityPage />
               </PermissionRoute>
             )
           },

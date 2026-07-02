@@ -95,6 +95,14 @@ export const appNavItems: AppNavItem[] = [
     requiredPermissionCodes: routePermissionRequirements.leads
   },
   {
+    title: "Data Quality",
+    href: "/data-quality",
+    description: "Completeness, duplicates, import validation, enrichment, and merges.",
+    icon: BadgeCheck,
+    moduleKey: "leads",
+    requiredPermissionCodes: routePermissionRequirements.leads
+  },
+  {
     title: "SDR Workspace",
     href: "/sales/sdr",
     description: "Prospecting queue, qualification flow, and lead handoff execution.",

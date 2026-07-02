@@ -31,6 +31,7 @@ export * from "./cs-enterprise.js";
 export * from "./portal-extended.js";
 export * from "./system-admin.js";
 export * from "./ai-governance.js";
+export * from "./data-quality.js";
 export * from "./core-crm-metadata.js";
 export * from "./persona-access-metadata.js";
 export * from "./ai.js";

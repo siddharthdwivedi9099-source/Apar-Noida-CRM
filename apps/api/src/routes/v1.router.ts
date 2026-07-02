@@ -12,6 +12,7 @@ import { createApprovalsRouter } from "../modules/approvals/approvals.router.js"
 import { createAuditRouter } from "../modules/audit/audit.router.js";
 import { createObservabilityRouter } from "../modules/observability/observability.router.js";
 import { createSystemRouter } from "../modules/system/system.router.js";
+import { createDataQualityRouter } from "../modules/data-quality/data-quality.router.js";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
 import {
   createBusinessDevelopmentRouter,
@@ -109,6 +110,7 @@ export function createV1Router({
   router.use("/audit", createAuditRouter({ databaseService }));
   router.use("/observability", createObservabilityRouter({ databaseService, cacheService, jobMonitorService }));
   router.use("/system", createSystemRouter({ databaseService }));
+  router.use("/data-quality", createDataQualityRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;
