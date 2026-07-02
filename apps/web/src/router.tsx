@@ -27,6 +27,7 @@ import { CustomerPortalKnowledgePage } from "./pages/customer-portal-knowledge-p
 import { CustomerPortalProfilePage } from "./pages/customer-portal-profile-page";
 import { CustomerPortalTicketsPage } from "./pages/customer-portal-tickets-page";
 import { CustomerPortalTrainingPage } from "./pages/customer-portal-training-page";
+import { CustomerPortalOnboardingPage } from "./pages/customer-portal-onboarding-page";
 import { CampaignDetailPage } from "./pages/campaign-detail-page";
 import { CampaignFormPage } from "./pages/campaign-form-page";
 import { CampaignsPage } from "./pages/campaigns-page";
@@ -267,6 +268,19 @@ export const router = createBrowserRouter([
                 moduleKey="customer_portal"
               >
                 <CustomerPortalTrainingPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "onboarding",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerPortal}
+                title="Customer onboarding access is limited by role."
+                description="Open onboarding tasks with a role that includes customer portal access."
+                moduleKey="customer_portal"
+              >
+                <CustomerPortalOnboardingPage />
               </PermissionRoute>
             )
           },

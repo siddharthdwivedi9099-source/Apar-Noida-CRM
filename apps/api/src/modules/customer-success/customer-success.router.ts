@@ -45,7 +45,18 @@ import {
   type CreateAdoptionCampaignRequestBody,
   type CreateExpansionOpportunityRequestBody,
   type LowUsageCheckRequestBody,
-  type RenewalPlaybookRequestBody
+  type RenewalPlaybookRequestBody,
+  successPlanSections,
+  reviewSections,
+  strategicRiskTypes,
+  riskSeverities,
+  type UpsertSuccessPlanEnterpriseRequestBody,
+  type ScheduleQbrRequestBody,
+  type RecordQbrReviewRequestBody,
+  type RecordStrategicRiskRequestBody,
+  type RenewalStrategyRequestBody,
+  type AssessAdvocacyRequestBody,
+  type CreateAdvocacyRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -309,6 +320,52 @@ const expansionOpportunitySchema = z.object({
   signals: expansionSignalsSchema.optional()
 });
 
+// ---- Persona 26 (CSM — Enterprise) schemas -----------------------------------------------------
+const qbrIdParamSchema = z.object({ csAccountId: uuidSchema, qbrId: uuidSchema });
+const successPlanSectionsSchema = z.object(Object.fromEntries(successPlanSections.map((s) => [s, csNullableText(8000)])));
+const upsertEnterprisePlanSchema = z.object({ name: csNullableText(200), sections: successPlanSectionsSchema, reviewWithCustomer: z.boolean().optional() });
+const scheduleQbrSchema = z.object({ title: z.string().min(1).max(200), qbrType: z.enum(["qbr", "ebr"]).optional(), scheduledDate: z.string().min(1).max(40) });
+const reviewSectionsSchema = z.object(Object.fromEntries(reviewSections.map((s) => [s, csNullableText(8000)])));
+const recordQbrReviewSchema = z.object({
+  sections: reviewSectionsSchema,
+  actionItems: z.array(z.object({ description: z.string().min(1).max(2000), ownerId: uuidSchema.nullable().optional(), dueDate: csNullableText(40) })).max(50).optional(),
+  markCompleted: z.boolean().optional()
+});
+const strategicRiskSchema = z.object({
+  riskType: z.enum(strategicRiskTypes),
+  severity: z.enum(riskSeverities),
+  ownerId: uuidSchema,
+  mitigationPlan: z.string().min(1).max(8000),
+  description: csNullableText(8000)
+});
+const renewalFactorsSchema = z.object({
+  healthScore: score.nullable().optional(),
+  usageScore: score.nullable().optional(),
+  valueDelivered: score.nullable().optional(),
+  stakeholderStrength: score.nullable().optional(),
+  expansionPotential: score.nullable().optional(),
+  openRiskCount: z.coerce.number().int().min(0).nullable().optional()
+}).partial();
+const renewalStrategySchema = z.object({
+  renewalDate: dateOnlySchema,
+  commercialTerms: csNullableText(8000),
+  valueDelivered: csNullableText(8000),
+  stakeholders: csNullableText(8000),
+  risks: csNullableText(8000),
+  expansionPotential: csNullableText(8000),
+  salesOwnerId: uuidSchema.nullable().optional(),
+  factors: renewalFactorsSchema.optional()
+});
+const advocacyFactorsSchema = z.object({
+  healthScore: score.nullable().optional(),
+  nps: z.coerce.number().min(-100).max(100).nullable().optional(),
+  adoptionScore: score.nullable().optional(),
+  renewalSecured: z.boolean().nullable().optional(),
+  executiveRelationship: score.nullable().optional()
+}).partial();
+const assessAdvocacySchema = z.object({ factors: advocacyFactorsSchema });
+const createAdvocacySchema = z.object({ requestType: z.string().min(1).max(160), factors: advocacyFactorsSchema.optional(), notes: csNullableText(4000) });
+
 const readPermissions: string[] = [
   "customer_success.view",
   "customer_success.create",
@@ -481,6 +538,29 @@ export function createCustomerSuccessRouter({ databaseService }: RouterDependenc
   }));
   router.post("/accounts/:csAccountId/expansion/opportunity", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: expansionOpportunitySchema }), asyncHandler(async (request, response) => {
     response.status(201).json(await service.createExpansionOpportunity(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as CreateExpansionOpportunityRequestBody));
+  }));
+
+  // ---- Persona 26 (CSM — Enterprise) routes ----------------------------------------------------
+  router.put("/accounts/:csAccountId/enterprise/success-plan", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: upsertEnterprisePlanSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.upsertEnterpriseSuccessPlan(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as UpsertSuccessPlanEnterpriseRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/qbrs", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: scheduleQbrSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.scheduleQbrReview(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as ScheduleQbrRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/qbrs/:qbrId/review", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: qbrIdParamSchema, body: recordQbrReviewSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.recordQbrReview(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.params.qbrId, request.body as RecordQbrReviewRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/risks", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: strategicRiskSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.recordStrategicRisk(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as RecordStrategicRiskRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/renewal-strategy", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: renewalStrategySchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.planRenewalStrategy(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as RenewalStrategyRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/advocacy/assess", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: csAccountIdSchema, body: assessAdvocacySchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.assessAdvocacy(request.auth!, request.params.csAccountId, request.body as AssessAdvocacyRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/advocacy/request", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: createAdvocacySchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.createAdvocacyRequest(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as CreateAdvocacyRequestBody));
   }));
 
   return router;

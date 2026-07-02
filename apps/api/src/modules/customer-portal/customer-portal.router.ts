@@ -7,8 +7,12 @@ import type {
   CreateCustomerPortalTicketRequestBody,
   CustomerPortalAskAiRequestBody,
   UpdateCustomerPortalProfileRequestBody,
-  UpdateCustomerPortalTrainingProgressRequestBody
+  UpdateCustomerPortalTrainingProgressRequestBody,
+  CompletePortalOnboardingTaskRequestBody,
+  PortalDemoRequestBody,
+  RatePortalArticleRequestBody
 } from "@crm/types";
+import { portalOrganizationTypes } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
 import { requirePermissions } from "../../common/middleware/authorize.js";
@@ -71,6 +75,22 @@ const articleSearchQuerySchema = z.object({
 const ticketIdSchema = z.object({ ticketId: uuidSchema });
 const articleIdSchema = z.object({ articleId: uuidSchema });
 const assignmentIdSchema = z.object({ assignmentId: uuidSchema });
+
+// ---- Persona 27 (Customer / Prospect Portal) schemas -------------------------------------------
+const demoRequestSchema = z.object({
+  firstName: z.string().min(1).max(120),
+  lastName: z.string().min(1).max(120),
+  companyName: z.string().min(1).max(200),
+  email: z.string().email().max(255),
+  phone: z.string().max(60).nullable().optional(),
+  productInterest: z.string().min(1).max(200),
+  preferredDate: z.string().max(40).nullable().optional(),
+  organizationType: z.enum(portalOrganizationTypes).optional(),
+  message: z.string().max(4000).nullable().optional()
+});
+const rateArticleSchema = z.object({ helpful: z.boolean(), comment: z.string().max(4000).nullable().optional() });
+const milestoneIdSchema = z.object({ milestoneId: uuidSchema });
+const completeTaskSchema = z.object({ documentRef: z.string().max(1000).nullable().optional(), note: z.string().max(4000).nullable().optional() });
 
 const readPermissions = ["customer_portal.view", "customer_portal.create", "customer_portal.edit", "customer_portal.use_ai"];
 const createPermissions = ["customer_portal.create"];
@@ -219,6 +239,20 @@ export function createCustomerPortalRouter({ databaseService }: RouterDependenci
       response.status(201).json(await service.createFeedback(request.auth!, getAuditMetadata(request), request.body as CreateCustomerPortalFeedbackRequestBody));
     })
   );
+
+  // ---- Persona 27 (Customer / Prospect Portal) routes ------------------------------------------
+  router.post("/demo-request", requirePermissions({ oneOf: createPermissions }), validateRequest({ body: demoRequestSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.requestDemo(request.auth!, getAuditMetadata(request), request.body as PortalDemoRequestBody));
+  }));
+  router.post("/knowledge/:articleId/rate", requirePermissions({ oneOf: editPermissions }), validateRequest({ params: articleIdSchema, body: rateArticleSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.rateKnowledgeArticle(request.auth!, getAuditMetadata(request), request.params.articleId, request.body as RatePortalArticleRequestBody));
+  }));
+  router.get("/onboarding", requirePermissions({ oneOf: readPermissions }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getOnboarding(request.auth!));
+  }));
+  router.post("/onboarding/:milestoneId/complete", requirePermissions({ oneOf: editPermissions }), validateRequest({ params: milestoneIdSchema, body: completeTaskSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.completeOnboardingTask(request.auth!, getAuditMetadata(request), request.params.milestoneId, request.body as CompletePortalOnboardingTaskRequestBody));
+  }));
 
   return router;
 }

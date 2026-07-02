@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Bot, BookOpen, GraduationCap, LayoutDashboard, LifeBuoy, LogOut, UserRound } from "lucide-react";
+import { Bot, BookOpen, GraduationCap, LayoutDashboard, LifeBuoy, ListChecks, LogOut, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -11,6 +11,7 @@ const portalNavItems = [
   { title: "Knowledge", href: "/portal/knowledge", icon: BookOpen },
   { title: "Ask AI", href: "/portal/ask-ai", icon: Bot },
   { title: "Training", href: "/portal/training", icon: GraduationCap },
+  { title: "Onboarding", href: "/portal/onboarding", icon: ListChecks },
   { title: "Profile", href: "/portal/profile", icon: UserRound }
 ];
 

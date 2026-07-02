@@ -22,11 +22,20 @@ import type {
   CustomerPortalTrainingListResponse,
   RoleSummary,
   UpdateCustomerPortalProfileRequestBody,
-  UpdateCustomerPortalTrainingProgressRequestBody
+  UpdateCustomerPortalTrainingProgressRequestBody,
+  CompletePortalOnboardingTaskRequestBody,
+  PortalDemoRequestBody,
+  PortalDemoRequestResponse,
+  PortalOnboardingResponse,
+  PortalOnboardingTask,
+  PortalOnboardingTaskStatus,
+  RatePortalArticleRequestBody,
+  RatePortalArticleResponse
 } from "@crm/types";
 import type { PoolClient, QueryResultRow } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -232,10 +241,14 @@ function buildCustomerAnswer(citations: CustomerPortalAskAiCitation[]) {
 }
 
 export class CustomerPortalService {
+  private readonly notificationService: NotificationService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: CustomerPortalConfig
-  ) {}
+  ) {
+    this.notificationService = new NotificationService(databaseService, { enableAuditLogs: config.enableAuditLogs });
+  }
 
   private assertEnabled() {
     if (!this.databaseService.isEnabled()) {
@@ -1111,5 +1124,133 @@ export class CustomerPortalService {
         }
       };
     });
+  }
+
+  // ---- Persona 27 (Customer / Prospect Portal User) extensions ---------------------------------
+
+  // CP-001: a demo request creates a lead (the inside-sales queue entry is the alert).
+  async requestDemo(actor: ActorContext, audit: AuditMetadata, input: PortalDemoRequestBody): Promise<PortalDemoRequestResponse> {
+    this.assertEnabled();
+    this.requirePermission(actor, PORTAL_CREATE_PERMISSIONS, "You do not have permission to request a demo.");
+    return this.databaseService.withTransaction(async (client) => {
+      const statusId = await this.resolveOptionValueId(client, actor.tenantId, "lead-status", "new");
+      const sourceId = await this.resolveOptionValueId(client, actor.tenantId, "lead-capture-source", "website");
+      const metadata = {
+        origin: "customer_portal_demo_request",
+        productInterest: nullableText(input.productInterest),
+        preferredDate: nullableText(input.preferredDate),
+        organizationType: nullableText(input.organizationType),
+        phone: nullableText(input.phone),
+        message: nullableText(input.message),
+        demoRequest: true
+      };
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO leads (tenant_id, first_name, last_name, company_name, email, status_option_id, source_option_id, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $9) RETURNING id`,
+        [actor.tenantId, input.firstName.trim(), input.lastName.trim(), input.companyName.trim(), nullableText(input.email), statusId, sourceId, JSON.stringify(metadata), actor.userId]
+      );
+      const leadId = result.rows[0]!.id;
+      await this.recordAuditLog(client, actor, audit, { action: "customer_portal.demo_request", resourceType: "lead", resourceId: leadId, metadata: { productInterest: input.productInterest } });
+      return { leadId, confirmationMessage: `Thanks ${input.firstName.trim()} — your demo request for "${input.productInterest.trim()}" has been received. Our sales team will contact you${input.preferredDate ? ` around ${input.preferredDate}` : " shortly"}.` };
+    });
+  }
+
+  // CP-003: rate a knowledge article's usefulness (entitlement enforced via the visibility filter).
+  async rateKnowledgeArticle(actor: ActorContext, audit: AuditMetadata, articleId: string, input: RatePortalArticleRequestBody): Promise<RatePortalArticleResponse> {
+    this.assertEnabled();
+    this.requirePermission(actor, PORTAL_EDIT_PERMISSIONS, "You do not have permission to rate knowledge articles.");
+    return this.databaseService.withTransaction(async (client) => {
+      const { profile } = await this.loadProfile(client, actor);
+      const article = await client.query<{ id: string }>(
+        `SELECT a.id FROM knowledge_articles a INNER JOIN knowledge_sources s ON s.id = a.source_id AND s.tenant_id = a.tenant_id WHERE ${this.knowledgeVisibilityWhere()} AND a.id = $2 LIMIT 1`,
+        [actor.tenantId, articleId]
+      );
+      if (article.rowCount === 0) {
+        throw new AppError(404, "Knowledge article was not found in the customer-visible knowledge base.", undefined, "CUSTOMER_PORTAL_KNOWLEDGE_NOT_FOUND");
+      }
+      await client.query(
+        `INSERT INTO customer_feedback (tenant_id, profile_id, account_id, feedback_type, rating, comment, related_entity_type, related_entity_id, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, 'product_feedback', $4, $5, 'knowledge_article', $6, $7::jsonb, $8, $8)`,
+        [actor.tenantId, profile.id, profile.account.id, input.helpful ? 5 : 1, nullableText(input.comment), articleId, JSON.stringify({ helpful: input.helpful, context: "knowledge_article_rating" }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "customer_portal.knowledge.rate", resourceType: "knowledge_article", resourceId: articleId, metadata: { helpful: input.helpful } });
+      return { articleId, helpful: input.helpful };
+    });
+  }
+
+  // CP-004: onboarding tasks for the portal user's account (from the account's onboarding plan).
+  async getOnboarding(actor: ActorContext): Promise<PortalOnboardingResponse> {
+    this.assertEnabled();
+    this.requirePermission(actor, PORTAL_READ_PERMISSIONS);
+    return this.databaseService.withClient(async (client) => {
+      const { profile } = await this.loadProfile(client, actor);
+      const plan = await client.query<{ id: string; name: string; csm_owner_id: string | null; owner_name: string | null; owner_email: string | null }>(
+        `SELECT op.id, op.name, csa.csm_owner_id, u.display_name AS owner_name, u.email AS owner_email
+         FROM onboarding_plans op
+         INNER JOIN customer_success_accounts csa ON csa.id = op.cs_account_id AND csa.tenant_id = op.tenant_id AND csa.deleted_at IS NULL
+         LEFT JOIN users u ON u.id = csa.csm_owner_id AND u.tenant_id = op.tenant_id AND u.deleted_at IS NULL
+         WHERE op.tenant_id = $1 AND csa.account_id = $2 AND op.deleted_at IS NULL
+         ORDER BY op.created_at DESC LIMIT 1`,
+        [actor.tenantId, profile.account.id]
+      );
+      if (plan.rowCount === 0) {
+        return { planId: null, planName: null, tasks: [] };
+      }
+      const planRow = plan.rows[0];
+      const owner = planRow.csm_owner_id ? { id: planRow.csm_owner_id, displayName: planRow.owner_name ?? "", email: planRow.owner_email ?? "", teamName: null, departmentName: null } : null;
+      const milestones = await client.query<{ id: string; label: string; status: string; due_date: string | null; notes: string | null; completed_at: Date | null; metadata: Record<string, unknown> | null }>(
+        `SELECT id, label, status, due_date, notes, completed_at, metadata FROM onboarding_milestones WHERE tenant_id = $1 AND onboarding_plan_id = $2 AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC`,
+        [actor.tenantId, planRow.id]
+      );
+      const tasks: PortalOnboardingTask[] = milestones.rows.map((row) => {
+        const meta = row.metadata ?? {};
+        const documents = Array.isArray((meta as Record<string, unknown>).documents) ? ((meta as Record<string, unknown>).documents as unknown[]).filter((d): d is string => typeof d === "string") : [];
+        const status = (["pending", "in_progress", "completed", "blocked"].includes(row.status) ? row.status : "pending") as PortalOnboardingTaskStatus;
+        return { id: row.id, label: row.label, status, dueDate: row.due_date, owner, instructions: row.notes, documents, completedAt: row.completed_at ? toIso(row.completed_at) : null };
+      });
+      return { planId: planRow.id, planName: planRow.name, tasks };
+    });
+  }
+
+  // CP-004: complete an onboarding task, upload a document ref, and notify the CSM.
+  async completeOnboardingTask(actor: ActorContext, audit: AuditMetadata, milestoneId: string, input: CompletePortalOnboardingTaskRequestBody): Promise<PortalOnboardingResponse> {
+    this.assertEnabled();
+    this.requirePermission(actor, PORTAL_EDIT_PERMISSIONS, "You do not have permission to update onboarding tasks.");
+    await this.databaseService.withTransaction(async (client) => {
+      const { profile } = await this.loadProfile(client, actor);
+      // Ensure the milestone belongs to the portal user's account before mutating it.
+      const milestone = await client.query<{ id: string; metadata: Record<string, unknown> | null; label: string; csm_owner_id: string | null; plan_name: string }>(
+        `SELECT m.id, m.metadata, m.label, csa.csm_owner_id, op.name AS plan_name
+         FROM onboarding_milestones m
+         INNER JOIN onboarding_plans op ON op.id = m.onboarding_plan_id AND op.tenant_id = m.tenant_id AND op.deleted_at IS NULL
+         INNER JOIN customer_success_accounts csa ON csa.id = op.cs_account_id AND csa.tenant_id = op.tenant_id AND csa.deleted_at IS NULL
+         WHERE m.id = $1 AND m.tenant_id = $2 AND csa.account_id = $3 AND m.deleted_at IS NULL LIMIT 1`,
+        [milestoneId, actor.tenantId, profile.account.id]
+      );
+      if (milestone.rowCount === 0) {
+        throw new AppError(404, "Onboarding task not found for your account.", undefined, "CUSTOMER_PORTAL_TASK_NOT_FOUND");
+      }
+      const meta = (milestone.rows[0].metadata ?? {}) as Record<string, unknown>;
+      const documents = Array.isArray(meta.documents) ? [...(meta.documents as unknown[]).filter((d): d is string => typeof d === "string")] : [];
+      if (input.documentRef && input.documentRef.trim()) {
+        documents.push(input.documentRef.trim());
+      }
+      await client.query(
+        `UPDATE onboarding_milestones SET status = 'completed', completed_at = NOW(), metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [milestoneId, actor.tenantId, JSON.stringify({ ...meta, documents, completedBy: "customer", completionNote: nullableText(input.note) }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "customer_portal.onboarding_task.complete", resourceType: "onboarding_milestone", resourceId: milestoneId, metadata: { accountId: profile.account.id } });
+      const csmOwnerId = milestone.rows[0].csm_owner_id;
+      if (csmOwnerId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: csmOwnerId,
+          title: `Onboarding task completed by customer: ${milestone.rows[0].label}`,
+          message: `${profile.account.name} completed an onboarding task.`,
+          linkedRecord: { entityType: "onboarding_milestone", entityId: milestoneId }
+        });
+      }
+    });
+    return this.getOnboarding(actor);
   }
 }

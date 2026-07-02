@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import type { CustomerPortalDashboardResponse } from "@crm/types";
+import type { CustomerPortalDashboardResponse, PortalDemoRequestResponse } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/error-message";
 import { useAuth } from "@/providers/auth-provider";
 
 export function CustomerPortalDashboardPage() {
@@ -118,6 +121,60 @@ export function CustomerPortalDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <DemoRequestCard />
     </div>
+  );
+}
+
+function DemoRequestCard() {
+  const { accessToken } = useAuth();
+  const [form, setForm] = useState({ firstName: "", lastName: "", companyName: "", email: "", productInterest: "", preferredDate: "" });
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => setForm((c) => ({ ...c, [key]: event.target.value }));
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    setErrorMessage(null);
+    try {
+      const response = await apiRequest<PortalDemoRequestResponse>("/customer-portal/demo-request", {
+        method: "POST",
+        accessToken,
+        body: { ...form, preferredDate: form.preferredDate || null }
+      });
+      setMessage(response.confirmationMessage);
+      setForm({ firstName: "", lastName: "", companyName: "", email: "", productInterest: "", preferredDate: "" });
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Request a demo</CardTitle>
+        <CardDescription>Tell us what you'd like to see and our sales team will reach out.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {message ? <p className="mb-3 text-sm text-emerald-600">{message}</p> : null}
+        {errorMessage ? <p className="mb-3 text-sm text-rose-600">{errorMessage}</p> : null}
+        <form className="grid gap-2 sm:grid-cols-2" onSubmit={submit}>
+          <Input placeholder="First name" value={form.firstName} onChange={set("firstName")} disabled={busy} required />
+          <Input placeholder="Last name" value={form.lastName} onChange={set("lastName")} disabled={busy} required />
+          <Input placeholder="Company" value={form.companyName} onChange={set("companyName")} disabled={busy} required />
+          <Input type="email" placeholder="Email" value={form.email} onChange={set("email")} disabled={busy} required />
+          <Input placeholder="Product interest" value={form.productInterest} onChange={set("productInterest")} disabled={busy} required />
+          <Input type="date" aria-label="Preferred date" value={form.preferredDate} onChange={set("preferredDate")} disabled={busy} />
+          <div className="sm:col-span-2"><Button type="submit" disabled={busy}>Request demo</Button></div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

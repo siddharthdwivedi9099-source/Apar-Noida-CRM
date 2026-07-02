@@ -89,6 +89,19 @@ import type {
   RenewalPlaybookRequestBody
 } from "@crm/types";
 import { adoptionCampaignStatuses, computeHealthScore, detectExpansionSignals, detectLowUsage, resolveHealthBand } from "@crm/types";
+import type {
+  AssessAdvocacyRequestBody,
+  CreateAdvocacyRequestBody,
+  CsRenewalStrategyResponse,
+  RecordQbrReviewRequestBody,
+  RecordStrategicRiskRequestBody,
+  RenewalStrategyRequestBody,
+  ReviewSection,
+  ScheduleQbrRequestBody,
+  StrategicRiskType,
+  UpsertSuccessPlanEnterpriseRequestBody
+} from "@crm/types";
+import { computeAdvocacyReadiness, predictRenewalProbability, requiresLeadershipEscalation, reviewSections, strategicRiskTypes, successPlanSections, validateSuccessPlan } from "@crm/types";
 import type { PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import { AppError } from "../../common/errors/app-error.js";
@@ -2286,6 +2299,196 @@ export class CustomerSuccessService {
       await this.recordAuditLog(client, actor, audit, { action: "customer_success.expansion.create_opportunity", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { csAccountId, salesOwnerId } });
       return { opportunityId, salesOwnerId };
     });
+  }
+
+  // ---- Persona 26 (Customer Success Manager — Enterprise) --------------------------------------
+
+  private async writeAccountMetadata(client: PoolClient, actor: ActorContext, csAccountId: string, mutate: (metadata: Record<string, unknown>) => Record<string, unknown>) {
+    const current = await client.query<{ metadata: Record<string, unknown> | null }>(`SELECT metadata FROM customer_success_accounts WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`, [csAccountId, actor.tenantId]);
+    if (current.rowCount === 0) {
+      throw new AppError(404, "Customer success account not found.", undefined, "CS_ACCOUNT_NOT_FOUND");
+    }
+    const next = mutate(getMetadata(current.rows[0].metadata));
+    await client.query(`UPDATE customer_success_accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [csAccountId, actor.tenantId, JSON.stringify(next), actor.userId]);
+  }
+
+  // CSME-001: strategic success plan (structured sections stored on the success_plans row).
+  async upsertEnterpriseSuccessPlan(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: UpsertSuccessPlanEnterpriseRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      await this.getCsAccountState(client, actor.tenantId, csAccountId);
+      const sections: Record<string, string | null> = {};
+      for (const section of successPlanSections) {
+        if (section in input.sections) {
+          sections[section] = getTrimmedNullableString(input.sections[section]);
+        }
+      }
+      const existing = await client.query<{ id: string; metadata: Record<string, unknown> | null }>(`SELECT id, metadata FROM success_plans WHERE tenant_id = $1 AND cs_account_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1`, [actor.tenantId, csAccountId]);
+      const priorMeta = getMetadata(existing.rows[0]?.metadata);
+      const priorSections = getMetadata(priorMeta.enterprise as Record<string, unknown> | undefined);
+      const mergedSections = { ...(priorSections.sections as Record<string, unknown> | undefined ?? {}), ...sections };
+      const enterprise = {
+        sections: mergedSections,
+        reviewedWithCustomerAt: input.reviewWithCustomer ? new Date().toISOString() : (priorSections.reviewedWithCustomerAt ?? null),
+        updatedAt: new Date().toISOString()
+      };
+      const name = getTrimmedNullableString(input.name) ?? "Enterprise success plan";
+      if (existing.rows[0]) {
+        await client.query(`UPDATE success_plans SET name = $4, metadata = $5::jsonb, updated_by = $3 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [existing.rows[0].id, actor.tenantId, actor.userId, name, JSON.stringify({ ...priorMeta, enterprise })]);
+      } else {
+        await client.query(`INSERT INTO success_plans (tenant_id, cs_account_id, name, status, metadata, created_by, updated_by) VALUES ($1, $2, $3, 'active', $4::jsonb, $5, $5)`, [actor.tenantId, csAccountId, name, JSON.stringify({ enterprise }), actor.userId]);
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.success_plan", resourceType: "customer_success_account", resourceId: csAccountId, status: "success" });
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSME-002: schedule an executive business review.
+  async scheduleQbrReview(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: ScheduleQbrRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.getCsAccountState(client, actor.tenantId, csAccountId);
+      await client.query(
+        `INSERT INTO qbrs (tenant_id, cs_account_id, owner_id, title, qbr_type, status, scheduled_at, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, 'scheduled', $6::timestamptz, '{}'::jsonb, $7, $7)`,
+        [actor.tenantId, csAccountId, account.csm_owner_id, input.title.trim(), input.qbrType === "ebr" ? "ebr" : "qbr", input.scheduledDate, actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.qbr_schedule", resourceType: "customer_success_account", resourceId: csAccountId, status: "success" });
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSME-002: record the review content + action items on an existing QBR/EBR.
+  async recordQbrReview(actor: ActorContext, audit: AuditMetadata, csAccountId: string, qbrId: string, input: RecordQbrReviewRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      const existing = await client.query<{ id: string; metadata: Record<string, unknown> | null }>(`SELECT id, metadata FROM qbrs WHERE id = $1 AND tenant_id = $2 AND cs_account_id = $3 AND deleted_at IS NULL LIMIT 1`, [qbrId, actor.tenantId, csAccountId]);
+      if (existing.rowCount === 0) {
+        throw new AppError(404, "QBR/EBR not found.", undefined, "QBR_NOT_FOUND");
+      }
+      const sections: Record<string, string> = {};
+      for (const section of reviewSections) {
+        const value = getTrimmedNullableString(input.sections[section as ReviewSection]);
+        if (value) sections[section] = value;
+      }
+      const actionItems = [] as Array<Record<string, unknown>>;
+      for (const item of input.actionItems ?? []) {
+        if (!item.description?.trim()) continue;
+        const ownerId = item.ownerId ? await this.ensureUserId(client, actor.tenantId, item.ownerId, "INVALID_OWNER", "action item owner") : null;
+        actionItems.push({ id: randomUUID(), description: item.description.trim(), owner: ownerId ? { id: ownerId } : null, dueDate: getTrimmedNullableString(item.dueDate), done: false });
+      }
+      const meta = getMetadata(existing.rows[0].metadata);
+      const review = { ...getMetadata(meta.review as Record<string, unknown> | undefined), sections, actionItems: actionItems.length > 0 ? actionItems : (getMetadata(meta.review as Record<string, unknown> | undefined).actionItems ?? []) };
+      const status = input.markCompleted ? "completed" : "scheduled";
+      await client.query(`UPDATE qbrs SET status = $4, summary = $5, metadata = $6::jsonb, updated_by = $3 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [qbrId, actor.tenantId, actor.userId, status, sections.outcomes ?? null, JSON.stringify({ ...meta, review })]);
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.qbr_review", resourceType: "qbr", resourceId: qbrId, status: "success" });
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSME-003: strategic risk — owner + mitigation are mandatory; high risks escalate to leadership.
+  async recordStrategicRisk(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: RecordStrategicRiskRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    if (!strategicRiskTypes.includes(input.riskType)) {
+      throw new AppError(400, "Invalid strategic risk type.", undefined, "VALIDATION_ERROR");
+    }
+    if (!input.mitigationPlan?.trim()) {
+      throw new AppError(400, "A mitigation plan is required.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      const ownerId = await this.ensureUserId(client, actor.tenantId, input.ownerId, "INVALID_OWNER", "risk owner");
+      if (!ownerId) {
+        throw new AppError(400, "A risk owner is required.", undefined, "VALIDATION_ERROR");
+      }
+      const escalate = requiresLeadershipEscalation(input.severity);
+      const escalation = await client.query<{ id: string }>(
+        `INSERT INTO escalations (tenant_id, cs_account_id, owner_id, title, severity, status, description, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, 'open', $6, $7::jsonb, $8, $8) RETURNING id`,
+        [
+          actor.tenantId, csAccountId, ownerId, `Strategic risk: ${input.riskType.replace(/_/g, " ")}`, input.severity,
+          getTrimmedNullableString(input.description),
+          JSON.stringify({ riskType: input.riskType, mitigationPlan: input.mitigationPlan.trim(), leadershipEscalated: escalate }), actor.userId
+        ]
+      );
+      if (escalate) {
+        // High/critical strategic risk notifies the account's CSM owner as the leadership signal.
+        const recipient = account.csm_owner_id ?? ownerId;
+        if (recipient && recipient !== actor.userId) {
+          await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "customer_escalation", recipientUserId: recipient, title: `High strategic risk: ${input.riskType.replace(/_/g, " ")}`, message: input.mitigationPlan.trim(), linkedRecord: { entityType: "customer_success_account", entityId: csAccountId } });
+        }
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.strategic_risk", resourceType: "escalation", resourceId: escalation.rows[0].id, status: "success", metadata: { riskType: input.riskType, severity: input.severity, leadershipEscalated: escalate } });
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSME-004: renewal strategy — collaborative renewal plan + AI-stand-in probability prediction.
+  async planRenewalStrategy(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: RenewalStrategyRequestBody): Promise<CsRenewalStrategyResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const prediction = predictRenewalProbability(input.factors);
+    return this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      const statusOptionId = await this.resolveOptionValueId(client, actor.tenantId, "cs-renewal-status", "in_progress", "Renewal status");
+      const salesOwnerId = await this.ensureUserId(client, actor.tenantId, input.salesOwnerId ?? null, "INVALID_OWNER", "sales owner");
+      const strategyMeta = {
+        commercialTerms: getTrimmedNullableString(input.commercialTerms),
+        valueDelivered: getTrimmedNullableString(input.valueDelivered),
+        stakeholders: getTrimmedNullableString(input.stakeholders),
+        risks: getTrimmedNullableString(input.risks),
+        expansionPotential: getTrimmedNullableString(input.expansionPotential),
+        prediction,
+        healthScore: account.health_score,
+        salesOwnerId: salesOwnerId ?? null
+      };
+      const renewal = await client.query<{ id: string }>(
+        `INSERT INTO renewals (tenant_id, cs_account_id, owner_id, renewal_date, status_option_id, probability, strategy, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8::jsonb, $9, $9) RETURNING id`,
+        [actor.tenantId, csAccountId, account.csm_owner_id, input.renewalDate, statusOptionId, prediction.probability, "Enterprise renewal strategy", JSON.stringify({ playbook: "renewal_strategy", ...strategyMeta }), actor.userId]
+      );
+      if (salesOwnerId && salesOwnerId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: salesOwnerId, title: "Renewal strategy — collaborate", message: `Renewal ${input.renewalDate}, predicted ${prediction.probability}% (${prediction.band}).`, linkedRecord: { entityType: "customer_success_account", entityId: csAccountId } });
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.renewal_strategy", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { probability: prediction.probability } });
+      return { renewalId: renewal.rows[0].id, prediction, aiPrediction: { available: false, message: "AI renewal-probability prediction will connect with the governed AI Gateway; a deterministic prediction is shown meanwhile." } };
+    });
+  }
+
+  // CSME-005: advocacy readiness assessment (deterministic; AI recommender is a placeholder).
+  async assessAdvocacy(actor: ActorContext, csAccountId: string, input: AssessAdvocacyRequestBody) {
+    this.assertEnabled();
+    await this.databaseService.withClient((client) => this.getCsAccountState(client, actor.tenantId, csAccountId));
+    return { readiness: computeAdvocacyReadiness(input.factors), aiRecommendation: { available: false as const, message: "AI advocacy-readiness detection will connect with the governed AI Gateway." } };
+  }
+
+  // CSME-005: create an advocacy request with consent tracking.
+  async createAdvocacyRequest(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: CreateAdvocacyRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    if (!input.requestType?.trim()) {
+      throw new AppError(400, "An advocacy request type is required.", undefined, "VALIDATION_ERROR");
+    }
+    const readiness = computeAdvocacyReadiness(input.factors);
+    await this.databaseService.withTransaction(async (client) => {
+      await this.writeAccountMetadata(client, actor, csAccountId, (metadata) => ({
+        ...metadata,
+        advocacy: {
+          requestType: input.requestType.trim(),
+          readinessScore: readiness.score,
+          consentStatus: "pending",
+          notes: getTrimmedNullableString(input.notes),
+          requestedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email },
+          requestedAt: new Date().toISOString()
+        }
+      }));
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.advocacy_request", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { requestType: input.requestType.trim(), readinessScore: readiness.score } });
+    });
+    return this.getAccount(actor, csAccountId);
   }
 }
 
