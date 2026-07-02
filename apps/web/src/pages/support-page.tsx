@@ -31,6 +31,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { SupportL1Panel } from "@/components/support/support-l1-panel";
 import { SupportL2Panel } from "@/components/support/support-l2-panel";
 import { SupportQueuePanel } from "@/components/support/support-queue-panel";
+import { SupportManagementPanel } from "@/components/support/support-management-panel";
 
 interface TicketFormState {
   subject: string;
@@ -89,6 +90,7 @@ export function SupportPage() {
   const canCreate = hasAnyPermission(["support.create", "support.configure"]);
   const canEdit = hasAnyPermission(["support.edit", "support.assign", "support.configure", "support.manage_workflow"]);
   const canMessage = hasAnyPermission(["support.edit", "support.create", "support.configure", "support.manage_workflow"]);
+  const canManage = hasAnyPermission(["support.assign", "support.configure", "support.view_dashboard", "support.manage_workflow", "dashboards.view_dashboard"]);
 
   const tickets = useMemo(() => data?.tickets ?? [], [data?.tickets]);
   const customFieldDefinitions = getActiveCustomFieldDefinitions(options);
@@ -615,6 +617,16 @@ export function SupportPage() {
       </section>
 
       <SupportQueuePanel accessToken={accessToken} onSelect={setSelectedId} />
+
+      {options ? (
+        <SupportManagementPanel
+          accessToken={accessToken}
+          options={options}
+          canManage={canManage}
+          selectedId={selectedId}
+          onReload={() => { if (selectedId) void loadDetail(selectedId); }}
+        />
+      ) : null}
 
       {selectedId && options ? (
         <SupportL1Panel

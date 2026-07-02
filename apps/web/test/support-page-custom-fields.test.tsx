@@ -44,6 +44,8 @@ function buildSupportOptions() {
     categories: [optionValue("technical", "Technical", true)],
     sources: [optionValue("email", "Email", true)],
     knowledgeCategories: [],
+    rootCauses: [],
+    breachReasons: [],
     slaPolicies: [],
     availableScopes: ["all", "mine", "team"],
     fieldDefinitions: [
@@ -111,7 +113,10 @@ describe("Support page custom fields", () => {
       if (path === "/support/dashboard") {
         return emptyDashboard;
       }
-      if (path.startsWith("/support/tickets") && (!init || init.method === "GET")) {
+      // Only the ticket LIST endpoint (optionally with a query string) returns the list shape;
+      // ticket sub-resource GETs (detail, intake-assist, investigation, management panels) fall
+      // through to the rejection below, which the panels catch and render as empty.
+      if ((path === "/support/tickets" || path.startsWith("/support/tickets?")) && (!init || init.method === "GET")) {
         return { tickets: [], pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0 } };
       }
       if (path === "/support/knowledge-articles") {

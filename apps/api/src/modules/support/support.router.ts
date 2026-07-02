@@ -22,7 +22,11 @@ import {
   type RequestRcaShareRequestBody,
   type UpdateBugStatusRequestBody,
   type UpdateInvestigationRequestBody,
-  type UpsertRcaRequestBody
+  type UpsertRcaRequestBody,
+  type ReassignTicketsRequestBody,
+  type RecordBreachReviewRequestBody,
+  type RecordCsatRequestBody,
+  type ReviewEscalationRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -169,6 +173,13 @@ const rcaSchema = z.object({ rootCause: l1NullableText(8000), impact: l1Nullable
 const rcaShareSchema = z.object({ approverUserId: uuidSchema, note: l1NullableText(2000) });
 const articleFromTicketSchema = z.object({ title: l1NullableText(300), categoryKey: z.string().min(1).max(160).nullable().optional(), summary: l1NullableText(2000), body: l1NullableText(20000) });
 const publishArticleSchema = z.object({ note: l1NullableText(2000) });
+
+// ---- Persona 23 (Support Manager) schemas ------------------------------------------------------
+const workloadQuerySchema = ticketListQuerySchema.extend({ capacity: z.coerce.number().int().min(1).max(500).optional() });
+const reassignSchema = z.object({ ticketIds: z.array(uuidSchema).min(1).max(200), assigneeId: uuidSchema, note: l1NullableText(2000) });
+const breachReviewSchema = z.object({ reasonKey: z.string().min(1).max(160), correctiveAction: l1NullableText(4000) });
+const reviewEscalationSchema = z.object({ decision: z.enum(["reassign", "return_to_l1"]), ownerId: uuidSchema.nullable().optional(), note: l1NullableText(2000) });
+const csatSchema = z.object({ score: z.coerce.number().int().min(1).max(5), comment: l1NullableText(4000) });
 
 const readPermissions: string[] = [
   "support.view",
@@ -377,6 +388,30 @@ export function createSupportRouter({ databaseService }: RouterDependencies) {
   }));
   router.post("/knowledge-articles/:articleId/publish", requirePermissions({ oneOf: configurePermissions }), validateRequest({ params: z.object({ articleId: uuidSchema }), body: publishArticleSchema }), asyncHandler(async (request, response) => {
     response.status(200).json(await service.publishKnowledgeArticle(request.auth!, getAuditMetadata(request), request.params.articleId, request.body as PublishKnowledgeArticleRequestBody));
+  }));
+
+  // ---- Persona 23 (Support Manager) routes -----------------------------------------------------
+  router.get("/management/performance", requirePermissions({ oneOf: readPermissions }), validateRequest({ query: ticketListQuerySchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getTeamPerformance(request.auth!, request.query as SupportTicketListQuery));
+  }));
+  router.get("/management/workload", requirePermissions({ oneOf: readPermissions }), validateRequest({ query: workloadQuerySchema }), asyncHandler(async (request, response) => {
+    const { capacity, ...query } = request.query as SupportTicketListQuery & { capacity?: number };
+    response.status(200).json(await service.getWorkload(request.auth!, query as SupportTicketListQuery, capacity ?? 15));
+  }));
+  router.get("/management/escalations", requirePermissions({ oneOf: readPermissions }), validateRequest({ query: ticketListQuerySchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getEscalationOversight(request.auth!, request.query as SupportTicketListQuery));
+  }));
+  router.post("/management/reassign", requirePermissions({ oneOf: updatePermissions }), validateRequest({ body: reassignSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.reassignTickets(request.auth!, getAuditMetadata(request), request.body as ReassignTicketsRequestBody));
+  }));
+  router.post("/tickets/:ticketId/breach-review", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: breachReviewSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.recordBreachReview(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as RecordBreachReviewRequestBody));
+  }));
+  router.post("/tickets/:ticketId/escalation-review", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: ticketIdSchema, body: reviewEscalationSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.reviewEscalation(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as ReviewEscalationRequestBody));
+  }));
+  router.post("/tickets/:ticketId/csat", requirePermissions({ oneOf: messagePermissions }), validateRequest({ params: ticketIdSchema, body: csatSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.recordCsat(request.auth!, getAuditMetadata(request), request.params.ticketId, request.body as RecordCsatRequestBody));
   }));
 
   return router;

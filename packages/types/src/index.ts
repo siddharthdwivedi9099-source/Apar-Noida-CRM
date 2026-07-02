@@ -24,6 +24,7 @@ export * from "./partner-management.js";
 export * from "./partner-portal.js";
 export * from "./support-l1.js";
 export * from "./support-l2.js";
+export * from "./support-manager.js";
 export * from "./core-crm-metadata.js";
 export * from "./persona-access-metadata.js";
 export * from "./ai.js";

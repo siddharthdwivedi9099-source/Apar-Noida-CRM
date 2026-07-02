@@ -47,6 +47,21 @@ import type {
 } from "@crm/types";
 import { computeQueueWeight, rankKnowledgeArticles, suggestTicketClassification } from "@crm/types";
 import { bugSeverities, bugSyncStatuses, isRcaRequired } from "@crm/types";
+import type {
+  AgentTicketFact,
+  ReassignTicketsRequestBody,
+  ReassignTicketsResponse,
+  RecordBreachReviewRequestBody,
+  RecordCsatRequestBody,
+  ReviewEscalationRequestBody,
+  SupportAgentPerformance,
+  SupportAgentWorkload,
+  SupportEscalationOversightResponse,
+  SupportTeamPerformanceResponse,
+  SupportWorkloadResponse,
+  WorkloadTicketFact
+} from "@crm/types";
+import { computeAgentPerformance, computeWorkload, escalationReviewDecisions, resolveCsatBand } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import {
@@ -823,6 +838,7 @@ export class SupportService {
         sources: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-source"),
         knowledgeCategories: await this.loadOptionSetValues(client, actor.tenantId, "support-knowledge-category"),
         rootCauses: await this.loadOptionSetValues(client, actor.tenantId, "support-root-cause"),
+        breachReasons: await this.loadOptionSetValues(client, actor.tenantId, "support-breach-reason"),
         slaPolicies: (await this.loadSlaPolicies(client, actor.tenantId)).policies,
         availableScopes: await this.getAvailableScopes(client, actor),
         fieldDefinitions,
@@ -965,6 +981,9 @@ export class SupportService {
         [actor.tenantId]
       );
 
+      // Persona 23 (Support Manager) SPM-005: surface the real CSAT aggregate from captured surveys.
+      const csat = this.summarizeCsat(tickets);
+
       return {
         scope,
         totalTickets: tickets.length,
@@ -979,6 +998,13 @@ export class SupportService {
         csatPlaceholder: {
           available: false,
           message: "CSAT analytics will connect once the survey and feedback pipeline is introduced."
+        },
+        csat: {
+          responseCount: csat.responseCount,
+          averageScore: csat.averageScore,
+          detractors: csat.detractors,
+          passives: csat.passives,
+          promoters: csat.promoters
         }
       };
     });
@@ -2007,6 +2033,257 @@ export class SupportService {
       throw new AppError(404, "Knowledge article not found.", undefined, "NOT_FOUND");
     }
     return { article: published };
+  }
+
+  // ---- Persona 23 (Support Manager) ------------------------------------------------------------
+
+  private readCsatScore(metadata: Record<string, unknown>): number | null {
+    const csat = getMetadata(metadata.csat as Record<string, unknown> | undefined);
+    return typeof csat.score === "number" ? csat.score : null;
+  }
+
+  private summarizeCsat(tickets: SupportTicketSummary[]) {
+    const scores = tickets.map((ticket) => this.readCsatScore(ticket.metadata)).filter((score): score is number => typeof score === "number");
+    let detractors = 0;
+    let passives = 0;
+    let promoters = 0;
+    for (const score of scores) {
+      const band = resolveCsatBand(score);
+      if (band === "detractor") detractors += 1;
+      else if (band === "promoter") promoters += 1;
+      else passives += 1;
+    }
+    const averageScore = scores.length > 0 ? Math.round((scores.reduce((total, score) => total + score, 0) / scores.length) * 10) / 10 : null;
+    return { responseCount: scores.length, averageScore, detractors, passives, promoters };
+  }
+
+  private buildAgentFact(ticket: SupportTicketSummary): AgentTicketFact {
+    const resolved = RESOLVED_STATUS_KEYS.has(ticket.status?.key ?? "");
+    const createdAtMs = Date.parse(ticket.createdAt);
+    const firstResponseAtMs = ticket.sla.firstResponseAt ? Date.parse(ticket.sla.firstResponseAt) : null;
+    const resolvedAtMs = ticket.sla.resolvedAt ? Date.parse(ticket.sla.resolvedAt) : null;
+    return {
+      resolved,
+      firstResponseBreached: ticket.sla.firstResponseBreached,
+      resolutionBreached: ticket.sla.resolutionBreached,
+      // A ticket that carries a resolved timestamp but is open again was reopened.
+      reopened: resolvedAtMs !== null && !Number.isNaN(resolvedAtMs) && !resolved,
+      createdAtMs: Number.isNaN(createdAtMs) ? Date.now() : createdAtMs,
+      firstResponseAtMs: firstResponseAtMs !== null && !Number.isNaN(firstResponseAtMs) ? firstResponseAtMs : null,
+      resolvedAtMs: resolvedAtMs !== null && !Number.isNaN(resolvedAtMs) ? resolvedAtMs : null,
+      csatScore: this.readCsatScore(ticket.metadata)
+    };
+  }
+
+  private async loadScopedTicketSummaries(client: PoolClient, actor: ActorContext, scope: SupportTicketScope): Promise<SupportTicketSummary[]> {
+    const { conditions, params } = await this.buildScopedWhere(client, actor, scope);
+    const result = await client.query<SupportTicketRow>(
+      `SELECT ${this.ticketSelectColumns()} ${this.ticketFromClause()} WHERE ${conditions.join(" AND ")}`,
+      params
+    );
+    return result.rows.map((row) => this.mapTicketSummary(row));
+  }
+
+  // SPM-001: per-agent + team performance and SLA compliance.
+  async getTeamPerformance(actor: ActorContext, query: SupportTicketListQuery): Promise<SupportTeamPerformanceResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const scope = await this.resolveScope(client, actor, query.scope);
+      const tickets = await this.loadScopedTicketSummaries(client, actor, scope);
+
+      const byAgent = new Map<string, { agent: SupportTicketSummary["assignee"]; facts: AgentTicketFact[] }>();
+      for (const ticket of tickets) {
+        if (!ticket.assignee) {
+          continue;
+        }
+        const entry = byAgent.get(ticket.assignee.id) ?? { agent: ticket.assignee, facts: [] };
+        entry.facts.push(this.buildAgentFact(ticket));
+        byAgent.set(ticket.assignee.id, entry);
+      }
+
+      const agents: SupportAgentPerformance[] = Array.from(byAgent.values())
+        .map((entry) => ({ agent: entry.agent, ...computeAgentPerformance(entry.facts) }))
+        .sort((a, b) => b.assigned - a.assigned);
+
+      return {
+        scope,
+        generatedAt: new Date().toISOString(),
+        team: computeAgentPerformance(tickets.map((ticket) => this.buildAgentFact(ticket))),
+        agents,
+        csat: this.summarizeCsat(tickets),
+        aiPlaceholder: { available: false, message: "AI performance insights and high-performer detection will connect with the governed AI Gateway." }
+      };
+    });
+  }
+
+  // SPM-002: per-agent open workload and overload detection.
+  async getWorkload(actor: ActorContext, query: SupportTicketListQuery, capacity: number): Promise<SupportWorkloadResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const scope = await this.resolveScope(client, actor, query.scope);
+      const tickets = await this.loadScopedTicketSummaries(client, actor, scope);
+      const open = tickets.filter((ticket) => !RESOLVED_STATUS_KEYS.has(ticket.status?.key ?? ""));
+
+      const toFact = (ticket: SupportTicketSummary): WorkloadTicketFact => {
+        const due = ticket.sla.resolutionDueAt ? Date.parse(ticket.sla.resolutionDueAt) : null;
+        const breached = ticket.sla.resolutionBreached || ticket.sla.firstResponseBreached;
+        return { open: true, breached, atRisk: !breached && due !== null && !Number.isNaN(due) && due - Date.now() <= 3600000 };
+      };
+
+      const byAgent = new Map<string, { agent: SupportTicketSummary["assignee"]; facts: WorkloadTicketFact[] }>();
+      let unassignedOpen = 0;
+      for (const ticket of open) {
+        if (!ticket.assignee) {
+          unassignedOpen += 1;
+          continue;
+        }
+        const entry = byAgent.get(ticket.assignee.id) ?? { agent: ticket.assignee, facts: [] };
+        entry.facts.push(toFact(ticket));
+        byAgent.set(ticket.assignee.id, entry);
+      }
+
+      const agents: SupportAgentWorkload[] = Array.from(byAgent.values())
+        .map((entry) => ({ agent: entry.agent, ...computeWorkload(entry.facts, capacity) }))
+        .sort((a, b) => b.openCount - a.openCount);
+
+      return { scope, capacity, unassignedOpen, agents };
+    });
+  }
+
+  // SPM-002: bulk-reassign tickets to balance load. Reuses the ticket assignment gate at the router.
+  async reassignTickets(actor: ActorContext, audit: AuditMetadata, input: ReassignTicketsRequestBody): Promise<ReassignTicketsResponse> {
+    this.assertEnabled();
+    const ticketIds = [...new Set((input.ticketIds ?? []).filter((id) => typeof id === "string" && id.length > 0))];
+    if (ticketIds.length === 0) {
+      throw new AppError(400, "At least one ticket is required.", undefined, "VALIDATION_ERROR");
+    }
+    let reassigned = 0;
+    await this.databaseService.withTransaction(async (client) => {
+      const assigneeId = await this.ensureReference(client, actor.tenantId, "users", input.assigneeId, "INVALID_ASSIGNEE", "assignee");
+      for (const ticketId of ticketIds) {
+        await this.loadTicketBasics(client, actor.tenantId, ticketId);
+        await client.query(
+          `UPDATE support_tickets SET assignee_id = $3, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+          [ticketId, actor.tenantId, assigneeId, actor.userId]
+        );
+        await this.recordAuditLog(client, actor, audit, { action: "support.manager.reassign", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { assigneeId } });
+        reassigned += 1;
+      }
+      if (assigneeId && assigneeId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: assigneeId,
+          title: `${reassigned} ticket(s) assigned to you`,
+          message: input.note?.trim() || "Your support manager has balanced these tickets to your queue.",
+          linkedRecord: { entityType: "ticket", entityId: ticketIds[0] }
+        });
+      }
+    });
+    return { reassigned, assigneeId: input.assigneeId };
+  }
+
+  // SPM-003: record why an SLA breach happened + the corrective action.
+  async recordBreachReview(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: RecordBreachReviewRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    const reasonKey = input.reasonKey?.trim();
+    if (!reasonKey) {
+      throw new AppError(400, "A breach reason is required.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const reasons = await this.loadOptionSetValues(client, actor.tenantId, "support-breach-reason");
+      const reasonLabel = reasons.find((value) => value.key === reasonKey)?.label ?? null;
+      if (!reasonLabel) {
+        throw new AppError(400, "Unknown breach reason.", undefined, "VALIDATION_ERROR");
+      }
+      const breachReview = {
+        reasonKey,
+        reasonLabel,
+        correctiveAction: input.correctiveAction?.trim() || null,
+        reviewedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email },
+        reviewedAt: new Date().toISOString()
+      };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, breachReview }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.manager.breach_review", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { reasonKey } });
+    });
+    return this.getTicket(actor, ticketId);
+  }
+
+  // SPM-004: escalated-ticket oversight with aging.
+  async getEscalationOversight(actor: ActorContext, query: SupportTicketListQuery): Promise<SupportEscalationOversightResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const scope = await this.resolveScope(client, actor, query.scope);
+      const tickets = await this.loadScopedTicketSummaries(client, actor, scope);
+      const escalated = tickets.filter((ticket) => ticket.escalationStatus === "escalated");
+      const entries = escalated.map((ticket) => {
+        const escalation = getMetadata(ticket.metadata.escalation as Record<string, unknown> | undefined);
+        const escalatedAt = typeof escalation.escalatedAt === "string" ? escalation.escalatedAt : null;
+        const escalatedMs = escalatedAt ? Date.parse(escalatedAt) : NaN;
+        return {
+          ticketId: ticket.id,
+          subject: ticket.subject,
+          priority: ticket.priority,
+          owner: ticket.owner,
+          reason: typeof escalation.reason === "string" ? escalation.reason : null,
+          escalatedAt,
+          ageHours: Number.isNaN(escalatedMs) ? null : Math.round(((Date.now() - escalatedMs) / 3600000) * 10) / 10
+        };
+      });
+      entries.sort((a, b) => (b.ageHours ?? -1) - (a.ageHours ?? -1));
+      return { entries, count: entries.length };
+    });
+  }
+
+  // SPM-004: reassign an escalation owner or return the ticket to L1.
+  async reviewEscalation(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: ReviewEscalationRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    if (!escalationReviewDecisions.includes(input.decision)) {
+      throw new AppError(400, "Invalid escalation decision.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const escalationReview = { decision: input.decision, note: input.note?.trim() || null, reviewedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email }, reviewedAt: new Date().toISOString() };
+      const nextMetadata = JSON.stringify({ ...ticket.metadata, escalationReview });
+      if (input.decision === "reassign") {
+        const ownerId = await this.ensureReference(client, actor.tenantId, "users", input.ownerId, "INVALID_OWNER", "owner");
+        if (!ownerId) {
+          throw new AppError(400, "An owner is required to reassign an escalation.", undefined, "VALIDATION_ERROR");
+        }
+        await client.query(`UPDATE support_tickets SET owner_id = $3, escalation_status = 'escalated', metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, ownerId, nextMetadata, actor.userId]);
+        if (ownerId !== actor.userId) {
+          await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: ownerId, title: "Escalation reassigned to you", message: escalationReview.note || "A support manager reassigned this escalation to you.", linkedRecord: { entityType: "ticket", entityId: ticketId } });
+        }
+      } else {
+        await client.query(`UPDATE support_tickets SET escalation_status = 'none', metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, nextMetadata, actor.userId]);
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "support.manager.escalation_review", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { decision: input.decision } });
+    });
+    return this.getTicket(actor, ticketId);
+  }
+
+  // SPM-005: capture a CSAT survey response, completing the L1-triggered survey.
+  async recordCsat(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: RecordCsatRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    if (typeof input.score !== "number" || input.score < 1 || input.score > 5) {
+      throw new AppError(400, "CSAT score must be between 1 and 5.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const existing = getMetadata(ticket.metadata.csat as Record<string, unknown> | undefined);
+      const csat = {
+        ...existing,
+        score: input.score,
+        comment: input.comment?.trim() || null,
+        band: resolveCsatBand(input.score),
+        recordedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email },
+        recordedAt: new Date().toISOString(),
+        awaitingConfirmation: false
+      };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, csat }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.manager.csat", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { score: input.score, band: csat.band } });
+    });
+    return this.getTicket(actor, ticketId);
   }
 
   private async loadTicketBasicsWithClient(tenantId: string, ticketId: string) {

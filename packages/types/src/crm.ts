@@ -3705,6 +3705,8 @@ export interface SupportTicketOptionsResponse {
   sources: CrmOptionValueSummary[];
   knowledgeCategories: CrmOptionValueSummary[];
   rootCauses: CrmOptionValueSummary[];
+  // Persona 23 (Support Manager) SPM-003: configurable SLA-breach reasons.
+  breachReasons: CrmOptionValueSummary[];
   slaPolicies: SupportSlaPolicySummary[];
   availableScopes: SupportTicketScope[];
   fieldDefinitions: CrmFieldDefinition[];
@@ -3723,6 +3725,14 @@ export interface SupportDashboardResponse {
   priorityDistribution: Array<{ priority: CrmOptionValueSummary | null; ticketCount: number }>;
   knowledgeArticleCount: number;
   csatPlaceholder: SupportPlaceholderSurface;
+  // Persona 23 (Support Manager) SPM-005: real CSAT aggregate once surveys are captured.
+  csat?: {
+    responseCount: number;
+    averageScore: number | null;
+    detractors: number;
+    passives: number;
+    promoters: number;
+  };
 }
 
 // ============================================================================
