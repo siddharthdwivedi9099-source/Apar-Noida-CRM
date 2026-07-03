@@ -1763,6 +1763,16 @@ export class SupportService {
         [ticketId, actor.tenantId, statusId, summary, rootCauseLabel, JSON.stringify({ ...ticket.metadata, csat }), actor.userId]
       );
       await this.recordAuditLog(client, actor, audit, { action: "support.ticket.close", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { requestConfirmation, rootCause: rootCauseLabel } });
+      // Section 14 (ticket_closed): notify the ticket owner when the ticket is closed by someone else.
+      if (ticket.owner_id && ticket.owner_id !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: ticket.owner_id,
+          title: `Ticket ${requestConfirmation ? "resolved" : "closed"}: ${ticket.subject}`,
+          message: `Resolution: ${summary}`,
+          linkedRecord: { entityType: "ticket", entityId: ticketId }
+        });
+      }
     });
     await this.addTicketMessage(actor, audit, ticketId, { body: `Resolution: ${summary}${requestConfirmation ? "\n\nPlease confirm this resolves your issue. We'd also appreciate your feedback via the CSAT survey." : ""}`, messageType: "customer_reply" });
     return this.getTicket(actor, ticketId);

@@ -1554,6 +1554,19 @@ export class PartnersService {
         metadata: { partnerId, opportunityId, stageKey: input.stageKey ?? "registered" }
       });
 
+      // Section 14 (partner_deal_registered): notify the partner owner of the new registration.
+      const ownerRow = await client.query<{ owner_id: string | null }>(`SELECT owner_id FROM partners WHERE id = $1 AND tenant_id = $2`, [partnerId, actor.tenantId]);
+      const partnerOwnerId = ownerRow.rows[0]?.owner_id;
+      if (partnerOwnerId && partnerOwnerId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: partnerOwnerId,
+          title: `Partner deal registered: ${input.name.trim()}`,
+          message: `A new partner deal registration was created${getTrimmedNullableString(input.customerName) ? ` for ${getTrimmedNullableString(input.customerName)}` : ""}.`,
+          linkedRecord: { entityType: "partner_deal_registration", entityId: nextDealId }
+        });
+      }
+
       return nextDealId;
     });
 

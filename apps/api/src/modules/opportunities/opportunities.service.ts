@@ -2861,6 +2861,20 @@ export class OpportunityService {
           updatedFields: keys
         }
       });
+
+      // Section 14 (opportunity_close_date_changed): notify the owner when the
+      // expected close date actually changes.
+      const nextCloseDate = input.expectedCloseDate !== undefined ? input.expectedCloseDate : currentOpportunity.expected_close_date;
+      const closeDateChanged = input.expectedCloseDate !== undefined && String(nextCloseDate ?? "") !== String(currentOpportunity.expected_close_date ?? "");
+      if (closeDateChanged && ownerId && ownerId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: ownerId,
+          title: `Close date changed: ${currentOpportunity.name}`,
+          message: `The expected close date was updated to ${String(nextCloseDate ?? "unset")}.`,
+          linkedRecord: { entityType: "opportunity", entityId: opportunityId }
+        });
+      }
     });
 
     return this.getOpportunity(actor, opportunityId);

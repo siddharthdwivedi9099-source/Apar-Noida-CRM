@@ -11,6 +11,7 @@ import {
   defaultRoleTemplateDefinitions,
   defaultWorkflowAutomationDefinitions,
   defaultValidationRuleConfigurationDefinitions,
+  defaultNotificationRuleConfigurationDefinitions,
   findWorkflowAction,
   type WorkflowAutomationSeed,
   defaultTenantCoreSettings,
@@ -63,6 +64,7 @@ function createSeedChecksum(options: CoreSeedOptions) {
         personaAccessConfigurationDefinitions: defaultPersonaAccessConfigurationDefinitions,
         workflowAutomationDefinitions: defaultWorkflowAutomationDefinitions,
         validationRuleConfigurationDefinitions: defaultValidationRuleConfigurationDefinitions,
+        notificationRuleConfigurationDefinitions: defaultNotificationRuleConfigurationDefinitions,
         customFormLayouts: defaultCustomFormLayoutDefinitions
       })
     )
@@ -1206,6 +1208,14 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       });
     }
 
+    for (const definition of defaultNotificationRuleConfigurationDefinitions) {
+      await upsertConfigurationDefinition(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition
+      });
+    }
+
     await upsertTenantSystemSetting(client, {
       tenantId,
       actorUserId: adminUserId,
@@ -1224,7 +1234,8 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
         leadScoringConfigurationDefinitionCount: defaultLeadScoringConfigurationDefinitions.length,
         leadAssignmentConfigurationDefinitionCount: defaultLeadAssignmentConfigurationDefinitions.length,
         workflowAutomationCount: defaultWorkflowAutomationDefinitions.length,
-        validationRuleDefinitionCount: defaultValidationRuleConfigurationDefinitions.length
+        validationRuleDefinitionCount: defaultValidationRuleConfigurationDefinitions.length,
+        notificationRuleDefinitionCount: defaultNotificationRuleConfigurationDefinitions.length
       },
       description: "Bootstrap metadata for the default development tenant.",
       metadata: {
