@@ -12,6 +12,8 @@ import {
   defaultWorkflowAutomationDefinitions,
   defaultValidationRuleConfigurationDefinitions,
   defaultNotificationRuleConfigurationDefinitions,
+  defaultJourneyConfigurationDefinitions,
+  buildConfigurationDimensionsSettingValue,
   findWorkflowAction,
   type WorkflowAutomationSeed,
   defaultTenantCoreSettings,
@@ -65,6 +67,7 @@ function createSeedChecksum(options: CoreSeedOptions) {
         workflowAutomationDefinitions: defaultWorkflowAutomationDefinitions,
         validationRuleConfigurationDefinitions: defaultValidationRuleConfigurationDefinitions,
         notificationRuleConfigurationDefinitions: defaultNotificationRuleConfigurationDefinitions,
+        journeyConfigurationDefinitions: defaultJourneyConfigurationDefinitions,
         customFormLayouts: defaultCustomFormLayoutDefinitions
       })
     )
@@ -1216,6 +1219,23 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       });
     }
 
+    for (const definition of defaultJourneyConfigurationDefinitions) {
+      await upsertConfigurationDefinition(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition
+      });
+    }
+
+    await upsertTenantSystemSetting(client, {
+      tenantId,
+      actorUserId: adminUserId,
+      settingKey: "tenant.configuration_dimensions",
+      settingValue: buildConfigurationDimensionsSettingValue(),
+      description: "The 15 configuration dimensions every process can be scoped by (AI-native revenue OS).",
+      metadata: { seeded: true, phase: "section-16-revenue-os", category: "revenue-os" }
+    });
+
     await upsertTenantSystemSetting(client, {
       tenantId,
       actorUserId: adminUserId,
@@ -1235,7 +1255,8 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
         leadAssignmentConfigurationDefinitionCount: defaultLeadAssignmentConfigurationDefinitions.length,
         workflowAutomationCount: defaultWorkflowAutomationDefinitions.length,
         validationRuleDefinitionCount: defaultValidationRuleConfigurationDefinitions.length,
-        notificationRuleDefinitionCount: defaultNotificationRuleConfigurationDefinitions.length
+        notificationRuleDefinitionCount: defaultNotificationRuleConfigurationDefinitions.length,
+        journeyDefinitionCount: defaultJourneyConfigurationDefinitions.length
       },
       description: "Bootstrap metadata for the default development tenant.",
       metadata: {

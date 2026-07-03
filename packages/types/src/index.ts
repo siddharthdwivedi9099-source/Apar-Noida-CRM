@@ -49,6 +49,7 @@ export * from "./workflow-automations.js";
 export * from "./validation-rules.js";
 export * from "./notification-rules.js";
 export * from "./role-access-expectations.js";
+export * from "./revenue-os.js";
 export * from "./notifications.js";
 export * from "./customer-portal.js";
 export * from "./audit.js";
