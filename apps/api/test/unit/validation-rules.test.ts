@@ -30,11 +30,16 @@ describe("Section 13: validation-rule catalogue", () => {
     }
   });
 
-  it("every rule is wired to a service enforcement site", () => {
+  it("documents an enforcement site for every rule and enforces all but the un-hookable MQL rule at a service gate", () => {
     for (const rule of validationRuleCatalog) {
-      expect(rule.enforcement).toBe("service");
       expect((rule.enforcedBy ?? "").trim().length).toBeGreaterThan(0);
     }
+    const serviceEnforced = validationRuleCatalog.filter((rule) => rule.enforcement === "service");
+    const catalogOnly = validationRuleCatalog.filter((rule) => rule.enforcement === "catalog");
+    // 14 rules have a live service gate; only the become-MQL rule lacks a lifecycle
+    // endpoint to hook (MQL is a computed classification, not a manual transition).
+    expect(serviceEnforced.length).toBe(14);
+    expect(catalogOnly.map((rule) => rule.key)).toEqual(["lead_mql_requires_score_consent"]);
   });
 
   it("looks rules up by key and entity", () => {

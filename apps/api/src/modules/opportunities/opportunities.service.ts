@@ -59,7 +59,7 @@ import type {
   UpdateOpportunityRequestBody
 } from "@crm/types";
 import { evaluateBuyingCommitteeCompleteness, evaluateDiscovery } from "@crm/types";
-import { evaluateCloseWon, evaluateClosedRecordEdit, evaluateStageTransition } from "@crm/types";
+import { evaluateCloseWon, evaluateClosedRecordEdit, evaluateStageTransition, evaluateProposalSubmission, evaluateDemoRequest } from "@crm/types";
 import { deliveryRiskDimensions, evaluateTechnicalDiscovery, summarizeDeliveryRisk, technicalDiscoveryFieldKeys } from "@crm/types";
 import { evaluateLegalClauses, evaluateLegalSla } from "@crm/types";
 import { randomUUID } from "node:crypto";
@@ -2703,6 +2703,13 @@ export class OpportunityService {
       // ES-005: large deals cannot move into final negotiation until the governance review is complete.
       const movingToNegotiation = resolvedStageKey === "negotiation" && currentOpportunity.stage_key !== "negotiation";
       if (movingToNegotiation) {
+        // R5 (Section 13): cannot advance to negotiation without a submitted proposal.
+        const proposalStatus = String(getRecord(getSalesExecRoot(currentOpportunity.metadata).proposal).status ?? "");
+        const proposalSubmitted = ["pending_approval", "approved", "sent"].includes(proposalStatus);
+        const negotiationCheck = evaluateStageTransition("negotiation", { proposalSubmitted });
+        if (!negotiationCheck.valid) {
+          throw new AppError(400, negotiationCheck.violations[0].message, undefined, "PROPOSAL_REQUIRED");
+        }
         const nextAmount = input.amount !== undefined ? toNullableNumber(input.amount) : toNullableNumber(currentOpportunity.amount);
         if ((nextAmount ?? 0) >= DEFAULT_DEAL_REVIEW_THRESHOLD) {
           const review = readDealReview(getEnterpriseRoot(currentOpportunity.metadata));
@@ -3053,8 +3060,12 @@ export class OpportunityService {
     await this.databaseService.withTransaction(async (client) => {
       this.assertOpportunityMutation(actor, ["execWorkspace"]);
       const useCase = getTrimmedNullableString(input.useCase);
-      if (!useCase) {
-        throw new AppError(400, "A demo use case is required.", undefined, "VALIDATION_ERROR");
+      const audience = getTrimmedNullableString(input.audience);
+      // R10 (Section 13): a demo request needs a use case and customer context (audience).
+      const demoCheck = evaluateDemoRequest({ useCase, audience });
+      if (!demoCheck.valid) {
+        const field = demoCheck.violations[0].field;
+        throw new AppError(400, field === "audience" ? "Customer context (audience) is required for a demo request." : "A demo use case is required.", undefined, "VALIDATION_ERROR");
       }
       const current = await this.getOpportunityState(client, actor.tenantId, opportunityId);
       const presalesOwnerId = await this.ensureOwnerId(client, actor.tenantId, input.presalesOwnerId);
@@ -3086,7 +3097,7 @@ export class OpportunityService {
         notificationType: "record_assignment",
         recipientUserId: presalesOwnerId,
         title: `Demo requested: ${current.name}`,
-        message: useCase,
+        message: useCase ?? "Demo requested.",
         linkedRecord: { entityType: "opportunity", entityId: opportunityId }
       });
       await this.recordAuditLog(client, actor, audit, { action: "opportunity.demo.request", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { presalesOwnerId } });
@@ -3123,6 +3134,16 @@ export class OpportunityService {
       const root = getSalesExecRoot(current.metadata);
       const existing = getRecord(root.proposal);
       const requireApproval = Boolean(input.requireApproval);
+      // R8 (Section 13): a discounted proposal cannot be submitted without approval.
+      // If the opportunity carries an unapproved discount, the proposal must be
+      // routed for approval (requireApproval) rather than saved as an approved draft.
+      const discountState = getRecord(root.discount);
+      const discountPercent = metaNumber(discountState, "percent") ?? 0;
+      const discountApproved = discountState.status === "approved";
+      const proposalCheck = evaluateProposalSubmission({ discountPercent, discountApproved: discountApproved || requireApproval });
+      if (!proposalCheck.valid) {
+        throw new AppError(400, proposalCheck.violations[0].message, undefined, "DISCOUNT_APPROVAL_REQUIRED");
+      }
       let approvalId = metaString(existing, "approvalId");
       let status: OpportunityProposalState["status"] = "draft";
 

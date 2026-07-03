@@ -48,7 +48,7 @@ export interface ValidationOutcome {
 // ---------------------------------------------------------------------------
 
 export const validationRuleCatalog: ValidationRuleDefinition[] = [
-  { key: "lead_mql_requires_score_consent", entity: "lead", transition: "to_mql", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "lead scoring / mql_rule engine (score threshold + criteria)",
+  { key: "lead_mql_requires_score_consent", entity: "lead", transition: "to_mql", severity: "error", defaultEnabled: true, enforcement: "catalog", enforcedBy: "mql_rule config + evaluateMql resolver defined (score threshold + consent criterion); no become-MQL lifecycle endpoint to gate yet",
     description: "Lead cannot become MQL without a score and a consent status.", params: { requiredFields: ["score", "consentStatus"] } },
   { key: "lead_sql_requires_qualification", entity: "lead", transition: "to_sql", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "crm.convertLead readiness (BANT qualification checklist)",
     description: "Lead cannot become SQL without qualification fields (budget, authority, need, timeline).", params: { requiredFields: ["budget", "authority", "need", "timeline"] } },
