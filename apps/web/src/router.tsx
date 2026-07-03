@@ -16,6 +16,7 @@ import { AgentRegistryPage } from "./pages/agent-registry-page";
 import { PromptRegistryPage } from "./pages/prompt-registry-page";
 import { AiActionsPage } from "./pages/ai-actions-page";
 import { AiGovernancePage } from "./pages/ai-governance-page";
+import { AiAgentsPage } from "./pages/ai-agents-page";
 import { KnowledgeManagerPage } from "./pages/knowledge-manager-page";
 import { DocumentUploadPage } from "./pages/document-upload-page";
 import { KnowledgeArticleEditorPage } from "./pages/knowledge-article-editor-page";
@@ -1026,6 +1027,19 @@ export const router = createBrowserRouter([
                 moduleKey="ai"
               >
                 <AiGovernancePage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "ai-agents",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.aiAssistant}
+                title="AI agents access is limited by role."
+                description="Open AI agents with a role that includes AI access for the tenant."
+                moduleKey="ai"
+              >
+                <AiAgentsPage />
               </PermissionRoute>
             )
           },

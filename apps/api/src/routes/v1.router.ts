@@ -15,6 +15,7 @@ import { createSystemRouter } from "../modules/system/system.router.js";
 import { createDataQualityRouter } from "../modules/data-quality/data-quality.router.js";
 import { createExecutiveRouter } from "../modules/executive/executive.router.js";
 import { createCrossFunctionalRouter } from "../modules/cross-functional/cross-functional.router.js";
+import { createAiAgentsRouter } from "../modules/ai-agents/ai-agents.router.js";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
 import {
   createBusinessDevelopmentRouter,
@@ -115,6 +116,7 @@ export function createV1Router({
   router.use("/data-quality", createDataQualityRouter({ databaseService }));
   router.use("/executive", createExecutiveRouter({ databaseService }));
   router.use("/cross-functional", createCrossFunctionalRouter({ databaseService }));
+  router.use("/ai-agents", createAiAgentsRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;

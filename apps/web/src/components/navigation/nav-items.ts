@@ -271,6 +271,14 @@ export const appNavItems: AppNavItem[] = [
     requiredPermissionCodes: routePermissionRequirements.aiAssistant
   },
   {
+    title: "AI Agents",
+    href: "/ai-agents",
+    description: "Governed AI agents: enrich, score, draft, summarize, risk, forecast, triage, health, knowledge.",
+    icon: Sparkles,
+    moduleKey: "ai",
+    requiredPermissionCodes: routePermissionRequirements.aiAssistant
+  },
+  {
     title: "Workflows",
     href: "/workflows",
     description: "Configurable triggers, conditions, actions, and run logs.",
