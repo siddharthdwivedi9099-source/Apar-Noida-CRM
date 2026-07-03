@@ -55,6 +55,7 @@ import { LeadDetailPage } from "./pages/lead-detail-page";
 import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
 import { DataQualityPage } from "./pages/data-quality-page";
+import { RecordToolsPage } from "./pages/record-tools-page";
 import { LoginPage } from "./pages/login-page";
 import { ModuleSettingsPage } from "./pages/module-settings-page";
 import { OpportunityDetailPage } from "./pages/opportunity-detail-page";
@@ -525,6 +526,19 @@ export const router = createBrowserRouter([
                 moduleKey="leads"
               >
                 <DataQualityPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "record-tools",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.leads}
+                title="Record tools are limited by role."
+                description="Open record tools with a role that includes Leads access."
+                moduleKey="leads"
+              >
+                <RecordToolsPage />
               </PermissionRoute>
             )
           },

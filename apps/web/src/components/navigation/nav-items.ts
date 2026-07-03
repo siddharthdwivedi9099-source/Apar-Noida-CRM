@@ -111,6 +111,14 @@ export const appNavItems: AppNavItem[] = [
     requiredPermissionCodes: routePermissionRequirements.leads
   },
   {
+    title: "Record Tools",
+    href: "/record-tools",
+    description: "Next best action, meeting intelligence, ownership, documents, and comments.",
+    icon: ScrollText,
+    moduleKey: "leads",
+    requiredPermissionCodes: routePermissionRequirements.leads
+  },
+  {
     title: "SDR Workspace",
     href: "/sales/sdr",
     description: "Prospecting queue, qualification flow, and lead handoff execution.",
