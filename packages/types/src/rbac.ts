@@ -319,6 +319,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     description: "Runs marketing execution, campaign delivery, and supporting analysis.",
     permissionCodes: unique([
       ...permissionsForModules(["marketing", "campaigns"], contributorActions),
+      // Section 15: Marketing can view campaign leads (read-only; cannot own/close them).
+      ...permissionsForModules(["leads"], ["view"]),
       ...notificationParticipantPermissions,
       ...approvalViewerPermissions,
       ...dashboardViewerPermissions,
@@ -864,6 +866,8 @@ export const defaultRoleTemplateDefinitions: RoleTemplateDefinition[] = [
     permissionCodes: unique([
       ...permissionsForModules(["customer_success", "accounts"], managerActions),
       ...permissionsForModules(["training", "customer_query"], ["view", "edit", "export"]),
+      // Section 15: Customer Success can view support history for their customers.
+      ...permissionsForModules(["support"], ["view", "export"]),
       ...notificationParticipantPermissions,
       ...approvalOperatorPermissions,
       ...dashboardViewerPermissions,
