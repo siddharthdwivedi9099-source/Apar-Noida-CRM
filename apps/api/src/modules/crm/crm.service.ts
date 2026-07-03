@@ -4,6 +4,8 @@ import {
   defaultCoreCrmObjectDefinitions,
   evaluateLeadConversionReadiness,
   evaluateLeadRuntime,
+  evaluateMql,
+  evaluateMqlReadiness,
   mapLeadSourceToOpportunitySource,
   normalizeCustomFieldSettings
 } from "@crm/types";
@@ -2770,6 +2772,34 @@ export class CrmService {
     return config;
   }
 
+  // R1 (Section 13): MQL is a governed computed classification. A lead can only
+  // be flagged MQL when it has a score AND a consent status (readiness), and then
+  // only when the configurable mql_rule (score threshold + required fields +
+  // criteria) passes. This makes "cannot become MQL without score and consent"
+  // true by construction — the flag cannot be set manually bypassing the rule.
+  private async buildLeadMqlState(
+    client: PoolClient,
+    tenantId: string,
+    lead: { score: number | null; sourceKey: string | null; metadata: Record<string, unknown>; customFields: Record<string, unknown> }
+  ): Promise<{ isMql: boolean; reasons: string[]; evaluatedAt: string }> {
+    const record: Record<string, unknown> = { leadSource: lead.sourceKey, ...lead.metadata, ...lead.customFields };
+    const evaluatedAt = new Date().toISOString();
+    const readiness = evaluateMqlReadiness({ score: lead.score, consentStatus: record.consentStatus });
+    if (!readiness.valid) {
+      return { isMql: false, reasons: readiness.violations.map((violation) => violation.message), evaluatedAt };
+    }
+    const config = await this.loadLeadRuntimeConfiguration(client, tenantId);
+    if (!config.mqlRule) {
+      return { isMql: false, reasons: ["No MQL rule is configured for this tenant."], evaluatedAt };
+    }
+    const evaluation = evaluateMql(
+      config.mqlRule.payload,
+      { finalScore: Number(lead.score ?? 0), dimensionScores: {}, grade: null, breakdown: [] },
+      record
+    );
+    return { isMql: evaluation.isMql, reasons: evaluation.reasons, evaluatedAt };
+  }
+
   private async loadLeadDetail(client: PoolClient, tenantId: string, leadId: string): Promise<LeadDetail> {
     const result = await client.query<LeadRecordRow>(
       `
@@ -2883,6 +2913,14 @@ export class CrmService {
       const statusOptionId = await this.resolveOptionValueId(client, actor.tenantId, "lead-status", input.statusKey, "Lead status");
       const sourceOptionId = await this.resolveOptionValueId(client, actor.tenantId, "lead-source", input.sourceKey, "Lead source");
       const customFields = await this.sanitizeCustomFields(client, actor.tenantId, "lead", input.customFields);
+      const baseMetadata = getMetadata(input.metadata ?? {});
+      const mql = await this.buildLeadMqlState(client, actor.tenantId, {
+        score: input.score ?? null,
+        sourceKey: input.sourceKey,
+        metadata: baseMetadata,
+        customFields
+      });
+      const leadMetadata = { ...baseMetadata, mql };
       const result = await client.query<{ id: string }>(
         `
           INSERT INTO leads (
@@ -2916,7 +2954,7 @@ export class CrmService {
           sourceOptionId,
           input.score ?? null,
           JSON.stringify(customFields),
-          JSON.stringify(input.metadata ?? {}),
+          JSON.stringify(leadMetadata),
           actor.userId
         ]
       );
@@ -3354,6 +3392,13 @@ export class CrmService {
         input.customFields !== undefined
           ? await this.sanitizeCustomFields(client, actor.tenantId, "lead", input.customFields, getMetadata(currentLead.custom_fields))
           : getMetadata(currentLead.custom_fields);
+      const resolvedScore = input.score !== undefined ? input.score : currentLead.score;
+      metadata.mql = await this.buildLeadMqlState(client, actor.tenantId, {
+        score: resolvedScore ?? null,
+        sourceKey: input.sourceKey ?? currentLead.source_key,
+        metadata,
+        customFields
+      });
 
       await client.query(
         `
