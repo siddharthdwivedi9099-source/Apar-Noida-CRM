@@ -372,7 +372,7 @@ export class DashboardService {
 
   private async pipelineValue(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
     const result = await client.query<{ total: string; open_count: number }>(
-      `SELECT COALESCE(SUM(COALESCE(NULLIF(o.metadata->>'amount', '')::numeric, 0)), 0) AS total, COUNT(*)::int AS open_count
+      `SELECT COALESCE(SUM(COALESCE(o.amount, NULLIF(o.metadata->>'amount', '')::numeric, 0)), 0) AS total, COUNT(*)::int AS open_count
        FROM opportunities o
        LEFT JOIN tenant_option_values ov ON ov.id = o.outcome_status_option_id AND ov.tenant_id = o.tenant_id
        WHERE o.tenant_id = $1 AND o.deleted_at IS NULL AND (ov.value_key IS NULL OR (ov.value_key NOT ILIKE '%won%' AND ov.value_key NOT ILIKE '%lost%'))`,
