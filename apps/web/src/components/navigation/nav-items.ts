@@ -119,6 +119,14 @@ export const appNavItems: AppNavItem[] = [
     requiredPermissionCodes: routePermissionRequirements.leads
   },
   {
+    title: "Edge Cases",
+    href: "/exceptions",
+    description: "Duplicate leads, existing-customer routing, recycling, regression, complaints, conflicts, margin.",
+    icon: LifeBuoy,
+    moduleKey: "leads",
+    requiredPermissionCodes: routePermissionRequirements.leads
+  },
+  {
     title: "SDR Workspace",
     href: "/sales/sdr",
     description: "Prospecting queue, qualification flow, and lead handoff execution.",

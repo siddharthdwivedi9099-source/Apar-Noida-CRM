@@ -3187,6 +3187,11 @@ export class OpportunityService {
       if (discountStatus === "pending_approval") {
         throw new AppError(400, "Resolve the pending discount approval before closing won.", undefined, "DISCOUNT_PENDING");
       }
+      // EXC-009: a high-risk margin requires senior approval before the deal can close.
+      const marginRisk = getRecord(root.marginRisk);
+      if (marginRisk.requiresSeniorApproval === true && marginRisk.approved !== true) {
+        throw new AppError(400, "Senior margin approval is required before this discounted deal can close.", undefined, "MARGIN_APPROVAL_REQUIRED");
+      }
       const onboardingOwnerId = await this.ensureOwnerId(client, actor.tenantId, input.onboardingOwnerId);
       if (!onboardingOwnerId) {
         throw new AppError(400, "An onboarding owner (CSM) is required to close won.", undefined, "VALIDATION_ERROR");

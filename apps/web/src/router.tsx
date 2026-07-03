@@ -57,6 +57,7 @@ import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
 import { DataQualityPage } from "./pages/data-quality-page";
 import { RecordToolsPage } from "./pages/record-tools-page";
+import { ExceptionsPage } from "./pages/exceptions-page";
 import { LoginPage } from "./pages/login-page";
 import { ModuleSettingsPage } from "./pages/module-settings-page";
 import { OpportunityDetailPage } from "./pages/opportunity-detail-page";
@@ -540,6 +541,19 @@ export const router = createBrowserRouter([
                 moduleKey="leads"
               >
                 <RecordToolsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "exceptions",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.leads}
+                title="Edge-case handling is limited by role."
+                description="Open exception handling with a role that includes Leads access."
+                moduleKey="leads"
+              >
+                <ExceptionsPage />
               </PermissionRoute>
             )
           },

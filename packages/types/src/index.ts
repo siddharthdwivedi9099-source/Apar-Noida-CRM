@@ -35,6 +35,7 @@ export * from "./data-quality.js";
 export * from "./executive.js";
 export * from "./cross-functional.js";
 export * from "./ai-agents.js";
+export * from "./exceptions.js";
 export * from "./core-crm-metadata.js";
 export * from "./persona-access-metadata.js";
 export * from "./ai.js";
