@@ -42,6 +42,7 @@ import { CustomerSuccessPage } from "./pages/customer-success-page";
 import { TrainingPage } from "./pages/training-page";
 import { DashboardPage } from "./pages/dashboard-page";
 import { AnalyticsDashboardsPage } from "./pages/analytics-dashboards-page";
+import { ExecutivePage } from "./pages/executive-page";
 import { ApprovalsPage } from "./pages/approvals-page";
 import { NotificationsPage } from "./pages/notifications-page";
 import { WorkflowsPage } from "./pages/workflows-page";
@@ -329,6 +330,19 @@ export const router = createBrowserRouter([
                 moduleKey="dashboards"
               >
                 <AnalyticsDashboardsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "executive",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.dashboard}
+                title="The executive command center is limited by role."
+                description="Your current role set does not include executive dashboard visibility for this tenant."
+                moduleKey="dashboards"
+              >
+                <ExecutivePage />
               </PermissionRoute>
             )
           },

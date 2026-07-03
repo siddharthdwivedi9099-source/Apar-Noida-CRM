@@ -55,6 +55,14 @@ export const appNavItems: AppNavItem[] = [
     requiredPermissionCodes: routePermissionRequirements.dashboard
   },
   {
+    title: "Executive",
+    href: "/executive",
+    description: "Command center KPIs, AI business insights, and strategic risk register.",
+    icon: Presentation,
+    moduleKey: "dashboards",
+    requiredPermissionCodes: routePermissionRequirements.dashboard
+  },
+  {
     title: "Customer Portal",
     href: "/portal/dashboard",
     description: "External customer tickets, training, approved knowledge, and customer-safe AI.",
