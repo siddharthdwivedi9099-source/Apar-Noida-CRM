@@ -30,6 +30,13 @@ describe("Section 13: validation-rule catalogue", () => {
     }
   });
 
+  it("every rule is wired to a service enforcement site", () => {
+    for (const rule of validationRuleCatalog) {
+      expect(rule.enforcement).toBe("service");
+      expect((rule.enforcedBy ?? "").trim().length).toBeGreaterThan(0);
+    }
+  });
+
   it("looks rules up by key and entity", () => {
     expect(findValidationRule("opp_close_won_requires_completion")?.entity).toBe("opportunity");
     expect(findValidationRule("does-not-exist")).toBeUndefined();

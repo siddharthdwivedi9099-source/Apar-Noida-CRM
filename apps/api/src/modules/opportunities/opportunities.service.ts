@@ -59,7 +59,7 @@ import type {
   UpdateOpportunityRequestBody
 } from "@crm/types";
 import { evaluateBuyingCommitteeCompleteness, evaluateDiscovery } from "@crm/types";
-import { evaluateCloseWon, evaluateClosedRecordEdit } from "@crm/types";
+import { evaluateCloseWon, evaluateClosedRecordEdit, evaluateStageTransition } from "@crm/types";
 import { deliveryRiskDimensions, evaluateTechnicalDiscovery, summarizeDeliveryRisk, technicalDiscoveryFieldKeys } from "@crm/types";
 import { evaluateLegalClauses, evaluateLegalSla } from "@crm/types";
 import { randomUUID } from "node:crypto";
@@ -2683,6 +2683,22 @@ export class OpportunityService {
         input.outcomeStatusKey === undefined ? currentOpportunity.outcome_status_key : input.outcomeStatusKey
       );
       assertStageAndOutcomeConsistency(resolvedStageKey, resolvedOutcomeStatusKey);
+
+      // R4 (Section 13): cannot advance to proposal until critical discovery is complete.
+      // Safe by construction: when a tenant has configured no critical discovery fields,
+      // there is nothing to satisfy and the move is allowed.
+      const movingToProposal = resolvedStageKey === "proposal" && currentOpportunity.stage_key !== "proposal";
+      if (movingToProposal) {
+        const aeConfig = await this.loadAeConfig(client, actor.tenantId);
+        if (aeConfig.criticalDiscoveryKeys.length > 0) {
+          const discovery = evaluateDiscovery(aeConfig.discoveryFields, getRecord(getSalesExecRoot(currentOpportunity.metadata).discovery) as Record<string, string>);
+          const criticalSatisfied = aeConfig.criticalDiscoveryKeys.every((key) => discovery.items.some((item) => item.key === key && item.completed));
+          const discoveryCheck = evaluateStageTransition("proposal", { discoveryComplete: criticalSatisfied });
+          if (!discoveryCheck.valid) {
+            throw new AppError(400, discoveryCheck.violations[0].message, undefined, "DISCOVERY_INCOMPLETE");
+          }
+        }
+      }
 
       // ES-005: large deals cannot move into final negotiation until the governance review is complete.
       const movingToNegotiation = resolvedStageKey === "negotiation" && currentOpportunity.stage_key !== "negotiation";

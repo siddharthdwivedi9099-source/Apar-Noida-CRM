@@ -35,7 +35,7 @@ import type {
   ResolvePartnerConflictRequestBody,
   SubmitPartnerApplicationRequestBody
 } from "@crm/types";
-import { computePartnerFitScore, computePartnerWinRate, detectChannelConflicts } from "@crm/types";
+import { computePartnerFitScore, computePartnerWinRate, detectChannelConflicts, evaluatePartnerApproval } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import {
@@ -1827,6 +1827,17 @@ export class PartnersService {
       let nextMetadata: Record<string, unknown> = { ...metadata, decisionNote: input.note?.trim() || null, decidedAt: new Date().toISOString() };
       let stageKey: string | null = null;
       if (input.decision === "approved") {
+        // R13 (Section 13): a partner deal cannot be approved while a duplicate
+        // channel conflict for its account/customer is still unresolved.
+        const conflictResolved = metadata.conflictResolution === "won" || metadata.conflictResolution === "lost";
+        const conflicts = await this.getChannelConflicts(actor);
+        const inActiveConflict = conflicts.conflicts.some((group) =>
+          group.registrations.length > 1 && group.registrations.some((registration) => registration.dealId === dealId)
+        );
+        const conflictCheck = evaluatePartnerApproval({ conflictUnresolved: inActiveConflict && !conflictResolved });
+        if (!conflictCheck.valid) {
+          throw new AppError(409, conflictCheck.violations[0].message, undefined, "PARTNER_CONFLICT_UNRESOLVED");
+        }
         stageKey = "approved";
         const protectionDays = input.protectionDays && input.protectionDays > 0 ? input.protectionDays : 90;
         nextMetadata.protectionUntil = new Date(Date.now() + protectionDays * 24 * 60 * 60 * 1000).toISOString();

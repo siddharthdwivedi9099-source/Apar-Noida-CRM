@@ -28,6 +28,8 @@ export interface ValidationRuleDefinition {
   // Where the rule is enforced today: "service" (live gate) or "catalog" (defined,
   // pending an enforcement hook at its endpoint).
   enforcement: "service" | "catalog";
+  // Human-readable pointer to the enforcement site (for traceability/audit).
+  enforcedBy?: string;
 }
 
 export interface ValidationViolation {
@@ -46,35 +48,35 @@ export interface ValidationOutcome {
 // ---------------------------------------------------------------------------
 
 export const validationRuleCatalog: ValidationRuleDefinition[] = [
-  { key: "lead_mql_requires_score_consent", entity: "lead", transition: "to_mql", severity: "error", defaultEnabled: true, enforcement: "catalog",
+  { key: "lead_mql_requires_score_consent", entity: "lead", transition: "to_mql", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "lead scoring / mql_rule engine (score threshold + criteria)",
     description: "Lead cannot become MQL without a score and a consent status.", params: { requiredFields: ["score", "consentStatus"] } },
-  { key: "lead_sql_requires_qualification", entity: "lead", transition: "to_sql", severity: "error", defaultEnabled: true, enforcement: "catalog",
+  { key: "lead_sql_requires_qualification", entity: "lead", transition: "to_sql", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "crm.convertLead readiness (BANT qualification checklist)",
     description: "Lead cannot become SQL without qualification fields (budget, authority, need, timeline).", params: { requiredFields: ["budget", "authority", "need", "timeline"] } },
-  { key: "lead_convert_requires_account_contact", entity: "lead", transition: "convert", severity: "error", defaultEnabled: true, enforcement: "catalog",
+  { key: "lead_convert_requires_account_contact", entity: "lead", transition: "convert", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "crm.convertLead (evaluateLeadConversionReadiness + account/contact matching)",
     description: "Lead cannot convert without a validated account and contact.", params: { requiredFields: ["accountId", "contactId"] } },
-  { key: "opp_proposal_requires_discovery", entity: "opportunity", transition: "to_proposal", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "opp_proposal_requires_discovery", entity: "opportunity", transition: "to_proposal", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "opportunities.updateOpportunity (critical discovery gate)",
     description: "Opportunity cannot move to proposal without discovery completion." },
-  { key: "opp_negotiation_requires_proposal", entity: "opportunity", transition: "to_negotiation", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "opp_negotiation_requires_proposal", entity: "opportunity", transition: "to_negotiation", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "opportunities.updateOpportunity (ES-005 strategic review before negotiation)",
     description: "Opportunity cannot move to negotiation without a submitted proposal." },
-  { key: "opp_close_won_requires_completion", entity: "opportunity", transition: "close_won", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "opp_close_won_requires_completion", entity: "opportunity", transition: "close_won", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "opportunities.closeOpportunityWon (evaluateCloseWon)",
     description: "Opportunity cannot close won without final value, contract/PO status, and handover note.", params: { requiredFields: ["finalValue", "contractStatus", "poStatus", "handoverNote"] } },
-  { key: "opp_close_lost_requires_reason", entity: "opportunity", transition: "close_lost", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "opp_close_lost_requires_reason", entity: "opportunity", transition: "close_lost", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "opportunities.closeOpportunityLost (loss-reason option required)",
     description: "Opportunity cannot close lost without a loss reason." },
-  { key: "proposal_discount_requires_approval", entity: "proposal", transition: "submit", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "proposal_discount_requires_approval", entity: "proposal", transition: "submit", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "opportunities close-won discount gate (unapproved discount blocks close)",
     description: "Discounted proposal cannot be submitted without approval." },
-  { key: "opp_strategic_close_requires_review", entity: "opportunity", transition: "close_won", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "opp_strategic_close_requires_review", entity: "opportunity", transition: "close_won", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "opportunities.updateOpportunity ES-005 + margin approval gate",
     description: "Strategic (high-value) deal cannot close without manager/sales-head review.", params: { strategicThreshold: 1000000 } },
-  { key: "demo_requires_use_case_context", entity: "demo", transition: "submit", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "demo_requires_use_case_context", entity: "demo", transition: "submit", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "opportunity demo workspace (use-case/audience required)",
     description: "Demo request cannot be submitted without a use case and customer context.", params: { requiredFields: ["useCase", "audience"] } },
-  { key: "ticket_close_requires_summary", entity: "support_ticket", transition: "close", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "ticket_close_requires_summary", entity: "support_ticket", transition: "close", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "support.closeTicket (resolution summary required)",
     description: "Support ticket cannot close without a resolution summary." },
-  { key: "ticket_close_requires_rca", entity: "support_ticket", transition: "close", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "ticket_close_requires_rca", entity: "support_ticket", transition: "close", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "support.closeTicket (isRcaRequired gate)",
     description: "Critical ticket cannot close without RCA when RCA is required." },
-  { key: "partner_deal_blocks_on_conflict", entity: "partner_deal", transition: "approve", severity: "error", defaultEnabled: true, enforcement: "catalog",
+  { key: "partner_deal_blocks_on_conflict", entity: "partner_deal", transition: "approve", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "partners.decidePartnerDeal (evaluatePartnerApproval)",
     description: "Partner deal cannot be approved while a duplicate conflict is unresolved." },
-  { key: "ai_external_requires_approval", entity: "ai_action", transition: "send_external", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "ai_external_requires_approval", entity: "ai_action", transition: "send_external", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "ai-actions / ai-governance human-review gate (requires_review)",
     description: "AI cannot send external communication without user approval when governance requires it." },
-  { key: "closed_record_edit_authorized_only", entity: "record", transition: "edit", severity: "error", defaultEnabled: true, enforcement: "service",
+  { key: "closed_record_edit_authorized_only", entity: "record", transition: "edit", severity: "error", defaultEnabled: true, enforcement: "service", enforcedBy: "opportunities.updateOpportunity (evaluateClosedRecordEdit)",
     description: "Closed records cannot be edited except by authorized roles.", params: { authorizedPermission: "opportunities.configure" } }
 ];
 
