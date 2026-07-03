@@ -45,6 +45,7 @@ export * from "./rag.js";
 export * from "./customer-query.js";
 export * from "./dashboards.js";
 export * from "./workflows.js";
+export * from "./workflow-automations.js";
 export * from "./notifications.js";
 export * from "./customer-portal.js";
 export * from "./audit.js";

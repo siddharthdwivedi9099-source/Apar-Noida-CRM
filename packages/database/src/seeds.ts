@@ -9,6 +9,9 @@ import {
   defaultPersonaAccessConfigurationDefinitions,
   defaultPermissionCatalog,
   defaultRoleTemplateDefinitions,
+  defaultWorkflowAutomationDefinitions,
+  findWorkflowAction,
+  type WorkflowAutomationSeed,
   defaultTenantCoreSettings,
   defaultTenantOptionSetDefinitions,
   defaultTenantTerminologyEntries,
@@ -57,6 +60,7 @@ function createSeedChecksum(options: CoreSeedOptions) {
         coreCrmStandardPicklists: defaultCoreCrmStandardPicklistDefinitions,
         coreCrmConfigurationDefinitions: defaultCoreCrmConfigurationDefinitions,
         personaAccessConfigurationDefinitions: defaultPersonaAccessConfigurationDefinitions,
+        workflowAutomationDefinitions: defaultWorkflowAutomationDefinitions,
         customFormLayouts: defaultCustomFormLayoutDefinitions
       })
     )
@@ -828,6 +832,77 @@ async function upsertConfigurationDefinition(
   );
 }
 
+async function upsertWorkflowAutomation(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    definition: WorkflowAutomationSeed;
+  }
+) {
+  const { tenantId, actorUserId, definition } = input;
+  // Identity is the stable seedKey stored in metadata; the seed is idempotent
+  // and never overwrites a tenant's manual edits to conditions/config.
+  const existing = await client.query<{ id: string }>(
+    `SELECT id FROM workflows WHERE tenant_id = $1 AND metadata->>'seedKey' = $2 AND deleted_at IS NULL LIMIT 1`,
+    [tenantId, definition.seedKey]
+  );
+
+  let workflowId = existing.rows[0]?.id;
+  if (workflowId) {
+    await client.query(
+      `UPDATE workflows SET name = $3, description = $4, module = $5, trigger_type = $6, trigger_config = $7::jsonb, conditions = $8::jsonb,
+         status = 'active', is_enabled = TRUE, deleted_at = NULL, updated_at = NOW(), updated_by = $9,
+         metadata = workflows.metadata || jsonb_build_object('seeded', true, 'seedKey', $2::text, 'phase', 'section-12-workflow-automations')
+       WHERE id = $1 AND tenant_id = $10`,
+      [
+        workflowId,
+        definition.seedKey,
+        definition.name,
+        definition.description,
+        definition.module,
+        definition.triggerType,
+        JSON.stringify(definition.triggerConfig ?? {}),
+        JSON.stringify(definition.conditions ?? []),
+        actorUserId,
+        tenantId
+      ]
+    );
+  } else {
+    const inserted = await client.query<{ id: string }>(
+      `INSERT INTO workflows (tenant_id, name, description, module, trigger_type, trigger_config, conditions, status, is_enabled, metadata, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, 'active', TRUE, jsonb_build_object('seeded', true, 'seedKey', $8::text, 'phase', 'section-12-workflow-automations'), $9, $9)
+       RETURNING id`,
+      [
+        tenantId,
+        definition.name,
+        definition.description,
+        definition.module,
+        definition.triggerType,
+        JSON.stringify(definition.triggerConfig ?? {}),
+        JSON.stringify(definition.conditions ?? []),
+        definition.seedKey,
+        actorUserId
+      ]
+    );
+    workflowId = inserted.rows[0].id;
+  }
+
+  // Re-seed the action list deterministically from the definition (idempotent):
+  // soft-delete previously seeded actions, then insert the current sequence.
+  await client.query(`UPDATE workflow_actions SET deleted_at = NOW() WHERE tenant_id = $1 AND workflow_id = $2 AND metadata->>'seeded' = 'true' AND deleted_at IS NULL`, [tenantId, workflowId]);
+  let sequence = 1;
+  for (const action of definition.actions) {
+    const def = findWorkflowAction(action.actionType);
+    const requiresPermission = action.requiresPermission !== undefined ? action.requiresPermission : def?.defaultRequiredPermission ?? null;
+    await client.query(
+      `INSERT INTO workflow_actions (tenant_id, workflow_id, action_type, action_config, requires_permission, sequence, is_enabled, metadata, created_by, updated_by)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, TRUE, jsonb_build_object('seeded', true), $7, $7)`,
+      [tenantId, workflowId, action.actionType, JSON.stringify(action.actionConfig ?? {}), requiresPermission, sequence++, actorUserId]
+    );
+  }
+}
+
 async function ensureSeedRunsRecord(client: PoolClient, checksum: string) {
   await client.query(
     `
@@ -1113,6 +1188,14 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       });
     }
 
+    for (const automation of defaultWorkflowAutomationDefinitions) {
+      await upsertWorkflowAutomation(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition: automation
+      });
+    }
+
     await upsertTenantSystemSetting(client, {
       tenantId,
       actorUserId: adminUserId,
@@ -1129,7 +1212,8 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
         personaAccessConfigurationDefinitionCount: defaultPersonaAccessConfigurationDefinitions.length,
         bpfConfigurationDefinitionCount: defaultBpfConfigurationDefinitions.length,
         leadScoringConfigurationDefinitionCount: defaultLeadScoringConfigurationDefinitions.length,
-        leadAssignmentConfigurationDefinitionCount: defaultLeadAssignmentConfigurationDefinitions.length
+        leadAssignmentConfigurationDefinitionCount: defaultLeadAssignmentConfigurationDefinitions.length,
+        workflowAutomationCount: defaultWorkflowAutomationDefinitions.length
       },
       description: "Bootstrap metadata for the default development tenant.",
       metadata: {
