@@ -10,6 +10,7 @@ import {
   defaultPermissionCatalog,
   defaultRoleTemplateDefinitions,
   defaultWorkflowAutomationDefinitions,
+  defaultValidationRuleConfigurationDefinitions,
   findWorkflowAction,
   type WorkflowAutomationSeed,
   defaultTenantCoreSettings,
@@ -61,6 +62,7 @@ function createSeedChecksum(options: CoreSeedOptions) {
         coreCrmConfigurationDefinitions: defaultCoreCrmConfigurationDefinitions,
         personaAccessConfigurationDefinitions: defaultPersonaAccessConfigurationDefinitions,
         workflowAutomationDefinitions: defaultWorkflowAutomationDefinitions,
+        validationRuleConfigurationDefinitions: defaultValidationRuleConfigurationDefinitions,
         customFormLayouts: defaultCustomFormLayoutDefinitions
       })
     )
@@ -1196,6 +1198,14 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
       });
     }
 
+    for (const definition of defaultValidationRuleConfigurationDefinitions) {
+      await upsertConfigurationDefinition(client, {
+        tenantId,
+        actorUserId: adminUserId,
+        definition
+      });
+    }
+
     await upsertTenantSystemSetting(client, {
       tenantId,
       actorUserId: adminUserId,
@@ -1213,7 +1223,8 @@ export async function runCoreSeed(pool: Pool, options: CoreSeedOptions): Promise
         bpfConfigurationDefinitionCount: defaultBpfConfigurationDefinitions.length,
         leadScoringConfigurationDefinitionCount: defaultLeadScoringConfigurationDefinitions.length,
         leadAssignmentConfigurationDefinitionCount: defaultLeadAssignmentConfigurationDefinitions.length,
-        workflowAutomationCount: defaultWorkflowAutomationDefinitions.length
+        workflowAutomationCount: defaultWorkflowAutomationDefinitions.length,
+        validationRuleDefinitionCount: defaultValidationRuleConfigurationDefinitions.length
       },
       description: "Bootstrap metadata for the default development tenant.",
       metadata: {

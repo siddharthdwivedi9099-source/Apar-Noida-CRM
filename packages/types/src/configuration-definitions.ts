@@ -28,7 +28,8 @@ export const configurationDefinitionTypes = [
   "scoring_model",
   "mql_rule",
   "assignment_rule",
-  "sla_policy"
+  "sla_policy",
+  "validation_rule"
 ] as const;
 export type ConfigurationDefinitionType = (typeof configurationDefinitionTypes)[number];
 
@@ -306,7 +307,8 @@ const requiredPayloadKeys: Record<ConfigurationDefinitionType, string[]> = {
   scoring_model: ["object", "dimensions"],
   mql_rule: ["object", "threshold"],
   assignment_rule: ["object", "rules"],
-  sla_policy: ["object", "targets"]
+  sla_policy: ["object", "targets"],
+  validation_rule: ["rules"]
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

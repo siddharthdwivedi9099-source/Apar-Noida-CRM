@@ -59,6 +59,7 @@ import type {
   UpdateOpportunityRequestBody
 } from "@crm/types";
 import { evaluateBuyingCommitteeCompleteness, evaluateDiscovery } from "@crm/types";
+import { evaluateCloseWon, evaluateClosedRecordEdit } from "@crm/types";
 import { deliveryRiskDimensions, evaluateTechnicalDiscovery, summarizeDeliveryRisk, technicalDiscoveryFieldKeys } from "@crm/types";
 import { evaluateLegalClauses, evaluateLegalSla } from "@crm/types";
 import { randomUUID } from "node:crypto";
@@ -2654,6 +2655,12 @@ export class OpportunityService {
       this.assertOpportunityMutation(actor, keys);
 
       const currentOpportunity = await this.getOpportunityState(client, actor.tenantId, opportunityId);
+      // R15 (Section 13): closed opportunities can only be edited by authorized roles.
+      const isClosed = ["closed_won", "closed_lost"].includes(currentOpportunity.stage_key ?? "");
+      const closedEdit = evaluateClosedRecordEdit({ isClosed }, actor.permissionCodes);
+      if (!closedEdit.valid) {
+        throw new AppError(403, closedEdit.violations[0].message, undefined, "AUTHORIZATION_ERROR");
+      }
       const currentStakeholderContactIds = await this.loadStakeholderContactIds(client, actor.tenantId, opportunityId);
       const accountId = keys.includes("accountId")
         ? await this.ensureAccountId(client, actor.tenantId, input.accountId ?? null)
@@ -3191,6 +3198,16 @@ export class OpportunityService {
       const marginRisk = getRecord(root.marginRisk);
       if (marginRisk.requiresSeniorApproval === true && marginRisk.approved !== true) {
         throw new AppError(400, "Senior margin approval is required before this discounted deal can close.", undefined, "MARGIN_APPROVAL_REQUIRED");
+      }
+      // R6 (Section 13): close won requires final value, contract/PO status, and a handover note.
+      const closeWonCheck = evaluateCloseWon({
+        finalValue: input.finalValue,
+        contractStatus: input.contractStatus,
+        poStatus: input.poStatus,
+        handoverNote: input.handoverNote
+      });
+      if (!closeWonCheck.valid) {
+        throw new AppError(400, closeWonCheck.violations[0].message, undefined, "VALIDATION_ERROR");
       }
       const onboardingOwnerId = await this.ensureOwnerId(client, actor.tenantId, input.onboardingOwnerId);
       if (!onboardingOwnerId) {
