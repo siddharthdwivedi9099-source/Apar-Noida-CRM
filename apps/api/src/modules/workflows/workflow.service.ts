@@ -581,11 +581,18 @@ export class WorkflowService {
           failed += 1;
           continue;
         }
+        // Each action runs inside a SAVEPOINT so that a failure (including a
+        // raw database error that would otherwise poison the whole transaction)
+        // is isolated: we roll back just this action's partial writes, keep the
+        // run transaction healthy, log a clean "failed" action, and continue.
+        await client.query("SAVEPOINT wf_action");
         try {
           const outcome = await this.executeAction(client, actor, audit, action, workflowId, runId, context);
+          await client.query("RELEASE SAVEPOINT wf_action");
           await writeLog("succeeded", outcome.message, outcome.detail, action.id as string, action.action_type as string);
           succeeded += 1;
         } catch (error) {
+          await client.query("ROLLBACK TO SAVEPOINT wf_action");
           const message = error instanceof AppError ? error.message : "Action execution failed.";
           const code = error instanceof AppError ? error.code : "ACTION_FAILED";
           await writeLog("failed", message, { actionType: action.action_type, code }, action.id as string, action.action_type as string);
