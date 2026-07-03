@@ -59,7 +59,7 @@ export const configurationDimensions: ConfigurationDimension[] = [
   { key: "product", label: "Product", description: "Product or product line.", source: "product catalog", examples: ["core", "platform", "add-on"] },
   { key: "segment", label: "Segment", description: "Market segment.", source: "account segment", examples: ["smb", "mid_market", "enterprise"] },
   { key: "customer_type", label: "Customer type", description: "Relationship type.", source: "account metadata", examples: ["new", "existing", "strategic"] },
-  { key: "lead_source", label: "Lead source", description: "Origin of the lead / opportunity.", source: "lead-source option set", examples: ["inbound", "outbound", "campaign", "partner", "referral"] },
+  { key: "lead_source", label: "Lead source", description: "Origin of the lead / opportunity (values from the lead-source option set).", source: "lead-source option set", examples: ["website", "outbound", "campaign", "partner", "referral"] },
   { key: "opportunity_type", label: "Opportunity type", description: "Deal motion type.", source: "opportunity metadata", examples: ["new_business", "renewal", "expansion"] },
   { key: "deal_value", label: "Deal value", description: "Amount band used for thresholds.", source: "opportunity.amount band", examples: ["standard", "strategic", "enterprise"] },
   { key: "partner_involvement", label: "Partner involvement", description: "Channel involvement.", source: "partner deal registration", examples: ["direct", "partner_sourced", "partner_fulfilled"] },
@@ -144,8 +144,8 @@ export const revenueJourneyCatalog: RevenueJourney[] = [
     key: "inbound_sales",
     name: "Inbound sales",
     description: "Inbound leads captured, enriched, scored, qualified and converted to opportunities.",
-    entryTrigger: "lead.created (inbound source)",
-    scope: { lead_source: "inbound" },
+    entryTrigger: "lead.created (inbound web source)",
+    scope: { lead_source: "website" },
     stages: ["capture", "enrich", "score", "qualify", "convert", "close"],
     composedOf: {
       bpf: "lead-lifecycle",
@@ -190,7 +190,7 @@ export const revenueJourneyCatalog: RevenueJourney[] = [
     scope: { segment: "enterprise", deal_value: "strategic" },
     stages: ["discovery", "solution", "proposal", "negotiation", "deal_review", "close"],
     composedOf: {
-      bpf: "opportunity-pipeline",
+      bpf: "opportunity-lifecycle",
       workflows: ["auto-create-proposal-request", "auto-trigger-discount-approval", "auto-trigger-legal-review", "auto-alert-sales-head-strategic-risk"],
       validations: ["opp_proposal_requires_discovery", "opp_negotiation_requires_proposal", "opp_strategic_close_requires_review", "opp_close_won_requires_completion"],
       notifications: ["strategic_deal_risk", "discount_approval_needed", "contract_review_needed"]
@@ -218,7 +218,7 @@ export const revenueJourneyCatalog: RevenueJourney[] = [
     scope: { opportunity_type: "expansion" },
     stages: ["signal", "qualify", "propose", "close"],
     composedOf: {
-      bpf: "opportunity-pipeline",
+      bpf: "opportunity-lifecycle",
       workflows: ["auto-create-opportunity-on-conversion", "auto-create-proposal-request"],
       validations: ["opp_proposal_requires_discovery", "opp_close_won_requires_completion"],
       notifications: ["expansion_signal_detected", "proposal_decided"]
@@ -232,7 +232,7 @@ export const revenueJourneyCatalog: RevenueJourney[] = [
     scope: { customer_type: "existing" },
     stages: ["support_signal", "route", "qualify", "propose"],
     composedOf: {
-      bpf: "support-lifecycle",
+      bpf: "support-ticket-lifecycle",
       workflows: ["auto-suggest-knowledge-article", "auto-send-csat-after-closure"],
       validations: ["ticket_close_requires_summary"],
       notifications: ["ticket_closed", "expansion_signal_detected"]
@@ -274,7 +274,7 @@ export const revenueJourneyCatalog: RevenueJourney[] = [
     scope: { ai_governance_level: "assisted" },
     stages: ["suggest", "review", "apply", "audit"],
     composedOf: {
-      bpf: "opportunity-pipeline",
+      bpf: "opportunity-lifecycle",
       workflows: ["auto-enrich-lead", "auto-score-lead", "auto-generate-meeting-summary", "auto-suggest-knowledge-article", "auto-log-ai-actions-audit"],
       validations: ["ai_external_requires_approval"],
       notifications: ["ai_low_confidence_alert"]

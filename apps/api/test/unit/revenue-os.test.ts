@@ -11,7 +11,8 @@ import {
   defaultJourneyConfigurationDefinitions,
   defaultWorkflowAutomationDefinitions,
   validationRuleCatalog,
-  notificationRuleCatalog
+  notificationRuleCatalog,
+  defaultBpfConfigurationDefinitions
 } from "@crm/types";
 
 describe("Section 16: configuration dimensions", () => {
@@ -71,8 +72,10 @@ describe("Section 16: revenue journeys", () => {
     const workflowKeys = new Set(defaultWorkflowAutomationDefinitions.map((w) => w.seedKey));
     const validationKeys = new Set(validationRuleCatalog.map((r) => r.key));
     const notificationKeys = new Set(notificationRuleCatalog.map((n) => n.key));
+    const bpfKeys = new Set(defaultBpfConfigurationDefinitions.map((b) => b.definitionKey));
     const problems: string[] = [];
     for (const journey of revenueJourneyCatalog) {
+      if (!bpfKeys.has(journey.composedOf.bpf)) problems.push(`${journey.key} -> bpf ${journey.composedOf.bpf}`);
       for (const w of journey.composedOf.workflows) if (!workflowKeys.has(w)) problems.push(`${journey.key} -> workflow ${w}`);
       for (const v of journey.composedOf.validations) if (!validationKeys.has(v)) problems.push(`${journey.key} -> validation ${v}`);
       for (const n of journey.composedOf.notifications) if (!notificationKeys.has(n)) problems.push(`${journey.key} -> notification ${n}`);
