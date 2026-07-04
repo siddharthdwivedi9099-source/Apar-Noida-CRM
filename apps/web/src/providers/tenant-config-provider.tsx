@@ -129,9 +129,12 @@ function getFontFamilies(preference: TenantThemeSettings["fontPreference"]) {
         display: "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
       };
     default:
+      // "Inter Variable" and "Space Grotesk Variable" are bundled (self-hosted
+      // via @fontsource-variable) so the intended type actually renders
+      // everywhere instead of falling back to whatever the OS provides.
       return {
-        sans: "\"Avenir Next\", \"Segoe UI\", system-ui, sans-serif",
-        display: "\"Space Grotesk\", \"Avenir Next\", system-ui, sans-serif"
+        sans: "\"Inter Variable\", \"Avenir Next\", \"Segoe UI\", system-ui, sans-serif",
+        display: "\"Space Grotesk Variable\", \"Space Grotesk\", \"Inter Variable\", system-ui, sans-serif"
       };
   }
 }
