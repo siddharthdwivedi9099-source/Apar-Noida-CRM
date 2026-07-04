@@ -13,7 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatusPill } from "@/components/ui/status-pill";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { CalendarClock, HeartPulse, Users } from "lucide-react";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, formatDateOnly, selectClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -207,9 +209,9 @@ export function CustomerSuccessPage() {
         actions={canCreate ? <Button onClick={() => setIsCreating((current) => !current)}>{isCreating ? "Close form" : "Add CS account"}</Button> : null}
         aside={
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <CrmMetricCard label="CS accounts" value={String(dashboard.totalAccounts)} description="Customer success accounts in scope." />
-            <CrmMetricCard label="At risk" value={String(dashboard.atRiskCount)} description="Accounts in at-risk or critical status." />
-            <CrmMetricCard label="Renewals due" value={String(dashboard.renewalsDueCount)} description="Accounts with a renewal within 90 days." />
+            <CrmMetricCard label="CS accounts" value={String(dashboard.totalAccounts)} description="Customer success accounts in scope." icon={Users} tone="primary" />
+            <CrmMetricCard label="At risk" value={String(dashboard.atRiskCount)} description="Accounts in at-risk or critical status." icon={HeartPulse} tone={dashboard.atRiskCount > 0 ? "danger" : "success"} />
+            <CrmMetricCard label="Renewals due" value={String(dashboard.renewalsDueCount)} description="Accounts with a renewal within 90 days." icon={CalendarClock} tone={dashboard.renewalsDueCount > 0 ? "warning" : "neutral"} />
           </div>
         }
       />
@@ -308,9 +310,9 @@ export function CustomerSuccessPage() {
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{account.segment?.label ?? "Segment missing"}</Badge>
-                    <Badge variant="muted">{account.lifecycleStage?.label ?? "Stage missing"}</Badge>
-                    <Badge variant="muted">{account.riskStatus?.label ?? "Risk missing"}</Badge>
+                    <Badge variant="muted">{account.segment?.label ?? "No segment"}</Badge>
+                    {account.lifecycleStage ? <StatusPill value={account.lifecycleStage.key ?? account.lifecycleStage.label}>{account.lifecycleStage.label}</StatusPill> : null}
+                    {account.riskStatus ? <StatusPill value={account.riskStatus.key ?? account.riskStatus.label}>{account.riskStatus.label}</StatusPill> : null}
                   </div>
                   <p className="mt-3 font-semibold">{account.account?.name ?? "Account"}</p>
                   <p className="mt-1 text-sm text-muted-foreground">

@@ -14,8 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatusPill } from "@/components/ui/status-pill";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
 import { CustomFieldInput } from "@/components/crm/custom-field-input";
+import { AlertTriangle, CheckCircle2, Inbox, TicketCheck, TrendingUp, UserX } from "lucide-react";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateTime, selectClassName, textareaClassName } from "@/lib/crm";
 import {
@@ -358,9 +360,9 @@ export function SupportPage() {
         }
         aside={
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <CrmMetricCard label="Open tickets" value={String(dashboard.openTickets)} description="Tickets not yet resolved or closed." />
-            <CrmMetricCard label="SLA breached" value={String(dashboard.slaBreachedTickets)} description="Tickets past a first-response or resolution SLA." />
-            <CrmMetricCard label="Unassigned" value={String(dashboard.unassignedTickets)} description="Tickets without an assignee." />
+            <CrmMetricCard label="Open tickets" value={String(dashboard.openTickets)} description="Tickets not yet resolved or closed." icon={Inbox} tone="info" />
+            <CrmMetricCard label="SLA breached" value={String(dashboard.slaBreachedTickets)} description="Tickets past a first-response or resolution SLA." icon={AlertTriangle} tone={dashboard.slaBreachedTickets > 0 ? "danger" : "success"} />
+            <CrmMetricCard label="Unassigned" value={String(dashboard.unassignedTickets)} description="Tickets without an assignee." icon={UserX} tone={dashboard.unassignedTickets > 0 ? "warning" : "neutral"} />
           </div>
         }
       />
@@ -368,10 +370,10 @@ export function SupportPage() {
       {errorMessage ? <p className="text-sm text-rose-600">{errorMessage}</p> : null}
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <CrmMetricCard label="Total tickets" value={String(dashboard.totalTickets)} description="Tickets in scope." />
-        <CrmMetricCard label="Escalated" value={String(dashboard.escalatedTickets)} description="Tickets in escalated status." />
-        <CrmMetricCard label="Resolved" value={String(dashboard.resolvedTickets)} description="Resolved or closed tickets." />
-        <CrmMetricCard label="KB articles" value={String(dashboard.knowledgeArticleCount)} description="Knowledge base articles." />
+        <CrmMetricCard label="Total tickets" value={String(dashboard.totalTickets)} description="Tickets in scope." icon={TicketCheck} tone="primary" />
+        <CrmMetricCard label="Escalated" value={String(dashboard.escalatedTickets)} description="Tickets in escalated status." icon={TrendingUp} tone={dashboard.escalatedTickets > 0 ? "danger" : "neutral"} />
+        <CrmMetricCard label="Resolved" value={String(dashboard.resolvedTickets)} description="Resolved or closed tickets." icon={CheckCircle2} tone="success" />
+        <CrmMetricCard label="KB articles" value={String(dashboard.knowledgeArticleCount)} description="Knowledge base articles." icon={Inbox} tone="info" />
       </section>
 
       {isCreating && canCreate ? (
@@ -517,10 +519,10 @@ export function SupportPage() {
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{ticket.status?.label ?? "Status missing"}</Badge>
-                    <Badge variant="muted">{ticket.priority?.label ?? "Priority missing"}</Badge>
-                    {ticket.sla.resolutionBreached || ticket.sla.firstResponseBreached ? <Badge variant="muted">SLA breached</Badge> : null}
-                    {ticket.escalationStatus === "escalated" ? <Badge variant="muted">Escalated</Badge> : null}
+                    <StatusPill value={ticket.status?.key ?? ticket.status?.label}>{ticket.status?.label ?? "No status"}</StatusPill>
+                    <StatusPill value={ticket.priority?.key ?? ticket.priority?.label}>{ticket.priority?.label ?? "No priority"}</StatusPill>
+                    {ticket.sla.resolutionBreached || ticket.sla.firstResponseBreached ? <StatusPill tone="danger">SLA breached</StatusPill> : null}
+                    {ticket.escalationStatus === "escalated" ? <StatusPill tone="danger">Escalated</StatusPill> : null}
                   </div>
                   <p className="mt-3 font-semibold">{ticket.subject}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{ticket.account?.name ?? "No account"} • {ticket.category?.label ?? "No category"}</p>

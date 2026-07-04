@@ -4,7 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatusPill } from "@/components/ui/status-pill";
+import { Avatar } from "@/components/ui/avatar";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { Filter, Flame, Users } from "lucide-react";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
 import { buildQueryString, formatDateTime, pageSizeOptions, selectClassName } from "@/lib/crm";
@@ -154,11 +157,15 @@ export function LeadsPage() {
               label="Visible records"
               value={String(data?.pagination.total ?? 0)}
               description={`Tenant-scoped ${leadsLabel.toLowerCase()} available under your current role.`}
+              icon={Users}
+              tone="primary"
             />
             <CrmMetricCard
               label="Applied filters"
               value={String(activeFilterCount)}
               description="Search, ownership, source, and status filters all flow through the live API."
+              icon={Filter}
+              tone={activeFilterCount > 0 ? "info" : "neutral"}
             />
           </div>
         }
@@ -341,16 +348,22 @@ export function LeadsPage() {
               <>
                 <div className="space-y-3">
                   {data.leads.map((lead) => (
-                    <div key={lead.id} className="rounded-[1.5rem] bg-background/75 p-5 shadow-sm">
+                    <div key={lead.id} className="interactive-card rounded-[1.5rem] border border-white/50 bg-background/80 p-5 shadow-sm backdrop-blur dark:border-white/10">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge>{lead.status?.label ?? "Status missing"}</Badge>
-                            <Badge variant="muted">{lead.source?.label ?? "Source missing"}</Badge>
-                            {lead.score !== null ? <Badge variant="success">Score {lead.score}</Badge> : null}
+                            <StatusPill value={lead.status?.key ?? lead.status?.label}>{lead.status?.label ?? "No status"}</StatusPill>
+                            <Badge variant="muted">{lead.source?.label ?? "No source"}</Badge>
+                            {lead.score !== null ? (
+                              <StatusPill tone={lead.score >= 80 ? "hot" : lead.score >= 60 ? "warning" : "info"}>
+                                <Flame className="h-3 w-3" /> Score {lead.score}
+                              </StatusPill>
+                            ) : null}
                           </div>
                           <div>
-                            <p className="font-display text-2xl font-semibold">{lead.companyName}</p>
+                            <Link to={`/leads/${lead.id}`} className="font-display text-2xl font-semibold tracking-tight transition hover:text-primary">
+                              {lead.companyName}
+                            </Link>
                             <p className="text-sm text-muted-foreground">
                               {lead.fullName} {lead.email ? `• ${lead.email}` : ""} {lead.phone ? `• ${lead.phone}` : ""}
                             </p>
@@ -358,7 +371,10 @@ export function LeadsPage() {
                           <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
                             <div>
                               <p className="text-xs uppercase tracking-[0.18em]">Owner</p>
-                              <p className="mt-1 text-foreground">{lead.owner?.displayName ?? "Unassigned"}</p>
+                              <p className="mt-1 flex items-center gap-2 text-foreground">
+                                <Avatar name={lead.owner?.displayName} size="sm" />
+                                {lead.owner?.displayName ?? "Unassigned"}
+                              </p>
                             </div>
                             <div>
                               <p className="text-xs uppercase tracking-[0.18em]">Timeline</p>
