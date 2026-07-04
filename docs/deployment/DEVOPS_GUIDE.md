@@ -114,8 +114,16 @@ The current pipeline:
 - runs production build
 - runs offline tests
 - validates API and web image builds with `docker compose build api web`
+- publishes API and web container images to GitHub Container Registry when the branch is `main`
 
-Image publishing and production deployment are intentionally deferred until registry and environment targets are selected.
+The published images are:
+
+- `ghcr.io/<owner>/apar-elite-crm-api:<sha>`
+- `ghcr.io/<owner>/apar-elite-crm-api:latest`
+- `ghcr.io/<owner>/apar-elite-crm-web:<sha>`
+- `ghcr.io/<owner>/apar-elite-crm-web:latest`
+
+Deployments to an external environment are still configured separately from this CI workflow.
 
 ## Environment Management
 
