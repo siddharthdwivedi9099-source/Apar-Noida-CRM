@@ -1,9 +1,18 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("glass-panel rounded-[1.5rem]", className)} {...props} />
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Adds hover-lift + pointer affordance for clickable blocks. */
+  interactive?: boolean;
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, interactive, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn("glass-panel rounded-[1.5rem]", interactive && "interactive-card cursor-pointer", className)}
+      {...props}
+    />
   )
 );
 

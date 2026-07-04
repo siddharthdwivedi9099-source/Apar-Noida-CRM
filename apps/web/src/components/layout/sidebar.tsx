@@ -90,20 +90,29 @@ export function Sidebar({
                   onClick={onCloseMobile}
                   className={({ isActive }) =>
                     cn(
-                      "group flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition",
+                      "group relative flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all duration-200 ease-out hover:translate-x-0.5",
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-lg"
+                        ? "text-primary-foreground shadow-lg shadow-primary/25 [background-image:linear-gradient(135deg,hsl(var(--primary)),rgb(var(--hero-accent-rgb)))]"
                         : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                     )
                   }
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/50 shadow-sm dark:bg-slate-900/50">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className={cn("min-w-0", collapsed && "md:hidden")}>
-                    <p className="truncate font-semibold">{getNavItemLabel(item, terminology)}</p>
-                    <p className="truncate text-xs opacity-80">{item.description}</p>
-                  </div>
+                  {({ isActive }) => (
+                    <>
+                      <div
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm transition group-hover:scale-105",
+                          isActive ? "bg-white/25 text-primary-foreground" : "bg-white/50 dark:bg-slate-900/50"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className={cn("min-w-0", collapsed && "md:hidden")}>
+                        <p className="truncate font-semibold">{getNavItemLabel(item, terminology)}</p>
+                        <p className="truncate text-xs opacity-80">{item.description}</p>
+                      </div>
+                    </>
+                  )}
                 </NavLink>
               );
             })}
