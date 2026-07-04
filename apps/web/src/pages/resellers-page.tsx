@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, formatDateOnly, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -461,7 +462,7 @@ export function ResellersPage() {
                 {resellers.length === 0 ? "No resellers are currently visible for this role." : "No resellers match the current filters."}
               </div>
             ) : (
-              visibleResellers.map((reseller) => (
+              <ScrollableList items={visibleResellers} label="resellers" renderItem={(reseller) => (
                 <button
                   key={reseller.id}
                   type="button"
@@ -482,7 +483,7 @@ export function ResellersPage() {
                     Owner {reseller.owner?.displayName ?? "Unassigned"} • {reseller.completedOnboardingTaskCount}/{reseller.onboardingTaskCount} onboarding • {reseller.dealCount} deals
                   </p>
                 </button>
-              ))
+              )} />
             )}
           </CardContent>
         </Card>

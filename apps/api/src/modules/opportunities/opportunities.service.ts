@@ -833,8 +833,7 @@ export class OpportunityService {
       actor.permissionCodes.includes("opportunities.configure") ||
       actor.permissionCodes.includes("opportunities.view_dashboard") ||
       actor.permissionCodes.includes("opportunities.manage_workflow") ||
-      actor.permissionCodes.includes("sales.view_dashboard") ||
-      actor.permissionCodes.includes("dashboards.view_dashboard")
+      actor.permissionCodes.includes("sales.view_dashboard")
     );
   }
 

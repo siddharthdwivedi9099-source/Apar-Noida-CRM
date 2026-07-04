@@ -419,8 +419,7 @@ export class CustomerSuccessService {
       actor.permissionCodes.includes("customer_success.assign") ||
       actor.permissionCodes.includes("customer_success.configure") ||
       actor.permissionCodes.includes("customer_success.view_dashboard") ||
-      actor.permissionCodes.includes("customer_success.manage_workflow") ||
-      actor.permissionCodes.includes("dashboards.view_dashboard")
+      actor.permissionCodes.includes("customer_success.manage_workflow")
     );
   }
 

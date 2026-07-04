@@ -1006,7 +1006,10 @@ export const router = createBrowserRouter([
             )
           },
           {
-            path: "ai-agents",
+            // The governed agent registry lives at /ai-registry; /ai-agents is
+            // the AI agents workspace (previously both used the same path and
+            // the workspace route was unreachable).
+            path: "ai-registry",
             element: (
               <PermissionRoute
                 requiredPermissionCodes={routePermissionRequirements.aiAssistant}

@@ -19,6 +19,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { ListToolbar } from "@/components/crm/list-toolbar";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateTime, selectClassName } from "@/lib/crm";
@@ -263,14 +264,14 @@ export function WorkflowsPage() {
               />
               {visibleWorkflows.length === 0 ? <p className="text-sm text-muted-foreground">{workflows.length === 0 ? "No workflows yet." : "No workflows match the current filters."}</p> : (
                 <ul className="space-y-2">
-                  {visibleWorkflows.map((workflow) => (
+                  <ScrollableList items={visibleWorkflows} label="workflows" renderItem={(workflow) => (
                     <li key={workflow.id}>
                       <button type="button" onClick={() => void openWorkflow(workflow.id)} className={`w-full rounded-[1rem] border p-3 text-left ${selected?.id === workflow.id ? "border-primary bg-primary/5" : "border-border/60 bg-background/75"}`}>
                         <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{workflow.name}</span><StatusPill size="sm" value={workflow.status}>{workflow.status}</StatusPill></div>
                         <p className="mt-1 text-xs text-muted-foreground">{workflow.triggerType} • {workflow.actionCount} actions • {workflow.runCount} runs</p>
                       </button>
                     </li>
-                  ))}
+                  )} />
                 </ul>
               )}
             </CardContent>

@@ -753,8 +753,7 @@ export class BusinessDevelopmentService {
       actor.permissionCodes.includes(`${moduleKey}.configure`) ||
       actor.permissionCodes.includes(`${moduleKey}.view_dashboard`) ||
       actor.permissionCodes.includes(`${moduleKey}.manage_workflow`) ||
-      actor.permissionCodes.includes("sales.view_dashboard") ||
-      actor.permissionCodes.includes("dashboards.view_dashboard")
+      actor.permissionCodes.includes("sales.view_dashboard")
     );
   }
 

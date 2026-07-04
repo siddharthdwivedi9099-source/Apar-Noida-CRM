@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { StatusPill } from "@/components/ui/status-pill";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { CalendarClock, HeartPulse, Users } from "lucide-react";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, formatDateOnly, selectClassName } from "@/lib/crm";
@@ -299,7 +300,10 @@ export function CustomerSuccessPage() {
             {accounts.length === 0 ? (
               <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">No accounts in this segment for your scope.</div>
             ) : (
-              accounts.map((account) => (
+              <ScrollableList
+                items={accounts}
+                label="accounts"
+                renderItem={(account) => (
                 <button
                   key={account.id}
                   type="button"
@@ -322,7 +326,8 @@ export function CustomerSuccessPage() {
                     CSM {account.csmOwner?.displayName ?? "Unassigned"} • {account.openEscalationCount} open escalations • {account.qbrCount} QBRs
                   </p>
                 </button>
-              ))
+                )}
+              />
             )}
           </CardContent>
         </Card>

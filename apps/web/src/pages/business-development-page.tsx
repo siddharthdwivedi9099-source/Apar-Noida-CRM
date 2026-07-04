@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { ListToolbar } from "@/components/crm/list-toolbar";
 import { BusinessDevelopmentActions } from "@/components/business-development/business-development-actions";
 import { BusinessDevelopmentBdm } from "@/components/business-development/business-development-bdm";
@@ -579,7 +580,7 @@ export function BusinessDevelopmentPage() {
                 {targetAccounts.length === 0 ? "No target accounts are currently visible for this role." : "No target accounts match the current filters."}
               </div>
             ) : (
-              visibleTargetAccounts.map((account) => (
+              <ScrollableList items={visibleTargetAccounts} label="target accounts" renderItem={(account) => (
                 <button
                   key={account.id}
                   type="button"
@@ -603,7 +604,7 @@ export function BusinessDevelopmentPage() {
                     {account.executiveStakeholderCount} executive
                   </p>
                 </button>
-              ))
+              )} />
             )}
           </CardContent>
         </Card>

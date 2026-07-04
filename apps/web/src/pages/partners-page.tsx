@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { CustomFieldInput } from "@/components/crm/custom-field-input";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, formatDateOnly, selectClassName, textareaClassName } from "@/lib/crm";
@@ -515,7 +516,7 @@ export function PartnersPage() {
                 {partners.length === 0 ? "No partners are currently visible for this role." : "No partners match the current filters."}
               </div>
             ) : (
-              visiblePartners.map((partner) => (
+              <ScrollableList items={visiblePartners} label="partners" renderItem={(partner) => (
                 <button
                   key={partner.id}
                   type="button"
@@ -536,7 +537,7 @@ export function PartnersPage() {
                     Owner {partner.owner?.displayName ?? "Unassigned"} • {partner.completedOnboardingTaskCount}/{partner.onboardingTaskCount} onboarding • {partner.dealCount} deals
                   </p>
                 </button>
-              ))
+              )} />
             )}
           </CardContent>
         </Card>

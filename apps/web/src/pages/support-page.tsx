@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { StatusPill } from "@/components/ui/status-pill";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { CustomFieldInput } from "@/components/crm/custom-field-input";
 import { AlertTriangle, CheckCircle2, Inbox, TicketCheck, TrendingUp, UserX } from "lucide-react";
 import { apiRequest } from "@/lib/api-client";
@@ -502,13 +503,15 @@ export function SupportPage() {
                 </select>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">{visibleTickets.length} of {tickets.length} tickets</p>
             {visibleTickets.length === 0 ? (
               <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
                 {tickets.length === 0 ? "No tickets are currently visible for this role." : "No tickets match the current filters."}
               </div>
             ) : (
-              visibleTickets.map((ticket) => (
+              <ScrollableList
+                items={visibleTickets}
+                label="tickets"
+                renderItem={(ticket) => (
                 <button
                   key={ticket.id}
                   type="button"
@@ -530,7 +533,8 @@ export function SupportPage() {
                     Assignee {ticket.assignee?.displayName ?? "Unassigned"} • {ticket.messageCount} messages • {ticket.articleCount} articles
                   </p>
                 </button>
-              ))
+                )}
+              />
             )}
           </CardContent>
         </Card>

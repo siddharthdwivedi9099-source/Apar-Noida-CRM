@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import { buildQueryString, formatDateTime, selectClassName } from "@/lib/crm";
@@ -311,8 +312,11 @@ export function NotificationsPage() {
                 description="Adjust the read state or type filter to inspect other in-app deliveries."
               />
             ) : (
-              <div className="space-y-4">
-                {notificationsResponse?.notifications.map((notification) => {
+              <ScrollableList
+                items={notificationsResponse?.notifications ?? []}
+                label="notifications"
+                contentClassName="space-y-4"
+                renderItem={(notification) => {
                   const linkedRecordHref = getLinkedRecordHref(notification.linkedRecord);
 
                   return (
@@ -387,8 +391,8 @@ export function NotificationsPage() {
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                }}
+              />
             )}
 
             {notificationsResponse ? (

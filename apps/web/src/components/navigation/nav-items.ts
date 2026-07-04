@@ -31,16 +31,43 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { routePermissionRequirements } from "@/lib/rbac";
 
+export type NavGroupKey =
+  | "overview"
+  | "sales"
+  | "marketing"
+  | "partners"
+  | "service"
+  | "ai"
+  | "knowledge"
+  | "operations"
+  | "admin"
+  | "portal";
+
+export const navGroupLabels: Record<NavGroupKey, string> = {
+  overview: "Overview",
+  sales: "Sales",
+  marketing: "Marketing",
+  partners: "Partners",
+  service: "Service",
+  ai: "AI Studio",
+  knowledge: "Knowledge",
+  operations: "Operations",
+  admin: "Admin",
+  portal: "Portal"
+};
+
 export interface AppNavItem extends NavItem {
   icon: LucideIcon;
   moduleKey: PermissionModuleKey;
   requiredPermissionCodes: readonly string[];
+  group: NavGroupKey;
 }
 
 export const appNavItems: AppNavItem[] = [
   {
     title: "Dashboard",
     href: "/dashboard",
+    group: "overview",
     description: "Operational scorecards and rollout overview.",
     icon: LayoutDashboard,
     moduleKey: "dashboards",
@@ -49,6 +76,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Analytics",
     href: "/analytics",
+    group: "overview",
     description: "Role-based dashboards, widgets, filters, and drill-down.",
     icon: BarChart3,
     moduleKey: "dashboards",
@@ -57,6 +85,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Executive",
     href: "/executive",
+    group: "overview",
     description: "Command center KPIs, AI business insights, and strategic risk register.",
     icon: Presentation,
     moduleKey: "dashboards",
@@ -65,6 +94,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Customer Portal",
     href: "/portal/dashboard",
+    group: "portal",
     description: "External customer tickets, training, approved knowledge, and customer-safe AI.",
     icon: LayoutDashboard,
     moduleKey: "customer_portal",
@@ -73,6 +103,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Notifications",
     href: "/notifications",
+    group: "operations",
     description: "In-app alerts, read state, preferences, and linked record visibility.",
     icon: Bell,
     moduleKey: "notifications",
@@ -81,6 +112,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Approvals",
     href: "/approvals",
+    group: "operations",
     description: "Approval inbox, decision history, and approve or reject actions.",
     icon: BadgeCheck,
     moduleKey: "approvals",
@@ -89,6 +121,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Admin",
     href: "/admin",
+    group: "admin",
     description: "Tenant, platform, and governance controls.",
     icon: ShieldCheck,
     moduleKey: "admin",
@@ -97,6 +130,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Leads",
     href: "/leads",
+    group: "sales",
     description: "Lead intake, qualification, and SDR flow.",
     icon: Users,
     moduleKey: "leads",
@@ -105,6 +139,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Data Quality",
     href: "/data-quality",
+    group: "operations",
     description: "Completeness, duplicates, import validation, enrichment, and merges.",
     icon: BadgeCheck,
     moduleKey: "leads",
@@ -113,6 +148,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Record Tools",
     href: "/record-tools",
+    group: "operations",
     description: "Next best action, meeting intelligence, ownership, documents, and comments.",
     icon: ScrollText,
     moduleKey: "leads",
@@ -121,6 +157,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Edge Cases",
     href: "/exceptions",
+    group: "operations",
     description: "Duplicate leads, existing-customer routing, recycling, regression, complaints, conflicts, margin.",
     icon: LifeBuoy,
     moduleKey: "leads",
@@ -129,6 +166,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "SDR Workspace",
     href: "/sales/sdr",
+    group: "sales",
     description: "Prospecting queue, qualification flow, and lead handoff execution.",
     icon: PhoneCall,
     moduleKey: "sales",
@@ -137,6 +175,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Inside Sales",
     href: "/sales/inside-sales",
+    group: "sales",
     description: "Lead queue, call disposition, and conversion handoff workspace.",
     icon: PhoneForwarded,
     moduleKey: "sales",
@@ -145,6 +184,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Accounts",
     href: "/accounts",
+    group: "sales",
     description: "Customer and stakeholder system-of-record view.",
     icon: Building2,
     moduleKey: "accounts",
@@ -153,6 +193,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Contacts",
     href: "/contacts",
+    group: "sales",
     description: "Stakeholder identities and account relationships.",
     icon: ContactRound,
     moduleKey: "contacts",
@@ -161,6 +202,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Opportunities",
     href: "/opportunities",
+    group: "sales",
     description: "Revenue progression and deal collaboration.",
     icon: BriefcaseBusiness,
     moduleKey: "opportunities",
@@ -169,6 +211,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Business Development",
     href: "/business-development",
+    group: "sales",
     description: "Strategic account targeting, relationship mapping, and BD pipeline.",
     icon: Target,
     moduleKey: "business_development",
@@ -177,6 +220,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Presales",
     href: "/presales",
+    group: "sales",
     description: "Presales intake, RFP/RFI tracking, and proposal workspace.",
     icon: Presentation,
     moduleKey: "presales",
@@ -185,6 +229,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Partners",
     href: "/partners",
+    group: "partners",
     description: "Partner profiles, onboarding, deal registration, and channel performance.",
     icon: Handshake,
     moduleKey: "partners",
@@ -193,6 +238,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Resellers",
     href: "/resellers",
+    group: "partners",
     description: "Reseller profiles, pricing tiers, onboarding, and deal registration.",
     icon: ShoppingBag,
     moduleKey: "resellers",
@@ -201,6 +247,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Campaigns",
     href: "/campaigns",
+    group: "marketing",
     description: "Marketing and multi-channel campaign coordination.",
     icon: Megaphone,
     moduleKey: "campaigns",
@@ -209,6 +256,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Social",
     href: "/social",
+    group: "marketing",
     description: "Social calendars, approvals, and channel planning.",
     icon: CalendarRange,
     moduleKey: "social",
@@ -217,6 +265,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Support",
     href: "/support",
+    group: "service",
     description: "Ticketing and service response placeholder.",
     icon: LifeBuoy,
     moduleKey: "support",
@@ -225,6 +274,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Customer Success",
     href: "/customer-success",
+    group: "service",
     description: "Health, onboarding, and retention planning.",
     icon: BarChart3,
     moduleKey: "customer_success",
@@ -233,6 +283,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Training",
     href: "/training",
+    group: "service",
     description: "Training programs, lessons, assignments, and the learner portal.",
     icon: GraduationCap,
     moduleKey: "training",
@@ -241,6 +292,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "AI Assistant",
     href: "/ai-assistant",
+    group: "ai",
     description: "Gateway, prompts, agents, and RAG readiness.",
     icon: Sparkles,
     moduleKey: "ai",
@@ -249,6 +301,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Prompt Registry",
     href: "/ai-prompts",
+    group: "ai",
     description: "Versioned, approval-gated prompt registry with guardrails.",
     icon: ScrollText,
     moduleKey: "ai",
@@ -256,7 +309,8 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     title: "Agent Registry",
-    href: "/ai-agents",
+    href: "/ai-registry",
+    group: "ai",
     description: "Governed AI agents, tools, roles, scope, and escalation.",
     icon: Bot,
     moduleKey: "ai",
@@ -265,6 +319,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "AI Actions",
     href: "/ai-actions",
+    group: "ai",
     description: "Module AI actions through the governed gateway and prompt registry.",
     icon: BrainCircuit,
     moduleKey: "ai",
@@ -273,6 +328,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "AI Governance",
     href: "/ai-governance",
+    group: "ai",
     description: "AI use-case registry, quality dashboard, feedback, and risk.",
     icon: ShieldCheck,
     moduleKey: "ai",
@@ -281,6 +337,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "AI Agents",
     href: "/ai-agents",
+    group: "ai",
     description: "Governed AI agents: enrich, score, draft, summarize, risk, forecast, triage, health, knowledge.",
     icon: Sparkles,
     moduleKey: "ai",
@@ -289,6 +346,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Workflows",
     href: "/workflows",
+    group: "operations",
     description: "Configurable triggers, conditions, actions, and run logs.",
     icon: Workflow,
     moduleKey: "workflows",
@@ -297,6 +355,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Knowledge Base",
     href: "/knowledge",
+    group: "knowledge",
     description: "RAG knowledge sources, documents, and articles.",
     icon: BookOpen,
     moduleKey: "ai",
@@ -305,6 +364,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "RAG Console",
     href: "/knowledge/rag-console",
+    group: "knowledge",
     description: "Permission-aware retrieval test console with citations.",
     icon: Search,
     moduleKey: "ai",
@@ -313,6 +373,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Ask AI",
     href: "/ask-ai",
+    group: "ai",
     description: "Customer AI query bot — grounded, cited answers with escalation.",
     icon: MessagesSquare,
     moduleKey: "customer_query",
@@ -321,6 +382,7 @@ export const appNavItems: AppNavItem[] = [
   {
     title: "Query Review",
     href: "/customer-query",
+    group: "knowledge",
     description: "Support and customer success review of AI queries and escalations.",
     icon: LifeBuoy,
     moduleKey: "customer_query",

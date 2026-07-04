@@ -13,6 +13,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import { buildQueryString, formatDateTime, selectClassName, textareaClassName } from "@/lib/crm";
@@ -336,7 +337,7 @@ export function ApprovalsPage() {
                 description="Adjust the scope, status, or type to inspect other approval requests."
               />
             ) : (
-              approvalsResponse?.approvals.map((approval) => (
+              <ScrollableList items={approvalsResponse?.approvals ?? []} label="approvals" renderItem={(approval) => (
                 <Link
                   key={approval.id}
                   to={`/approvals/${approval.id}`}
@@ -372,7 +373,7 @@ export function ApprovalsPage() {
                     </div>
                   </div>
                 </Link>
-              ))
+              )} />
             )}
           </CardContent>
         </Card>

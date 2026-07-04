@@ -480,8 +480,7 @@ export class SupportService {
       actor.permissionCodes.includes("support.assign") ||
       actor.permissionCodes.includes("support.configure") ||
       actor.permissionCodes.includes("support.view_dashboard") ||
-      actor.permissionCodes.includes("support.manage_workflow") ||
-      actor.permissionCodes.includes("dashboards.view_dashboard")
+      actor.permissionCodes.includes("support.manage_workflow")
     );
   }
 

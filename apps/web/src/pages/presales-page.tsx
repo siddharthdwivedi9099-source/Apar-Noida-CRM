@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { StatusPill } from "@/components/ui/status-pill";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { ListToolbar } from "@/components/crm/list-toolbar";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateOnly, selectClassName, textareaClassName } from "@/lib/crm";
@@ -463,7 +464,10 @@ export function PresalesPage() {
                 {requests.length === 0 ? "No presales requests are currently visible for this role." : "No requests match the current filters."}
               </div>
             ) : (
-              visibleRequests.map((request) => (
+              <ScrollableList
+                items={visibleRequests}
+                label="requests"
+                renderItem={(request) => (
                 <button
                   key={request.id}
                   type="button"
@@ -488,7 +492,8 @@ export function PresalesPage() {
                     {request.gapRequirementCount} gaps • Due {formatDateOnly(request.dueDate)}
                   </p>
                 </button>
-              ))
+              )}
+              />
             )}
           </CardContent>
         </Card>

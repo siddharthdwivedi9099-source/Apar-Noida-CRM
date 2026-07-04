@@ -11,6 +11,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -125,7 +126,7 @@ export function AiActionsPage() {
           <CardHeader><CardTitle>Actions</CardTitle><CardDescription>Select an AI action to run.</CardDescription></CardHeader>
           <CardContent className="space-y-2">
             <ul className="space-y-2">
-              {visibleActions.map((action) => (
+              <ScrollableList items={visibleActions} label="actions" renderItem={(action) => (
                 <li key={action.key}>
                   <button type="button" onClick={() => { setSelected(action); setVariableValues({}); setRunResult(null); }} className={`w-full rounded-[1rem] border p-3 text-left ${selected?.key === action.key ? "border-primary bg-primary/5" : "border-border/60 bg-background/75"} ${action.permitted ? "" : "opacity-60"}`}>
                     <div className="flex flex-wrap items-center gap-2">
@@ -138,7 +139,7 @@ export function AiActionsPage() {
                     <p className="mt-1 text-xs text-muted-foreground">{action.description}</p>
                   </button>
                 </li>
-              ))}
+              )} />
             </ul>
           </CardContent>
         </Card>

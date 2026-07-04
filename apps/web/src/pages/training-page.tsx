@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateOnly, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -285,13 +286,13 @@ export function TrainingPage() {
               {programList.length === 0 ? (
                 <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm text-muted-foreground">No training programs yet.</div>
               ) : (
-                programList.map((program) => (
+                <ScrollableList items={programList} label="programs" renderItem={(program) => (
                   <button key={program.id} type="button" onClick={() => setSelectedProgramId(program.id)} className={cn("w-full rounded-[1.25rem] border border-border/70 bg-background/75 p-4 text-left shadow-sm transition hover:border-primary/50", selectedProgramId === program.id ? "border-primary bg-primary/5" : "")}>
                     <div className="flex flex-wrap items-center gap-2"><StatusPill value={program.status}>{program.status}</StatusPill><Badge variant="muted">{program.category?.label ?? "—"}</Badge><Badge variant="muted">{program.level?.label ?? "—"}</Badge></div>
                     <p className="mt-3 font-semibold">{program.title}</p>
                     <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">{program.moduleCount} modules • {program.lessonCount} lessons • {program.assignmentCount} assignments</p>
                   </button>
-                ))
+                )} />
               )}
             </CardContent>
           </Card>

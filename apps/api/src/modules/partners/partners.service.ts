@@ -470,8 +470,7 @@ export class PartnersService {
       actor.permissionCodes.includes("partners.configure") ||
       actor.permissionCodes.includes("partners.view_dashboard") ||
       actor.permissionCodes.includes("partners.manage_workflow") ||
-      actor.permissionCodes.includes("sales.view_dashboard") ||
-      actor.permissionCodes.includes("dashboards.view_dashboard")
+      actor.permissionCodes.includes("sales.view_dashboard")
     );
   }
 
