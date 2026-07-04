@@ -1,168 +1,155 @@
-import { platformMetadata } from "@crm/config";
-import { authFoundation } from "@crm/auth";
+import { Link } from "react-router-dom";
+import {
+  ArrowUpRight,
+  BarChart3,
+  Bot,
+  LayoutGrid,
+  Megaphone,
+  Sparkles,
+  Target,
+  Users
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getVisibleNavItems } from "@/components/navigation/nav-items";
+import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
 
-const foundationHighlights = [
-  {
-    label: "CRM modules",
-    value: "Sales live",
-    detail: "SDR and inside sales now extend the CRM kernel with focused lead queues, qualification workbenches, and handoff tracking."
-  },
-  {
-    label: "Backend API",
-    value: "/api/v1",
-    detail: "Express now serves auth, RBAC, tenant config, tenant-safe CRM CRUD, sales workspaces, opportunity flows, campaign flows, and social APIs."
-  },
-  {
-    label: "Shared packages",
-    value: "6 packages",
-    detail: "Config, types, UI, auth, AI, and database packages now share CRM, productivity, SDR, inside-sales, campaign, social, and RBAC contracts."
-  }
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+const quickActions = [
+  { label: "Leads", caption: "Work your queue", href: "/leads", icon: Users },
+  { label: "Opportunities", caption: "Move the pipeline", href: "/opportunities", icon: Target },
+  { label: "Campaigns", caption: "Launch & nurture", href: "/campaigns", icon: Megaphone },
+  { label: "Analytics", caption: "Live dashboards", href: "/analytics", icon: BarChart3 },
+  { label: "Ask AI", caption: "Governed copilot", href: "/ask-ai", icon: Bot }
 ] as const;
 
 export function DashboardPage() {
-  const { summary, settings } = useTenantConfig();
+  const { summary, settings, modules } = useTenantConfig();
+  const { user } = useAuth();
+
+  const enabledModuleKeys = new Set(modules.filter((module) => module.enabled).map((module) => module.moduleKey));
+  const workspaces = getVisibleNavItems(user?.permissionCodes ?? [], enabledModuleKeys).filter(
+    (item) => item.href !== "/dashboard"
+  );
+  const firstName = (user?.displayName ?? "there").split(" ")[0];
+
+  const stats = [
+    { label: "Workspaces", value: String(workspaces.length), href: "#workspaces" },
+    { label: "Option sets", value: String(summary.optionSetCount), href: "/admin" },
+    { label: "Custom fields", value: String(summary.customFieldCount), href: "/custom-fields" },
+    { label: "Form layouts", value: String(summary.formLayoutCount), href: "/admin" }
+  ];
 
   return (
-    <div className="space-y-6">
-      <section className="glass-panel overflow-hidden rounded-[2rem]">
-        <div className="grid gap-8 p-8 lg:grid-cols-[1.2fr_0.8fr] lg:p-10">
-          <div className="space-y-5">
-            <Badge>{platformMetadata.currentPhase}</Badge>
-            <div className="space-y-4">
-              <h2 className="max-w-3xl font-display text-4xl font-semibold leading-tight">
-                The workspace now includes dedicated SDR and inside-sales execution surfaces alongside live pipeline, campaign, and social workflows.
-              </h2>
-              <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-                This dashboard is still platform-forward, but the CRM kernel now includes opportunities, campaigns,
-                social post planning, shared touchpoint tracking, SDR qualification queues, and inside-sales handoff
-                workflows. It reflects the authenticated shell, PostgreSQL-backed identity flow, tenant configuration,
-                and the live lead-to-revenue execution path.
-              </p>
-            </div>
+    <div className="space-y-8">
+      {/* Hero */}
+      <section className="hero-surface glass-panel overflow-hidden rounded-[2rem] p-8 lg:p-10">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-4">
+            <Badge variant="info" className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" /> {settings.workspaceName}
+            </Badge>
+            <h1 className="font-display text-4xl font-semibold leading-tight tracking-tight lg:text-5xl">
+              {greeting()}, <span className="gradient-text">{firstName}</span>.
+            </h1>
+            <p className="max-w-2xl text-base leading-7 text-muted-foreground">
+              Your AI-native revenue operating system — pipeline, campaigns, support, success, and governed AI in one
+              configurable workspace. Jump straight into anything below.
+            </p>
           </div>
 
-          <div className="rounded-[1.75rem] bg-slate-950 p-6 text-slate-50 shadow-panel">
-            <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Current guardrails</p>
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="font-semibold">Authentication, RBAC, tenant settings, SDR workspaces, sales pipeline, campaigns, and social planning are now live</p>
-                <p className="mt-1 text-sm text-slate-300">
-                  Login, logout, refresh rotation, session tracking, protected routes, admin role management, theme
-                  settings, and the tenant-safe CRM, SDR, inside-sales, opportunity, campaign, and social marketing records now run on the seeded workspace.
-                </p>
-              </div>
-              <div>
-                <p className="font-semibold">Sales, CRM, and marketing records now follow permission bundles, tenant switches, audit logs, unified timelines, and workspace-specific task queues</p>
-                <p className="mt-1 text-sm text-slate-300">
-                  Leads, accounts, contacts, and opportunities now support CRUD, ownership, notes, activities, tasks,
-                  timeline views, and soft delete while campaigns, social posts, and sales workspaces add approval,
-                  scheduling, qualification, member, and channel-aware planning.
-                </p>
-              </div>
-              <div>
-                <p className="font-semibold">Tenant configuration now feeds live CRM, sales, and marketing forms</p>
-                <p className="mt-1 text-sm text-slate-300">
-                  {settings.workspaceName} now carries its own theme, terminology, module map, option sets, and
-                  form-layout metadata, and the CRM, opportunity, campaign, and social forms are already consuming those tenant-managed labels and dropdowns.
-                </p>
-              </div>
-            </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
+            {stats.map((stat) => (
+              <Link
+                key={stat.label}
+                to={stat.href}
+                className="interactive-card rounded-2xl border border-white/50 bg-white/70 p-4 text-left backdrop-blur dark:border-white/10 dark:bg-slate-900/50"
+              >
+                <p className="font-display text-3xl font-semibold gradient-text">{stat.value}</p>
+                <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{stat.label}</p>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Platform overview</CardTitle>
-            <CardDescription>
-              These cards summarize the current authenticated platform foundation now that SDR, inside sales, opportunities, campaigns, and social marketing are live.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
-            {foundationHighlights.map((highlight) => (
-              <div key={highlight.label} className="rounded-[1.25rem] bg-background/75 p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{highlight.label}</p>
-                <p className="mt-3 font-display text-3xl font-semibold">{highlight.value}</p>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{highlight.detail}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Configuration readiness</CardTitle>
-            <CardDescription>Tenant configuration assets are now available and already feeding the first CRM modules.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              {
-                title: "Option sets",
-                value: String(summary.optionSetCount),
-                description: "Dropdowns, pipelines, ticket statuses, and success stages are tenant-configurable."
-              },
-              {
-                title: "Custom fields",
-                value: String(summary.customFieldCount),
-                description: "Field metadata can now be created and soft deleted through the admin workspace."
-              },
-              {
-                title: "Form layouts",
-                value: String(summary.formLayoutCount),
-                description: "Seeded lead, account, contact, opportunity, campaign, and social layout scaffolds are already stored per tenant."
-              }
-            ].map((item) => (
-              <div key={item.title} className="rounded-[1.25rem] bg-background/75 p-5 shadow-sm">
-                <Badge variant="muted">{item.title}</Badge>
-                <p className="mt-3 font-display text-3xl font-semibold">{item.value}</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      {/* Quick actions */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <h2 className="font-display text-lg font-semibold tracking-tight">Quick actions</h2>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {quickActions.map((action, index) => {
+            const Icon = action.icon;
+            return (
+              <Link
+                key={action.href}
+                to={action.href}
+                className="shine interactive-card animate-fade-up group relative overflow-hidden rounded-[1.5rem] border border-white/50 bg-white/75 p-5 backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
+                style={{ animationDelay: `${index * 60}ms` }}
+              >
+                <span className="icon-chip">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <p className="mt-4 font-display text-lg font-semibold tracking-tight">{action.label}</p>
+                <p className="text-sm text-muted-foreground">{action.caption}</p>
+                <ArrowUpRight className="absolute right-4 top-4 h-5 w-5 text-muted-foreground/50 transition group-hover:text-primary" />
+              </Link>
+            );
+          })}
+        </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Route inventory</CardTitle>
-            <CardDescription>
-              The protected route map comes from the shared auth package foundation and is now filtered by permission.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
-            {authFoundation.protectedRoutes.map((routePath) => (
-              <div key={routePath} className="rounded-[1rem] border border-border/70 bg-background/75 px-4 py-3 text-sm">
-                {routePath}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      {/* Workspace launcher */}
+      <section id="workspaces" className="space-y-4">
+        <div className="flex items-center gap-2">
+          <LayoutGrid className="h-4 w-4 text-primary" />
+          <h2 className="font-display text-lg font-semibold tracking-tight">Your workspaces</h2>
+          <Badge variant="muted" className="ml-1 normal-case tracking-normal">{workspaces.length}</Badge>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>What comes next</CardTitle>
-            <CardDescription>
-              The secure platform baseline, sales workspaces, pipeline engine, campaign engine, and social workspace are in place. The next phase can deepen those workflows instead of rebuilding foundation pieces.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              "Extend the SDR and inside-sales queues into richer sequencing, scheduling, and conversion workflows.",
-              "Connect social publishing, engagement ingestion, and social lead capture to the new planning workspace.",
-              "Keep applying module-level and action-level permissions to every new workflow surface.",
-              "Read more custom fields, option sets, and layouts directly from the tenant configuration engine."
-            ].map((nextStep) => (
-              <div key={nextStep} className="rounded-[1rem] bg-background/75 px-4 py-4 text-sm leading-6 text-muted-foreground">
-                {nextStep}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        {workspaces.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center text-sm text-muted-foreground">
+              No workspaces are enabled for your role yet. An administrator can enable modules and grant access.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {workspaces.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className="animate-fade-up"
+                  style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
+                >
+                  <Card interactive className="group h-full">
+                    <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                      <span className="icon-chip-soft transition group-hover:scale-110">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <ArrowUpRight className="h-5 w-5 text-muted-foreground/40 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <CardTitle className="text-lg">{item.title}</CardTitle>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );

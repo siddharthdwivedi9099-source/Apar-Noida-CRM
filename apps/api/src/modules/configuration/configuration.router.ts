@@ -1,0 +1,266 @@
+import { Router } from "express";
+import { z } from "zod";
+import {
+  configurationDefinitionTypes,
+  type ConfigurationDefinitionType,
+  type ImportConfigurationRequestBody,
+  type SaveConfigurationDraftRequestBody,
+  type UpsertConfigurationDefinitionRequestBody
+} from "@crm/types";
+import { asyncHandler } from "../../common/http/async-handler.js";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
+import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
+import { requirePermissions } from "../../common/middleware/authorize.js";
+import { validateRequest } from "../../common/validation/validate-request.js";
+import { env } from "../../config/env.js";
+import { DatabaseService } from "../../platform/database/database.service.js";
+import { AuthService } from "../auth/auth.service.js";
+import { ConfigurationService } from "./configuration.service.js";
+
+interface RouterDependencies {
+  databaseService: DatabaseService;
+}
+
+const snapshotSchema = z.record(z.unknown());
+const versionIdParams = z.object({ versionId: z.string().uuid() });
+const definitionKeySchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9_.:-]+$/);
+const definitionParams = z.object({
+  definitionType: z.enum(configurationDefinitionTypes),
+  definitionKey: definitionKeySchema
+});
+const definitionsQuery = z.object({
+  definitionType: z.enum(configurationDefinitionTypes).optional()
+});
+const upsertDefinitionSchema = z.object({
+  name: z.string().min(1).max(160),
+  description: z.string().max(1000).nullable().optional(),
+  isActive: z.boolean().optional(),
+  definition: z.record(z.unknown())
+});
+const saveDraftSchema = z.object({
+  // ADMIN-006: configuration changes require a reason.
+  changeReason: z.string().trim().min(3).max(500),
+  snapshot: snapshotSchema.optional()
+});
+const importSchema = z.object({
+  snapshot: snapshotSchema,
+  changeReason: z.string().max(500).optional(),
+  dryRun: z.boolean().optional()
+});
+
+const readPermissions = ["admin.view", "admin.configure"];
+const writePermissions = ["admin.edit", "admin.configure"];
+const publishPermissions = ["admin.configure", "admin.approve"];
+
+export function createConfigurationRouter({ databaseService }: RouterDependencies) {
+  const router = Router();
+  const authService = new AuthService(databaseService, {
+    enabled: env.DATABASE_ENABLED,
+    accessTokenSecret: env.JWT_ACCESS_TOKEN_SECRET,
+    refreshTokenSecret: env.JWT_REFRESH_TOKEN_SECRET,
+    accessTokenTtlMinutes: env.JWT_ACCESS_TOKEN_TTL_MINUTES,
+    refreshTokenTtlDays: env.JWT_REFRESH_TOKEN_TTL_DAYS,
+    accountLockThreshold: env.AUTH_ACCOUNT_LOCK_THRESHOLD,
+    accountLockMinutes: env.AUTH_ACCOUNT_LOCK_MINUTES,
+    enableAuditLogs: env.ENABLE_AUDIT_LOGS
+  });
+  const authMiddleware = createAuthMiddleware(authService);
+  const service = new ConfigurationService(databaseService, { enableAuditLogs: env.ENABLE_AUDIT_LOGS });
+
+  router.use(authMiddleware);
+
+  // Export the current configuration as a portable, validated snapshot.
+  router.get(
+    "/export",
+    requirePermissions({ oneOf: readPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.exportConfiguration(request.auth!));
+    })
+  );
+
+  // Validate the live configuration without persisting.
+  router.get(
+    "/validate",
+    requirePermissions({ oneOf: readPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.validateCurrent(request.auth!));
+    })
+  );
+
+  router.get(
+    "/definitions",
+    requirePermissions({ oneOf: readPermissions }),
+    validateRequest({ query: definitionsQuery }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await service.listDefinitions(request.auth!, {
+          definitionType: request.query.definitionType as ConfigurationDefinitionType | undefined
+        })
+      );
+    })
+  );
+
+  router.get(
+    "/definitions/:definitionType/:definitionKey",
+    requirePermissions({ oneOf: readPermissions }),
+    validateRequest({ params: definitionParams }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await service.getDefinition(
+          request.auth!,
+          request.params.definitionType as ConfigurationDefinitionType,
+          request.params.definitionKey
+        )
+      );
+    })
+  );
+
+  router.put(
+    "/definitions/:definitionType/:definitionKey",
+    requirePermissions({ oneOf: writePermissions }),
+    validateRequest({ params: definitionParams, body: upsertDefinitionSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await service.upsertDefinition(
+          request.auth!,
+          getAuditMetadata(request),
+          request.params.definitionType as ConfigurationDefinitionType,
+          request.params.definitionKey,
+          request.body as UpsertConfigurationDefinitionRequestBody
+        )
+      );
+    })
+  );
+
+  router.delete(
+    "/definitions/:definitionType/:definitionKey",
+    requirePermissions({ oneOf: ["admin.delete", "admin.configure"] }),
+    validateRequest({ params: definitionParams }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await service.deleteDefinition(
+          request.auth!,
+          getAuditMetadata(request),
+          request.params.definitionType as ConfigurationDefinitionType,
+          request.params.definitionKey
+        )
+      );
+    })
+  );
+
+  router.get(
+    "/versions",
+    requirePermissions({ oneOf: readPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json({ versions: await service.listVersions(request.auth!) });
+    })
+  );
+
+  router.post(
+    "/versions",
+    requirePermissions({ oneOf: writePermissions }),
+    validateRequest({ body: saveDraftSchema }),
+    asyncHandler(async (request, response) => {
+      const version = await service.createDraft(
+        request.auth!,
+        getAuditMetadata(request),
+        request.body as unknown as SaveConfigurationDraftRequestBody
+      );
+      response.status(201).json({ version });
+    })
+  );
+
+  router.get(
+    "/versions/:versionId",
+    requirePermissions({ oneOf: readPermissions }),
+    validateRequest({ params: versionIdParams }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json({ version: await service.getVersion(request.auth!, request.params.versionId) });
+    })
+  );
+
+  router.post(
+    "/versions/:versionId/publish",
+    requirePermissions({ oneOf: publishPermissions }),
+    validateRequest({ params: versionIdParams }),
+    asyncHandler(async (request, response) => {
+      const version = await service.publishVersion(request.auth!, getAuditMetadata(request), request.params.versionId);
+      response.status(200).json({ version });
+    })
+  );
+
+  router.post(
+    "/versions/:versionId/rollback",
+    requirePermissions({ oneOf: publishPermissions }),
+    validateRequest({ params: versionIdParams }),
+    asyncHandler(async (request, response) => {
+      const version = await service.rollbackToVersion(request.auth!, getAuditMetadata(request), request.params.versionId);
+      response.status(201).json({ version });
+    })
+  );
+
+  // SH-005: RevOps submits a draft for Sales Head review; Sales Head decides.
+  router.post(
+    "/versions/:versionId/submit-review",
+    requirePermissions({ oneOf: writePermissions }),
+    validateRequest({
+      params: versionIdParams,
+      body: z.object({ approverUserId: z.string().uuid(), changeSummary: z.string().max(4000).nullable().optional() })
+    }),
+    asyncHandler(async (request, response) => {
+      const version = await service.submitVersionForReview(request.auth!, getAuditMetadata(request), request.params.versionId, request.body as { approverUserId: string; changeSummary?: string | null });
+      response.status(201).json({ version });
+    })
+  );
+
+  router.post(
+    "/versions/:versionId/review-decision",
+    requirePermissions({ oneOf: publishPermissions }),
+    validateRequest({
+      params: versionIdParams,
+      body: z.object({ decision: z.enum(["approved", "rejected"]), comment: z.string().max(4000).nullable().optional() })
+    }),
+    asyncHandler(async (request, response) => {
+      const version = await service.decideVersionReview(request.auth!, getAuditMetadata(request), request.params.versionId, request.body as { decision: "approved" | "rejected"; comment?: string | null });
+      response.status(200).json({ version });
+    })
+  );
+
+  // Dry-run: preview the upsert plan if this version were applied.
+  router.get(
+    "/versions/:versionId/apply-plan",
+    requirePermissions({ oneOf: readPermissions }),
+    validateRequest({ params: versionIdParams }),
+    asyncHandler(async (request, response) => {
+      const plan = await service.getApplyPlan(request.auth!, request.params.versionId);
+      response.status(200).json({ plan });
+    })
+  );
+
+  // Apply a published version onto the live configuration tables.
+  router.post(
+    "/versions/:versionId/apply",
+    requirePermissions({ oneOf: publishPermissions }),
+    validateRequest({ params: versionIdParams }),
+    asyncHandler(async (request, response) => {
+      const result = await service.applyVersion(request.auth!, getAuditMetadata(request), request.params.versionId);
+      response.status(200).json(result);
+    })
+  );
+
+  router.post(
+    "/import",
+    requirePermissions({ oneOf: writePermissions }),
+    validateRequest({ body: importSchema }),
+    asyncHandler(async (request, response) => {
+      const result = await service.importConfiguration(
+        request.auth!,
+        getAuditMetadata(request),
+        request.body as unknown as ImportConfigurationRequestBody
+      );
+      response.status(result.version ? 201 : 200).json(result);
+    })
+  );
+
+  return router;
+}

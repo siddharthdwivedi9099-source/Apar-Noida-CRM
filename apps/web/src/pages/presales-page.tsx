@@ -11,13 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatusPill } from "@/components/ui/status-pill";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { ListToolbar } from "@/components/crm/list-toolbar";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateOnly, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { PresalesDeliveryPanels } from "@/components/presales/presales-delivery-panels";
+import { ProposalContentLibrary } from "@/components/presales/proposal-content-library";
 
 const PRIORITIES: PresalesPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -66,6 +70,8 @@ export function PresalesPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const canCreate = hasAnyPermission(["presales.create", "presales.configure"]);
+  const canEdit = hasAnyPermission(["presales.edit", "presales.assign", "presales.configure"]);
+  const [detailRefresh, setDetailRefresh] = useState(0);
 
   const requests = useMemo(() => data?.requests ?? [], [data?.requests]);
 
@@ -160,7 +166,7 @@ export function PresalesPage() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, selectedId]);
+  }, [accessToken, selectedId, detailRefresh]);
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
@@ -458,7 +464,10 @@ export function PresalesPage() {
                 {requests.length === 0 ? "No presales requests are currently visible for this role." : "No requests match the current filters."}
               </div>
             ) : (
-              visibleRequests.map((request) => (
+              <ScrollableList
+                items={visibleRequests}
+                label="requests"
+                renderItem={(request) => (
                 <button
                   key={request.id}
                   type="button"
@@ -469,9 +478,9 @@ export function PresalesPage() {
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{request.type?.label ?? "Type missing"}</Badge>
-                    <Badge variant="muted">{request.status?.label ?? "Status missing"}</Badge>
-                    <Badge variant="muted">{request.priority}</Badge>
+                    <Badge variant="muted">{request.type?.label ?? "No type"}</Badge>
+                    <StatusPill value={request.status?.key ?? request.status?.label}>{request.status?.label ?? "No status"}</StatusPill>
+                    <StatusPill value={request.priority}>{request.priority}</StatusPill>
                   </div>
                   <p className="mt-3 font-semibold">{request.title}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -483,13 +492,26 @@ export function PresalesPage() {
                     {request.gapRequirementCount} gaps • Due {formatDateOnly(request.dueDate)}
                   </p>
                 </button>
-              ))
+              )}
+              />
             )}
           </CardContent>
         </Card>
 
         <PresalesDetailCard detail={detail} />
+
+        {detail && options ? (
+          <PresalesDeliveryPanels
+            detail={detail}
+            options={options}
+            accessToken={accessToken}
+            canEdit={canEdit}
+            onReload={() => setDetailRefresh((value) => value + 1)}
+          />
+        ) : null}
       </section>
+
+      <ProposalContentLibrary accessToken={accessToken} canManage={canEdit} />
     </div>
   );
 }
@@ -559,8 +581,8 @@ function PresalesDetailCard({ detail }: { detail: PresalesRequestDetail | null }
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{requirement.label}</span>
                     <Badge variant="muted">{requirement.category}</Badge>
-                    <Badge variant="muted">{requirement.complianceStatus}</Badge>
-                    <Badge variant="muted">{requirement.priority}</Badge>
+                    <StatusPill size="sm" value={requirement.complianceStatus}>{requirement.complianceStatus}</StatusPill>
+                    <StatusPill size="sm" value={requirement.priority}>{requirement.priority}</StatusPill>
                   </div>
                   {requirement.requirement ? (
                     <p className="mt-1 text-muted-foreground">{requirement.requirement}</p>

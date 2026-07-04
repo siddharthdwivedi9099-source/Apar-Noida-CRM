@@ -11,10 +11,12 @@ import type {
 } from "@crm/types";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, formatDateOnly, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -460,7 +462,7 @@ export function ResellersPage() {
                 {resellers.length === 0 ? "No resellers are currently visible for this role." : "No resellers match the current filters."}
               </div>
             ) : (
-              visibleResellers.map((reseller) => (
+              <ScrollableList items={visibleResellers} label="resellers" renderItem={(reseller) => (
                 <button
                   key={reseller.id}
                   type="button"
@@ -472,7 +474,7 @@ export function ResellersPage() {
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge>{reseller.pricingTier?.label ?? "Tier missing"}</Badge>
-                    <Badge variant="muted">{reseller.status?.label ?? "Status missing"}</Badge>
+                    <StatusPill value={reseller.status?.key ?? reseller.status?.label}>{reseller.status?.label ?? "No status"}</StatusPill>
                     <Badge variant="muted">{formatPercent(reseller.marginPercent)}</Badge>
                   </div>
                   <p className="mt-3 font-semibold">{reseller.name}</p>
@@ -481,7 +483,7 @@ export function ResellersPage() {
                     Owner {reseller.owner?.displayName ?? "Unassigned"} • {reseller.completedOnboardingTaskCount}/{reseller.onboardingTaskCount} onboarding • {reseller.dealCount} deals
                   </p>
                 </button>
-              ))
+              )} />
             )}
           </CardContent>
         </Card>
@@ -602,7 +604,7 @@ function ResellerDetailCard({
                 <li key={task.id} className="flex items-center justify-between gap-2 rounded-[1rem] border border-border/60 bg-background/75 p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={cn("font-medium", task.status === "completed" ? "line-through text-muted-foreground" : "")}>{task.label}</span>
-                    <Badge variant="muted">{task.status}</Badge>
+                    <StatusPill size="sm" value={task.status}>{task.status}</StatusPill>
                   </div>
                   {canEdit ? (
                     <Button type="button" variant="outline" size="sm" onClick={() => onAdvanceTask(task.id)}>
@@ -625,7 +627,7 @@ function ResellerDetailCard({
                 <li key={deal.id} className="rounded-[1rem] border border-border/60 bg-background/75 p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{deal.name}</span>
-                    <Badge variant="muted">{deal.stage?.label ?? "Stage missing"}</Badge>
+                    <StatusPill size="sm" value={deal.stage?.key ?? deal.stage?.label}>{deal.stage?.label ?? "No stage"}</StatusPill>
                     <Badge variant="muted">{formatPercent(deal.marginPercent)}</Badge>
                   </div>
                   <p className="mt-1 text-muted-foreground">

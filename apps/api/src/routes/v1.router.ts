@@ -3,6 +3,7 @@ import { apiConfig } from "@crm/config";
 import { createAiGatewayRouter } from "../modules/ai/ai-gateway.router.js";
 import { createAiRegistryRouter } from "../modules/ai/ai-registry.router.js";
 import { createAiActionsRouter } from "../modules/ai-actions/ai-actions.router.js";
+import { createAiGovernanceRouter } from "../modules/ai-governance/ai-governance.router.js";
 import { createRagRouter } from "../modules/rag/rag.router.js";
 import { createCustomerQueryRouter } from "../modules/customer-query/customer-query.router.js";
 import { createDashboardsRouter } from "../modules/dashboards/dashboards.router.js";
@@ -10,6 +11,12 @@ import { createWorkflowsRouter } from "../modules/workflows/workflows.router.js"
 import { createApprovalsRouter } from "../modules/approvals/approvals.router.js";
 import { createAuditRouter } from "../modules/audit/audit.router.js";
 import { createObservabilityRouter } from "../modules/observability/observability.router.js";
+import { createSystemRouter } from "../modules/system/system.router.js";
+import { createDataQualityRouter } from "../modules/data-quality/data-quality.router.js";
+import { createExecutiveRouter } from "../modules/executive/executive.router.js";
+import { createCrossFunctionalRouter } from "../modules/cross-functional/cross-functional.router.js";
+import { createAiAgentsRouter } from "../modules/ai-agents/ai-agents.router.js";
+import { createExceptionsRouter } from "../modules/exceptions/exceptions.router.js";
 import { createAuthRouter } from "../modules/auth/auth.router.js";
 import {
   createBusinessDevelopmentRouter,
@@ -26,10 +33,18 @@ import { createPartnersRouter } from "../modules/partners/partners.router.js";
 import { createRbacRouter } from "../modules/rbac/rbac.router.js";
 import { createResellersRouter } from "../modules/resellers/resellers.router.js";
 import { createSalesWorkspacesRouter } from "../modules/sales-workspaces/sales-workspaces.router.js";
+import { createSalesLeadershipRouter } from "../modules/sales-leadership/sales-leadership.router.js";
+import { createSolutionArchitectureRouter } from "../modules/solution-architecture/solution-architecture.router.js";
+import { createProposalsRouter } from "../modules/proposals/proposals.router.js";
+import { createCommercialRouter } from "../modules/commercial/commercial.router.js";
+import { createLegalRouter } from "../modules/legal/legal.router.js";
+import { createPartnerPortalRouter } from "../modules/partner-portal/partner-portal.router.js";
 import { createSocialRouter } from "../modules/social/social.router.js";
 import { createSupportRouter } from "../modules/support/support.router.js";
 import { createTrainingRouter } from "../modules/training/training.router.js";
 import { createTenantConfigRouter } from "../modules/tenant-config/tenant-config.router.js";
+import { createConfigurationRouter } from "../modules/configuration/configuration.router.js";
+import { createBpfRouter } from "../modules/bpf/bpf.router.js";
 import { DatabaseService } from "../platform/database/database.service.js";
 import { RedisService } from "../platform/redis/redis.service.js";
 import { CacheService } from "../platform/cache/cache.service.js";
@@ -66,6 +81,8 @@ export function createV1Router({
   router.use("/auth", createAuthRouter({ databaseService }));
   router.use("/rbac", createRbacRouter({ databaseService }));
   router.use("/tenant-config", createTenantConfigRouter({ databaseService }));
+  router.use("/configuration", createConfigurationRouter({ databaseService }));
+  router.use("/bpf", createBpfRouter({ databaseService }));
   router.use("/campaigns", createCampaignRouter({ databaseService }));
   router.use("/opportunities", createOpportunityRouter({ databaseService }));
   router.use("/business-development", createBusinessDevelopmentRouter({ databaseService }));
@@ -73,6 +90,12 @@ export function createV1Router({
   router.use("/partners", createPartnersRouter({ databaseService }));
   router.use("/resellers", createResellersRouter({ databaseService }));
   router.use("/sales-workspaces", createSalesWorkspacesRouter({ databaseService }));
+  router.use("/sales-leadership", createSalesLeadershipRouter({ databaseService }));
+  router.use("/solution-architecture", createSolutionArchitectureRouter({ databaseService }));
+  router.use("/proposals", createProposalsRouter({ databaseService }));
+  router.use("/commercial", createCommercialRouter({ databaseService }));
+  router.use("/legal", createLegalRouter({ databaseService }));
+  router.use("/partner-portal", createPartnerPortalRouter({ databaseService }));
   router.use("/social", createSocialRouter({ databaseService }));
   router.use("/support", createSupportRouter({ databaseService }));
   router.use("/customer-success", createCustomerSuccessRouter({ databaseService }));
@@ -82,6 +105,7 @@ export function createV1Router({
   router.use("/ai", createAiRegistryRouter({ databaseService }));
   router.use("/ai", createAiActionsRouter({ databaseService }));
   router.use("/ai", createRagRouter({ databaseService }));
+  router.use("/ai-governance", createAiGovernanceRouter({ databaseService }));
   router.use("/customer-query", createCustomerQueryRouter({ databaseService }));
   router.use("/dashboards", createDashboardsRouter({ databaseService, cacheService }));
   router.use("/notifications", createNotificationsRouter({ databaseService }));
@@ -89,6 +113,12 @@ export function createV1Router({
   router.use("/workflows", createWorkflowsRouter({ databaseService }));
   router.use("/audit", createAuditRouter({ databaseService }));
   router.use("/observability", createObservabilityRouter({ databaseService, cacheService, jobMonitorService }));
+  router.use("/system", createSystemRouter({ databaseService }));
+  router.use("/data-quality", createDataQualityRouter({ databaseService }));
+  router.use("/executive", createExecutiveRouter({ databaseService }));
+  router.use("/cross-functional", createCrossFunctionalRouter({ databaseService }));
+  router.use("/ai-agents", createAiAgentsRouter({ databaseService }));
+  router.use("/exceptions", createExceptionsRouter({ databaseService }));
   router.use(createCrmRouter({ databaseService }));
 
   return router;

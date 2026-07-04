@@ -161,7 +161,16 @@ export const approvalTypes = [
   "partner_approval",
   "reseller_approval",
   "sensitive_ai_action_approval",
-  "customer_escalation_approval"
+  "customer_escalation_approval",
+  "strategic_handoff_approval",
+  "opportunity_reactivation_approval",
+  "deal_review_approval",
+  "configuration_change_approval",
+  "delivery_risk_approval",
+  "payment_terms_approval",
+  "partner_commission_approval",
+  "legal_clause_approval",
+  "rca_share_approval"
 ] as const;
 
 export type ApprovalType = (typeof approvalTypes)[number];
@@ -224,6 +233,51 @@ export const approvalTypeCatalog: ApprovalTypeDefinition[] = [
     key: "customer_escalation_approval",
     label: "Customer escalation approval",
     description: "Approval routing for escalations affecting customer delivery or risk."
+  },
+  {
+    key: "strategic_handoff_approval",
+    label: "Strategic handoff approval",
+    description: "Manager approval for reassigning a strategic target account to enterprise sales (BDR-005)."
+  },
+  {
+    key: "opportunity_reactivation_approval",
+    label: "Opportunity reactivation approval",
+    description: "Manager approval to reactivate a closed-lost opportunity (AE-010)."
+  },
+  {
+    key: "deal_review_approval",
+    label: "Strategic deal review approval",
+    description: "Leadership governance sign-off for large strategic deals (ES-005)."
+  },
+  {
+    key: "configuration_change_approval",
+    label: "Configuration change approval",
+    description: "Sales Head sign-off for RevOps-proposed sales-process changes before publish (SH-005)."
+  },
+  {
+    key: "delivery_risk_approval",
+    label: "Delivery risk approval",
+    description: "Leadership sign-off for high delivery-risk deals before closure (SA-005)."
+  },
+  {
+    key: "payment_terms_approval",
+    label: "Payment terms approval",
+    description: "Finance sign-off for non-standard payment terms (FIN-003)."
+  },
+  {
+    key: "partner_commission_approval",
+    label: "Partner commission approval",
+    description: "Finance sign-off for partner commission payout before disbursement (FIN-004)."
+  },
+  {
+    key: "legal_clause_approval",
+    label: "Legal clause approval",
+    description: "Leadership sign-off to accept a high-risk contract clause (LEG-002)."
+  },
+  {
+    key: "rca_share_approval",
+    label: "RCA share approval",
+    description: "Approval to share a root-cause analysis with the customer (L2-003)."
   }
 ];
 

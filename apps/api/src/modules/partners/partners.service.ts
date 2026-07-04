@@ -26,12 +26,28 @@ import type {
   PartnersResponse,
   RoleSummary,
   UpdatePartnerDealRegistrationRequestBody,
-  UpdatePartnerRequestBody
+  UpdatePartnerRequestBody,
+  DecidePartnerApplicationRequestBody,
+  DecidePartnerDealRequestBody,
+  PartnerConflictsResponse,
+  PartnerManagementResponse,
+  PartnerPerformanceResponse,
+  ResolvePartnerConflictRequestBody,
+  SubmitPartnerApplicationRequestBody
 } from "@crm/types";
+import { computePartnerFitScore, computePartnerWinRate, detectChannelConflicts, evaluatePartnerApproval } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import {
+  loadCustomFieldDefinitions,
+  loadCustomFieldOptions,
+  sanitizeCustomFields
+} from "../../common/custom-fields.js";
 import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
+
+const PARTNER_ENTITY_KEY = "partner";
 
 interface AuditMetadata {
   requestId: string;
@@ -195,10 +211,14 @@ function normalizeOnboardingTaskStatus(value: unknown): PartnerOnboardingTaskSta
 }
 
 export class PartnersService {
+  private readonly notificationService: NotificationService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
-  ) {}
+  ) {
+    this.notificationService = new NotificationService(databaseService, config);
+  }
 
   private assertEnabled() {
     if (!this.databaseService.isEnabled()) {
@@ -450,8 +470,7 @@ export class PartnersService {
       actor.permissionCodes.includes("partners.configure") ||
       actor.permissionCodes.includes("partners.view_dashboard") ||
       actor.permissionCodes.includes("partners.manage_workflow") ||
-      actor.permissionCodes.includes("sales.view_dashboard") ||
-      actor.permissionCodes.includes("dashboards.view_dashboard")
+      actor.permissionCodes.includes("sales.view_dashboard")
     );
   }
 
@@ -527,8 +546,8 @@ export class PartnersService {
   }
 
   private async getPartnerState(client: PoolClient, tenantId: string, partnerId: string) {
-    const result = await client.query<{ id: string; owner_id: string | null }>(
-      `SELECT id, owner_id FROM partners WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+    const result = await client.query<{ id: string; owner_id: string | null; custom_fields: Record<string, unknown> | null }>(
+      `SELECT id, owner_id, custom_fields FROM partners WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
       [partnerId, tenantId]
     );
 
@@ -570,6 +589,7 @@ export class PartnersService {
       partners.agreement_start_date,
       partners.agreement_end_date,
       partners.agreement_notes,
+      partners.custom_fields,
       partners.metadata,
       partners.created_at,
       partners.updated_at,
@@ -1006,18 +1026,25 @@ export class PartnersService {
   async getPartnerOptions(actor: ActorContext): Promise<PartnerOptionsResponse> {
     this.assertEnabled();
 
-    return this.databaseService.withClient(async (client) => ({
-      owners: await this.loadOwners(client, actor.tenantId),
-      accounts: await this.loadAccountsLookup(client, actor.tenantId),
-      contacts: await this.loadContactsLookup(client, actor.tenantId),
-      opportunities: await this.loadOpportunitiesLookup(client, actor.tenantId),
-      types: await this.loadOptionSetValues(client, actor.tenantId, "partner-type"),
-      tiers: await this.loadOptionSetValues(client, actor.tenantId, "partner-tier"),
-      statuses: await this.loadOptionSetValues(client, actor.tenantId, "partner-status"),
-      onboardingStatuses: await this.loadOptionSetValues(client, actor.tenantId, "partner-onboarding-status"),
-      dealStages: await this.loadOptionSetValues(client, actor.tenantId, "partner-deal-stage"),
-      availableScopes: await this.getAvailableScopes(client, actor)
-    }));
+    return this.databaseService.withClient(async (client) => {
+      const fieldDefinitions = await loadCustomFieldDefinitions(client, actor.tenantId, PARTNER_ENTITY_KEY);
+      const customFieldOptions = await loadCustomFieldOptions(client, actor.tenantId, fieldDefinitions);
+
+      return {
+        owners: await this.loadOwners(client, actor.tenantId),
+        accounts: await this.loadAccountsLookup(client, actor.tenantId),
+        contacts: await this.loadContactsLookup(client, actor.tenantId),
+        opportunities: await this.loadOpportunitiesLookup(client, actor.tenantId),
+        types: await this.loadOptionSetValues(client, actor.tenantId, "partner-type"),
+        tiers: await this.loadOptionSetValues(client, actor.tenantId, "partner-tier"),
+        statuses: await this.loadOptionSetValues(client, actor.tenantId, "partner-status"),
+        onboardingStatuses: await this.loadOptionSetValues(client, actor.tenantId, "partner-onboarding-status"),
+        dealStages: await this.loadOptionSetValues(client, actor.tenantId, "partner-deal-stage"),
+        availableScopes: await this.getAvailableScopes(client, actor),
+        fieldDefinitions,
+        customFieldOptions
+      };
+    });
   }
 
   private async buildScopedWhere(client: PoolClient, actor: ActorContext, scope: PartnerPipelineScope) {
@@ -1188,6 +1215,7 @@ export class PartnersService {
 
     return {
       ...summary,
+      customFields: getMetadata(row.custom_fields),
       contacts,
       onboardingTasks,
       deals,
@@ -1242,15 +1270,16 @@ export class PartnersService {
         input.onboardingStatusKey ?? "not_started",
         "Partner onboarding status"
       );
+      const customFields = await sanitizeCustomFields(client, actor.tenantId, PARTNER_ENTITY_KEY, input.customFields);
 
       const result = await client.query<{ id: string }>(
         `
           INSERT INTO partners (
             tenant_id, account_id, owner_id, name, type_option_id, tier_option_id, status_option_id,
             onboarding_status_option_id, region, territory, agreement_reference, agreement_start_date,
-            agreement_end_date, agreement_notes, metadata, created_by, updated_by
+            agreement_end_date, agreement_notes, custom_fields, metadata, created_by, updated_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date, $13::date, $14, $15::jsonb, $16, $16)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date, $13::date, $14, $15::jsonb, $16::jsonb, $17, $17)
           RETURNING id
         `,
         [
@@ -1268,6 +1297,7 @@ export class PartnersService {
           input.agreementStartDate ?? null,
           input.agreementEndDate ?? null,
           getTrimmedNullableString(input.agreementNotes),
+          JSON.stringify(customFields),
           JSON.stringify(input.metadata ?? {}),
           actor.userId
         ]
@@ -1311,7 +1341,7 @@ export class PartnersService {
     await this.databaseService.withTransaction(async (client) => {
       const keys = Object.keys(input).filter((key) => input[key as keyof UpdatePartnerRequestBody] !== undefined);
       this.assertPartnerMutation(actor, keys);
-      await this.getPartnerState(client, actor.tenantId, partnerId);
+      const state = await this.getPartnerState(client, actor.tenantId, partnerId);
 
       const assignments: string[] = [];
       const params: unknown[] = [partnerId, actor.tenantId, actor.userId];
@@ -1365,6 +1395,16 @@ export class PartnersService {
       }
       if (keys.includes("metadata")) {
         pushAssignment("metadata", JSON.stringify(input.metadata ?? {}), "::jsonb");
+      }
+      if (keys.includes("customFields")) {
+        const nextCustomFields = await sanitizeCustomFields(
+          client,
+          actor.tenantId,
+          PARTNER_ENTITY_KEY,
+          input.customFields,
+          getMetadata(state.custom_fields)
+        );
+        pushAssignment("custom_fields", JSON.stringify(nextCustomFields), "::jsonb");
       }
 
       if (assignments.length > 0) {
@@ -1513,6 +1553,19 @@ export class PartnersService {
         metadata: { partnerId, opportunityId, stageKey: input.stageKey ?? "registered" }
       });
 
+      // Section 14 (partner_deal_registered): notify the partner owner of the new registration.
+      const ownerRow = await client.query<{ owner_id: string | null }>(`SELECT owner_id FROM partners WHERE id = $1 AND tenant_id = $2`, [partnerId, actor.tenantId]);
+      const partnerOwnerId = ownerRow.rows[0]?.owner_id;
+      if (partnerOwnerId && partnerOwnerId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: partnerOwnerId,
+          title: `Partner deal registered: ${input.name.trim()}`,
+          message: `A new partner deal registration was created${getTrimmedNullableString(input.customerName) ? ` for ${getTrimmedNullableString(input.customerName)}` : ""}.`,
+          linkedRecord: { entityType: "partner_deal_registration", entityId: nextDealId }
+        });
+      }
+
       return nextDealId;
     });
 
@@ -1607,6 +1660,363 @@ export class PartnersService {
     const deal = await this.databaseService.withClient(async (client) => this.loadDeal(client, actor.tenantId, partnerId, dealId));
     return { deal };
   }
+
+  // ---- Persona 19 (Partner Manager) ------------------------------------------------------------
+
+  private async loadPartnerForMgmt(client: PoolClient, tenantId: string, partnerId: string) {
+    const result = await client.query<{ id: string; name: string; owner_id: string | null; account_id: string | null; metadata: Record<string, unknown> | null }>(
+      `SELECT id, name, owner_id, account_id, metadata FROM partners WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [partnerId, tenantId]
+    );
+    if (result.rowCount === 0) {
+      throw new AppError(404, "Partner not found.", undefined, "PARTNER_NOT_FOUND");
+    }
+    const row = result.rows[0];
+    return { ...row, metadata: getMetadata(row.metadata) };
+  }
+
+  private async writePartnerMetadata(client: PoolClient, actor: ActorContext, partnerId: string, metadata: Record<string, unknown>) {
+    await client.query(`UPDATE partners SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [partnerId, actor.tenantId, JSON.stringify(metadata), actor.userId]);
+  }
+
+  private mgmtStoredUser(value: unknown): CrmLookupUserSummary | null {
+    const record = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const id = typeof record.id === "string" ? record.id : null;
+    if (!id) {
+      return null;
+    }
+    return { id, displayName: typeof record.displayName === "string" ? record.displayName : "", email: typeof record.email === "string" ? record.email : "", teamName: null, departmentName: null };
+  }
+
+  private mgmtStr(record: Record<string, unknown>, key: string): string | null {
+    const value = record[key];
+    return typeof value === "string" && value.length > 0 ? value : null;
+  }
+  private mgmtNum(value: unknown): number | null {
+    const parsed = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private buildManagementView(partnerId: string, partnerName: string, metadata: Record<string, unknown>, onboardingTasks: PartnerOnboardingTaskSummary[]): PartnerManagementResponse["management"] {
+    const app = getMetadata(metadata.application as Record<string, unknown>);
+    const status = ["applied", "under_review", "approved", "rejected"].includes(app.status as string) ? (app.status as "applied" | "under_review" | "approved" | "rejected") : "applied";
+    const application = {
+      companyDetails: this.mgmtStr(app, "companyDetails"),
+      geography: this.mgmtStr(app, "geography"),
+      industryFocus: this.mgmtStr(app, "industryFocus"),
+      salesCapacity: this.mgmtStr(app, "salesCapacity"),
+      salesCapacityRating: this.mgmtNum(app.salesCapacityRating),
+      technicalCapability: this.mgmtStr(app, "technicalCapability"),
+      technicalCapabilityRating: this.mgmtNum(app.technicalCapabilityRating),
+      customerBase: this.mgmtStr(app, "customerBase"),
+      customerBaseSize: this.mgmtNum(app.customerBaseSize),
+      certifications: this.mgmtStr(app, "certifications"),
+      references: this.mgmtStr(app, "references"),
+      status,
+      decisionNote: this.mgmtStr(app, "decisionNote"),
+      decidedBy: this.mgmtStoredUser(app.decidedBy),
+      decidedAt: this.mgmtStr(app, "decidedAt"),
+      updatedAt: this.mgmtStr(app, "updatedAt")
+    };
+    const fitScore = computePartnerFitScore({
+      salesCapacityRating: application.salesCapacityRating,
+      technicalCapabilityRating: application.technicalCapabilityRating,
+      hasCertifications: Boolean(application.certifications),
+      hasReferences: Boolean(application.references),
+      customerBaseSize: application.customerBaseSize
+    });
+    const items = onboardingTasks.map((task) => ({ id: task.id, label: task.label, status: task.status, dueDate: task.dueDate }));
+    const completedCount = items.filter((item) => item.status === "completed").length;
+    return {
+      partnerId,
+      partnerName,
+      application,
+      fitScore,
+      onboarding: { items, totalCount: items.length, completedCount, percentComplete: items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0 },
+      aiPlaceholders: { available: false, message: "AI partner fit scoring and high-performer/inactivity detection will connect with the governed AI Gateway." }
+    };
+  }
+
+  async getPartnerManagement(actor: ActorContext, partnerId: string): Promise<PartnerManagementResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const partner = await this.loadPartnerForMgmt(client, actor.tenantId, partnerId);
+      const onboarding = await this.loadOnboardingTasks(client, actor.tenantId, partnerId);
+      return { management: this.buildManagementView(partnerId, partner.name, partner.metadata, onboarding) };
+    });
+  }
+
+  // PM-001
+  async submitPartnerApplication(actor: ActorContext, audit: AuditMetadata, partnerId: string, input: SubmitPartnerApplicationRequestBody): Promise<PartnerManagementResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const partner = await this.loadPartnerForMgmt(client, actor.tenantId, partnerId);
+      const current = getMetadata(partner.metadata.application as Record<string, unknown>);
+      const pick = (next: string | null | undefined, prev: string | null) => (next !== undefined ? (typeof next === "string" && next.trim() ? next.trim() : null) : prev);
+      const application = {
+        ...current,
+        companyDetails: pick(input.companyDetails, this.mgmtStr(current, "companyDetails")),
+        geography: pick(input.geography, this.mgmtStr(current, "geography")),
+        industryFocus: pick(input.industryFocus, this.mgmtStr(current, "industryFocus")),
+        salesCapacity: pick(input.salesCapacity, this.mgmtStr(current, "salesCapacity")),
+        salesCapacityRating: input.salesCapacityRating !== undefined ? this.mgmtNum(input.salesCapacityRating) : this.mgmtNum(current.salesCapacityRating),
+        technicalCapability: pick(input.technicalCapability, this.mgmtStr(current, "technicalCapability")),
+        technicalCapabilityRating: input.technicalCapabilityRating !== undefined ? this.mgmtNum(input.technicalCapabilityRating) : this.mgmtNum(current.technicalCapabilityRating),
+        customerBase: pick(input.customerBase, this.mgmtStr(current, "customerBase")),
+        customerBaseSize: input.customerBaseSize !== undefined ? this.mgmtNum(input.customerBaseSize) : this.mgmtNum(current.customerBaseSize),
+        certifications: pick(input.certifications, this.mgmtStr(current, "certifications")),
+        references: pick(input.references, this.mgmtStr(current, "references")),
+        status: current.status ?? "applied",
+        updatedAt: new Date().toISOString()
+      };
+      await this.writePartnerMetadata(client, actor, partnerId, { ...partner.metadata, application });
+      await this.recordAuditLog(client, actor, audit, { action: "partner.application.submit", resourceType: "partner", resourceId: partnerId, status: "success" });
+    });
+    return this.getPartnerManagement(actor, partnerId);
+  }
+
+  async decidePartnerApplication(actor: ActorContext, audit: AuditMetadata, partnerId: string, input: DecidePartnerApplicationRequestBody): Promise<PartnerManagementResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const partner = await this.loadPartnerForMgmt(client, actor.tenantId, partnerId);
+      const application = { ...getMetadata(partner.metadata.application as Record<string, unknown>), status: input.decision, decisionNote: input.note?.trim() || null, decidedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email }, decidedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      await this.writePartnerMetadata(client, actor, partnerId, { ...partner.metadata, application });
+      if (input.decision === "approved") {
+        const activeStatusId = await this.resolveOptionValueId(client, actor.tenantId, "partner-status", "active", "Partner status").catch(() => null);
+        if (activeStatusId) {
+          await client.query(`UPDATE partners SET status_option_id = $3, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [partnerId, actor.tenantId, activeStatusId, actor.userId]);
+        }
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "partner.application.decide", resourceType: "partner", resourceId: partnerId, status: "success", metadata: { decision: input.decision } });
+    });
+    return this.getPartnerManagement(actor, partnerId);
+  }
+
+  // PM-002
+  async generateOnboardingChecklist(actor: ActorContext, audit: AuditMetadata, partnerId: string): Promise<PartnerManagementResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const partner = await this.loadPartnerForMgmt(client, actor.tenantId, partnerId);
+      const checklist = await this.loadOptionSetValues(client, actor.tenantId, "partner-onboarding-checklist");
+      const existing = await client.query<{ label: string }>(`SELECT label FROM partner_onboarding_tasks WHERE tenant_id = $1 AND partner_id = $2 AND deleted_at IS NULL`, [actor.tenantId, partnerId]);
+      const existingLabels = new Set(existing.rows.map((row) => row.label));
+      let sortOrder = existing.rowCount ?? 0;
+      let added = 0;
+      for (const [index, item] of checklist.entries()) {
+        if (existingLabels.has(item.label)) {
+          continue;
+        }
+        const dueDate = new Date(Date.now() + (index + 1) * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        await client.query(
+          `INSERT INTO partner_onboarding_tasks (tenant_id, partner_id, label, status, sort_order, due_date, notes, created_by, updated_by) VALUES ($1, $2, $3, 'pending', $4, $5::date, NULL, $6, $6)`,
+          [actor.tenantId, partnerId, item.label, sortOrder, dueDate, actor.userId]
+        );
+        sortOrder += 1;
+        added += 1;
+      }
+      if (partner.owner_id && partner.owner_id !== actor.userId && added > 0) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: partner.owner_id,
+          title: "Partner onboarding checklist created",
+          message: `${added} onboarding steps with due dates have been created for ${partner.name}.`
+        });
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "partner.onboarding.generate", resourceType: "partner", resourceId: partnerId, status: "success", metadata: { added } });
+    });
+    return this.getPartnerManagement(actor, partnerId);
+  }
+
+  // PM-003
+  async decidePartnerDeal(actor: ActorContext, audit: AuditMetadata, partnerId: string, dealId: string, input: DecidePartnerDealRequestBody): Promise<PartnerDealRegistrationResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const dealRow = await client.query<{ metadata: Record<string, unknown> | null }>(`SELECT metadata FROM partner_deal_registrations WHERE id = $1 AND partner_id = $2 AND tenant_id = $3 AND deleted_at IS NULL`, [dealId, partnerId, actor.tenantId]);
+      if (dealRow.rowCount === 0) {
+        throw new AppError(404, "Partner deal registration not found.", undefined, "PARTNER_DEAL_NOT_FOUND");
+      }
+      const metadata = getMetadata(dealRow.rows[0].metadata);
+      let nextMetadata: Record<string, unknown> = { ...metadata, decisionNote: input.note?.trim() || null, decidedAt: new Date().toISOString() };
+      let stageKey: string | null = null;
+      if (input.decision === "approved") {
+        // R13 (Section 13): a partner deal cannot be approved while a duplicate
+        // channel conflict for its account/customer is still unresolved.
+        const conflictResolved = metadata.conflictResolution === "won" || metadata.conflictResolution === "lost";
+        const conflicts = await this.getChannelConflicts(actor);
+        const inActiveConflict = conflicts.conflicts.some((group) =>
+          group.registrations.length > 1 && group.registrations.some((registration) => registration.dealId === dealId)
+        );
+        const conflictCheck = evaluatePartnerApproval({ conflictUnresolved: inActiveConflict && !conflictResolved });
+        if (!conflictCheck.valid) {
+          throw new AppError(409, conflictCheck.violations[0].message, undefined, "PARTNER_CONFLICT_UNRESOLVED");
+        }
+        stageKey = "approved";
+        const protectionDays = input.protectionDays && input.protectionDays > 0 ? input.protectionDays : 90;
+        nextMetadata.protectionUntil = new Date(Date.now() + protectionDays * 24 * 60 * 60 * 1000).toISOString();
+        nextMetadata.clarificationRequested = false;
+      } else if (input.decision === "rejected") {
+        stageKey = "rejected";
+      } else {
+        nextMetadata.clarificationRequested = true;
+      }
+      if (stageKey) {
+        const stageId = await this.resolveOptionValueId(client, actor.tenantId, "partner-deal-stage", stageKey, "Partner deal stage");
+        await client.query(`UPDATE partner_deal_registrations SET stage_option_id = $4, metadata = $5::jsonb, updated_by = $6 WHERE id = $1 AND partner_id = $2 AND tenant_id = $3 AND deleted_at IS NULL`, [dealId, partnerId, actor.tenantId, stageId, JSON.stringify(nextMetadata), actor.userId]);
+      } else {
+        await client.query(`UPDATE partner_deal_registrations SET metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND partner_id = $2 AND tenant_id = $3 AND deleted_at IS NULL`, [dealId, partnerId, actor.tenantId, JSON.stringify(nextMetadata), actor.userId]);
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "partner.deal.decide", resourceType: "partner_deal_registration", resourceId: dealId, status: "success", metadata: { decision: input.decision } });
+    });
+    const deal = await this.databaseService.withClient(async (client) => this.loadDeal(client, actor.tenantId, partnerId, dealId));
+    return { deal };
+  }
+
+  // PM-004
+  async getChannelConflicts(actor: ActorContext): Promise<PartnerConflictsResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<{ id: string; partner_id: string; partner_name: string | null; account_id: string | null; customer_name: string | null; amount: string | number | null; created_at: Date; stage_id: string | null; stage_key: string | null; stage_label: string | null; stage_color: string | null; stage_is_default: boolean | null; stage_is_active: boolean | null }>(
+        `
+          SELECT d.id, d.partner_id, p.name AS partner_name, d.account_id, d.customer_name, d.amount, d.created_at,
+            sv.id AS stage_id, sv.value_key AS stage_key, sv.label AS stage_label, sv.color AS stage_color, sv.is_default AS stage_is_default, sv.is_active AS stage_is_active
+          FROM partner_deal_registrations d
+          INNER JOIN tenant_option_values sv ON sv.id = d.stage_option_id AND sv.tenant_id = d.tenant_id
+          LEFT JOIN partners p ON p.id = d.partner_id AND p.tenant_id = d.tenant_id
+          WHERE d.tenant_id = $1 AND d.deleted_at IS NULL AND sv.value_key IN ('registered', 'approved', 'in_progress')
+        `,
+        [actor.tenantId]
+      );
+      const byId = new Map(result.rows.map((row) => [row.id, row]));
+      const groups = detectChannelConflicts(result.rows.map((row) => ({
+        dealId: row.id,
+        partnerId: row.partner_id,
+        conflictKey: row.account_id ? `acct:${row.account_id}` : row.customer_name ? `cust:${row.customer_name}` : null,
+        submittedAt: row.created_at.toISOString()
+      })));
+      return {
+        conflicts: groups.map((group) => ({
+          conflictKey: group.conflictKey,
+          registrations: group.registrations.map((registration) => {
+            const row = byId.get(registration.dealId)!;
+            return {
+              dealId: row.id,
+              partner: { id: row.partner_id, name: row.partner_name ?? "" },
+              customerName: row.customer_name,
+              amount: this.mgmtNum(row.amount),
+              submittedAt: row.created_at.toISOString(),
+              stage: row.stage_key ? { id: row.stage_id!, key: row.stage_key, label: row.stage_label ?? row.stage_key, description: null, color: row.stage_color, isDefault: row.stage_is_default ?? false, isActive: row.stage_is_active ?? true } : null
+            };
+          })
+        }))
+      };
+    });
+  }
+
+  async resolveChannelConflict(actor: ActorContext, audit: AuditMetadata, input: ResolvePartnerConflictRequestBody): Promise<PartnerConflictsResponse> {
+    this.assertEnabled();
+    const resolution = input.resolution?.trim();
+    if (!resolution) {
+      throw new AppError(400, "A resolution note is required.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const conflicts = await this.getChannelConflicts(actor);
+      const group = conflicts.conflicts.find((entry) => entry.conflictKey === input.conflictKey);
+      if (!group) {
+        throw new AppError(404, "Channel conflict was not found.", undefined, "NOT_FOUND");
+      }
+      if (!group.registrations.some((registration) => registration.dealId === input.winningDealId)) {
+        throw new AppError(400, "The winning deal is not part of this conflict.", undefined, "VALIDATION_ERROR");
+      }
+      const rejectedStageId = await this.resolveOptionValueId(client, actor.tenantId, "partner-deal-stage", "rejected", "Partner deal stage");
+      for (const registration of group.registrations) {
+        const won = registration.dealId === input.winningDealId;
+        const dealRow = await client.query<{ metadata: Record<string, unknown> | null }>(`SELECT metadata FROM partner_deal_registrations WHERE id = $1 AND tenant_id = $2`, [registration.dealId, actor.tenantId]);
+        const metadata = { ...getMetadata(dealRow.rows[0]?.metadata), conflictResolution: won ? "won" : "lost", resolutionNote: resolution, resolvedAt: new Date().toISOString() };
+        if (won) {
+          await client.query(`UPDATE partner_deal_registrations SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2`, [registration.dealId, actor.tenantId, JSON.stringify(metadata), actor.userId]);
+        } else {
+          await client.query(`UPDATE partner_deal_registrations SET stage_option_id = $3, metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2`, [registration.dealId, actor.tenantId, rejectedStageId, JSON.stringify(metadata), actor.userId]);
+        }
+        // Notify the affected partner owner.
+        const ownerRow = await client.query<{ owner_id: string | null }>(`SELECT owner_id FROM partners WHERE id = $1 AND tenant_id = $2`, [registration.partner?.id, actor.tenantId]);
+        const ownerId = ownerRow.rows[0]?.owner_id;
+        if (ownerId && ownerId !== actor.userId) {
+          await this.notificationService.createNotificationWithClient(client, actor, audit, {
+            notificationType: "record_assignment",
+            recipientUserId: ownerId,
+            title: won ? "Channel conflict resolved in your favour" : "Channel conflict resolved",
+            message: resolution
+          });
+        }
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "partner.conflict.resolve", resourceType: "partner_deal_registration", resourceId: input.winningDealId, status: "success", metadata: { conflictKey: input.conflictKey } });
+    });
+    return this.getChannelConflicts(actor);
+  }
+
+  // PM-005
+  async getPartnerPerformance(actor: ActorContext): Promise<PartnerPerformanceResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const deals = await client.query<{ partner_id: string; partner_name: string | null; stage_key: string | null; amount: string | number | null; created_at: Date; updated_at: Date }>(
+        `
+          SELECT d.partner_id, p.name AS partner_name, sv.value_key AS stage_key, d.amount, d.created_at, d.updated_at
+          FROM partner_deal_registrations d
+          INNER JOIN tenant_option_values sv ON sv.id = d.stage_option_id AND sv.tenant_id = d.tenant_id
+          LEFT JOIN partners p ON p.id = d.partner_id AND p.tenant_id = d.tenant_id
+          WHERE d.tenant_id = $1 AND d.deleted_at IS NULL
+        `,
+        [actor.tenantId]
+      );
+      const onboarding = await client.query<{ partner_id: string; total: number; completed: number }>(
+        `SELECT partner_id, COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'completed')::int AS completed FROM partner_onboarding_tasks WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY partner_id`,
+        [actor.tenantId]
+      );
+      const onboardingByPartner = new Map(onboarding.rows.map((row) => [row.partner_id, row]));
+      const partnersList = await client.query<{ id: string; name: string }>(`SELECT id, name FROM partners WHERE tenant_id = $1 AND deleted_at IS NULL`, [actor.tenantId]);
+
+      const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      const rows = partnersList.rows.map((partner) => {
+        const partnerDeals = deals.rows.filter((deal) => deal.partner_id === partner.id);
+        let registrations = 0;
+        let approvals = 0;
+        let rejections = 0;
+        let pipelineValue = 0;
+        let revenue = 0;
+        let won = 0;
+        let lost = 0;
+        let cycleSum = 0;
+        let lastActivity = 0;
+        for (const deal of partnerDeals) {
+          registrations += 1;
+          const amount = this.mgmtNum(deal.amount) ?? 0;
+          lastActivity = Math.max(lastActivity, deal.created_at.getTime());
+          if (deal.stage_key === "approved" || deal.stage_key === "won" || deal.stage_key === "in_progress") approvals += 1;
+          if (deal.stage_key === "rejected" || deal.stage_key === "lost") rejections += 1;
+          if (deal.stage_key === "registered" || deal.stage_key === "approved" || deal.stage_key === "in_progress") pipelineValue += amount;
+          if (deal.stage_key === "won") { revenue += amount; won += 1; cycleSum += Math.max(0, (deal.updated_at.getTime() - deal.created_at.getTime()) / (24 * 60 * 60 * 1000)); }
+          if (deal.stage_key === "lost") lost += 1;
+        }
+        const ob = onboardingByPartner.get(partner.id);
+        return {
+          partner: { id: partner.id, name: partner.name },
+          registrations,
+          approvals,
+          rejections,
+          pipelineValue: Math.round(pipelineValue),
+          revenue: Math.round(revenue),
+          winRate: computePartnerWinRate(won, lost),
+          avgCycleDays: won > 0 ? Math.round(cycleSum / won) : 0,
+          onboardingPercent: ob && ob.total > 0 ? Math.round((ob.completed / ob.total) * 100) : 0,
+          inactive: registrations === 0 || lastActivity < ninetyDaysAgo
+        };
+      });
+      return {
+        rows: rows.sort((a, b) => b.revenue - a.revenue),
+        aiPlaceholders: { available: false, message: "AI high-performer and inactive-partner detection will connect with the governed AI Gateway." }
+      };
+    });
+  }
 }
 
 interface PartnerRow {
@@ -1618,6 +2028,7 @@ interface PartnerRow {
   agreement_start_date: string | null;
   agreement_end_date: string | null;
   agreement_notes: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;

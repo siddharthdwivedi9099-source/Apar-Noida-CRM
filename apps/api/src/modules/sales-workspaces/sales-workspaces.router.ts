@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
-import type { UpdateLeadWorkspaceRequestBody } from "@crm/types";
+import type {
+  MarkLeadNoShowRequestBody,
+  ReassignLeadRequestBody,
+  ScheduleLeadMeetingRequestBody,
+  UpdateLeadWorkspaceRequestBody
+} from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
 import { requirePermissions } from "../../common/middleware/authorize.js";
@@ -44,7 +49,67 @@ const updateLeadWorkspaceSchema = z.object({
     .max(30)
     .optional(),
   qualificationNotes: z.string().max(4000).nullable().optional(),
+  qualificationItems: z.record(z.boolean()).optional(),
+  qualificationOutcome: z.enum(["pending", "qualified", "not_qualified"]).optional(),
+  qualificationOverrideReason: z.string().max(2000).nullable().optional(),
+  disqualificationReasonKey: z.string().min(2).max(160).nullable().optional(),
+  cadence: z
+    .object({
+      paused: z.boolean().optional(),
+      pauseReason: z.string().max(2000).nullable().optional(),
+      completeStepKey: z.string().min(1).max(160).optional(),
+      logFailedAttempt: z.boolean().optional()
+    })
+    .optional(),
+  research: z
+    .object({
+      companyProfile: z.string().max(8000).nullable().optional(),
+      industry: z.string().max(400).nullable().optional(),
+      size: z.string().max(400).nullable().optional(),
+      leadership: z.string().max(4000).nullable().optional(),
+      locations: z.string().max(2000).nullable().optional(),
+      likelyNeeds: z.string().max(8000).nullable().optional(),
+      recentSignals: z.string().max(8000).nullable().optional(),
+      talkingPoints: z.string().max(8000).nullable().optional(),
+      sources: z.array(z.string().max(500)).max(30).optional(),
+      confidence: z.enum(["high", "medium", "low"]).nullable().optional()
+    })
+    .optional(),
+  icpAttributes: z
+    .object({
+      industry: z.string().max(400).nullable().optional(),
+      segment: z.string().max(400).nullable().optional(),
+      size: z.string().max(400).nullable().optional(),
+      geography: z.string().max(400).nullable().optional(),
+      useCase: z.string().max(2000).nullable().optional(),
+      budget: z.string().max(400).nullable().optional(),
+      strategicValue: z.enum(["high", "medium", "low"]).nullable().optional()
+    })
+    .optional(),
+  discovery: z.record(z.string().max(8000)).optional(),
+  addObjection: z
+    .object({
+      typeKey: z.string().min(2).max(160),
+      note: z.string().max(2000).nullable().optional()
+    })
+    .optional(),
+  removeObjectionId: z.string().max(200).optional(),
   metadata: recordSchema.optional()
+});
+
+const noShowSchema = z.object({
+  reschedule: z.boolean().optional(),
+  note: z.string().max(2000).nullable().optional()
+});
+
+const scheduleMeetingSchema = z.object({
+  meetingTypeKey: z.string().min(2).max(160),
+  title: z.string().min(2).max(200),
+  agenda: z.string().max(4000).nullable().optional(),
+  scheduledAt: z.string().min(1).max(40),
+  durationMinutes: z.number().int().positive().max(1440).optional(),
+  participantUserIds: z.array(uuidSchema).max(50).optional(),
+  reminderMinutesBefore: z.number().int().positive().max(10080).optional()
 });
 
 const leadIdSchema = z.object({
@@ -115,6 +180,38 @@ export function createSalesWorkspacesRouter({ databaseService }: SalesWorkspaces
     })
   );
 
+  // ---- Persona 12 (Sales Manager) lead SLA monitoring (SMGR-002) -------------------------------
+  router.get(
+    "/manager/lead-sla",
+    requirePermissions({ oneOf: salesWorkspaceReadPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await salesWorkspacesService.getManagerLeadSla(request.auth!));
+    })
+  );
+
+  router.post(
+    "/leads/:leadId/reassign",
+    requirePermissions({ oneOf: salesWorkspaceUpdatePermissions }),
+    validateRequest({
+      params: leadIdSchema,
+      body: z.object({ ownerId: uuidSchema, reason: z.string().min(1).max(4000) })
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await salesWorkspacesService.reassignLead(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.leadId,
+          request.body as ReassignLeadRequestBody
+        )
+      );
+    })
+  );
+
   router.patch(
     "/leads/:leadId/workflow",
     requirePermissions({ oneOf: salesWorkspaceUpdatePermissions }),
@@ -133,6 +230,52 @@ export function createSalesWorkspacesRouter({ databaseService }: SalesWorkspaces
           },
           request.params.leadId,
           request.body as UpdateLeadWorkspaceRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/leads/:leadId/meetings",
+    requirePermissions({ oneOf: salesWorkspaceUpdatePermissions }),
+    validateRequest({
+      params: leadIdSchema,
+      body: scheduleMeetingSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await salesWorkspacesService.scheduleLeadMeeting(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.leadId,
+          request.body as ScheduleLeadMeetingRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/leads/:leadId/no-show",
+    requirePermissions({ oneOf: salesWorkspaceUpdatePermissions }),
+    validateRequest({
+      params: leadIdSchema,
+      body: noShowSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await salesWorkspacesService.markLeadNoShow(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.leadId,
+          request.body as MarkLeadNoShowRequestBody
         )
       );
     })

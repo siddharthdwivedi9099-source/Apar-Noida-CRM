@@ -17,11 +17,15 @@ import {
   type CreateCrmActivityRequestBody,
   type CreateCrmNoteRequestBody,
   type CreateCrmTaskRequestBody,
+  type AddExecutiveMeetingRequestBody,
   type CreateLeadRequestBody,
   type CrmEntityType,
   type CrmTimelineQuery,
   type ContactListQuery,
+  type ConvertLeadRequestBody,
   type LeadListQuery,
+  type SubmitAccountPlanReviewRequestBody,
+  type UpsertStrategicAccountPlanRequestBody,
   type UpdateCrmNoteRequestBody,
   type UpdateAccountRequestBody,
   type UpdateContactRequestBody,
@@ -170,7 +174,8 @@ const leadCreateSchema = z.object({
   sourceKey: z.string().min(2).max(160),
   score: z.coerce.number().int().min(0).max(100).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const leadUpdateSchema = z.object({
@@ -183,7 +188,24 @@ const leadUpdateSchema = z.object({
   sourceKey: z.string().min(2).max(160).optional(),
   score: z.coerce.number().int().min(0).max(100).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
+});
+
+const leadConvertSchema = z.object({
+  accountId: uuidSchema.nullable().optional(),
+  contactId: uuidSchema.nullable().optional(),
+  opportunityName: z.string().min(2).max(160).nullable().optional(),
+  ownerId: uuidSchema.nullable().optional(),
+  stageKey: z.string().min(2).max(160),
+  amount: z.coerce.number().min(0),
+  probability: z.coerce.number().int().min(0).max(100).nullable().optional(),
+  expectedCloseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  sourceKey: z.string().min(2).max(160).nullable().optional(),
+  nextStep: z.string().min(2).max(4000),
+  competitor: z.string().max(200).nullable().optional(),
+  handoverNotes: z.string().max(4000).nullable().optional(),
+  taskDueAt: z.string().datetime().nullable().optional()
 });
 
 const accountCreateSchema = z.object({
@@ -193,7 +215,8 @@ const accountCreateSchema = z.object({
   accountTypeKey: z.string().min(2).max(160).nullable().optional(),
   healthStatusKey: z.string().min(2).max(160).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const accountUpdateSchema = z.object({
@@ -203,7 +226,8 @@ const accountUpdateSchema = z.object({
   accountTypeKey: z.string().min(2).max(160).nullable().optional(),
   healthStatusKey: z.string().min(2).max(160).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const contactCreateSchema = z.object({
@@ -215,7 +239,8 @@ const contactCreateSchema = z.object({
   roleKey: z.string().min(2).max(160).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
   accountId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const contactUpdateSchema = z.object({
@@ -227,7 +252,8 @@ const contactUpdateSchema = z.object({
   roleKey: z.string().min(2).max(160).nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
   accountId: uuidSchema.nullable().optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const leadIdSchema = z.object({
@@ -236,6 +262,29 @@ const leadIdSchema = z.object({
 
 const accountIdSchema = z.object({
   accountId: uuidSchema
+});
+
+// ---- Persona 10 (Enterprise Sales) — account plan + executive engagement -----------------------
+const strategicPlanSchema = z.object({
+  accountOverview: z.string().max(20000).nullable().optional(),
+  businessUnits: z.string().max(8000).nullable().optional(),
+  stakeholders: z.string().max(8000).nullable().optional(),
+  systems: z.string().max(8000).nullable().optional(),
+  painPoints: z.string().max(8000).nullable().optional(),
+  opportunities: z.string().max(8000).nullable().optional(),
+  competitors: z.string().max(8000).nullable().optional(),
+  revenuePotential: z.coerce.number().min(0).nullable().optional(),
+  risks: z.string().max(8000).nullable().optional(),
+  actionPlan: z.string().max(8000).nullable().optional()
+});
+const planReviewSchema = z.object({ reviewerUserId: uuidSchema, note: z.string().max(4000).nullable().optional() });
+const executiveMeetingSchema = z.object({
+  contactId: uuidSchema.nullable().optional(),
+  contactName: z.string().min(1).max(200),
+  notes: z.string().max(8000).nullable().optional(),
+  commitments: z.string().max(8000).nullable().optional(),
+  followUps: z.string().max(8000).nullable().optional(),
+  meetingDate: z.string().max(40).nullable().optional()
 });
 
 const contactIdSchema = z.object({
@@ -537,6 +586,17 @@ export function createCrmRouter({ databaseService }: CrmRouterDependencies) {
   );
 
   router.get(
+    "/leads/:leadId/runtime",
+    requirePermissions({ oneOf: leadReadPermissions }),
+    validateRequest({
+      params: leadIdSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await crmService.getLeadRuntime(request.auth!, request.params.leadId));
+    })
+  );
+
+  router.get(
     "/leads/:leadId",
     requirePermissions({ oneOf: leadReadPermissions }),
     validateRequest({
@@ -586,6 +646,29 @@ export function createCrmRouter({ databaseService }: CrmRouterDependencies) {
             userAgent: request.header("user-agent") ?? null
           },
           request.params.leadId
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/leads/:leadId/convert",
+    requirePermissions({ oneOf: leadMutationPermissions.update }),
+    validateRequest({
+      params: leadIdSchema,
+      body: leadConvertSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.convertLead(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.leadId,
+          request.body as ConvertLeadRequestBody
         )
       );
     })
@@ -727,6 +810,63 @@ export function createCrmRouter({ databaseService }: CrmRouterDependencies) {
             userAgent: request.header("user-agent") ?? null
           },
           request.params.accountId
+        )
+      );
+    })
+  );
+
+  router.get(
+    "/accounts/:accountId/enterprise",
+    requirePermissions({ oneOf: accountReadPermissions }),
+    validateRequest({ params: accountIdSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await crmService.getAccountEnterprise(request.auth!, request.params.accountId));
+    })
+  );
+
+  router.post(
+    "/accounts/:accountId/strategic-plan",
+    requirePermissions({ oneOf: accountMutationPermissions.update }),
+    validateRequest({ params: accountIdSchema, body: strategicPlanSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.upsertStrategicAccountPlan(
+          request.auth!,
+          { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null },
+          request.params.accountId,
+          request.body as UpsertStrategicAccountPlanRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/accounts/:accountId/strategic-plan/review",
+    requirePermissions({ oneOf: accountMutationPermissions.update }),
+    validateRequest({ params: accountIdSchema, body: planReviewSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await crmService.submitAccountPlanReview(
+          request.auth!,
+          { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null },
+          request.params.accountId,
+          request.body as SubmitAccountPlanReviewRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/accounts/:accountId/executive-meeting",
+    requirePermissions({ oneOf: accountMutationPermissions.update }),
+    validateRequest({ params: accountIdSchema, body: executiveMeetingSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await crmService.addExecutiveMeeting(
+          request.auth!,
+          { requestId: request.requestId, ipAddress: getClientIp(request), userAgent: request.header("user-agent") ?? null },
+          request.params.accountId,
+          request.body as AddExecutiveMeetingRequestBody
         )
       );
     })

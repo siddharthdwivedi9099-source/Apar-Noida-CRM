@@ -79,10 +79,13 @@ services:
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-sample-tenant}
       DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@sample-tenant.local}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-ChangeMe123!}
-      # Local convenience: migrate + seed on startup. Set both to "false" in prod
-      # and run migrations as a deliberate, separate step.
+      # Local convenience: migrate + seed on startup. Set these to "false" in prod
+      # and run migrations as a deliberate, separate step. The education + demo
+      # seeds populate sample leads/accounts/opportunities and per-role logins.
       RUN_MIGRATIONS: "true"
       RUN_SEED: "true"
+      RUN_EDUCATION_SEED: ${RUN_EDUCATION_SEED:-true}
+      RUN_DEMO_SEED: ${RUN_DEMO_SEED:-true}
     ports:
       - "${API_PORT:-4000}:4000"
 

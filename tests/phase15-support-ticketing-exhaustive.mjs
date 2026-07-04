@@ -219,6 +219,29 @@ async function main() {
     assert.ok(options.knowledgeCategories.some((entry) => entry.key === "troubleshooting"));
     assert.ok(options.statuses.some((entry) => entry.key === "resolved"));
 
+    log("Validating ticket custom-field definition surfaces in support options.");
+    const customTicketFieldKey = `ticket_tier_${runToken}`;
+    const customTicketField = await request("/tenant-config/custom-fields", {
+      method: "POST",
+      accessToken: adminSession.accessToken,
+      expectedStatus: 201,
+      body: {
+        moduleKey: "support",
+        entityKey: "support_ticket",
+        fieldKey: customTicketFieldKey,
+        label: `Support tier ${runToken}`,
+        dataType: "text",
+        isRequired: false,
+        isActive: true,
+        sortOrder: 90
+      }
+    });
+    assert.equal(customTicketField.field.fieldKey, customTicketFieldKey);
+
+    const optionsWithCustomField = await request("/support/options", { accessToken: agentSession.accessToken });
+    assert.ok(optionsWithCustomField.fieldDefinitions.some((field) => field.fieldKey === customTicketFieldKey && !field.isSystemField));
+    assert.deepEqual(optionsWithCustomField.customFieldOptions, {});
+
     log("Validating SLA policy configuration permission and creation.");
     await expectError("/support/sla-policies", {
       method: "POST",
@@ -285,10 +308,14 @@ async function main() {
         customerSuccessAccountId: accountId,
         assigneeId: agentUser.userId,
         slaPolicyId,
-        rootCause: "Auth provider outage"
+        rootCause: "Auth provider outage",
+        customFields: {
+          [customTicketFieldKey]: `Tier Created ${runToken}`
+        }
       }
     });
     const ticketId = createdTicket.ticket.id;
+    assert.equal(createdTicket.ticket.customFields[customTicketFieldKey], `Tier Created ${runToken}`);
     assert.equal(createdTicket.ticket.priority?.key, "high");
     assert.equal(createdTicket.ticket.category?.key, "technical");
     assert.equal(createdTicket.ticket.source?.key, "email");
@@ -403,11 +430,17 @@ async function main() {
     const escalated = await request(`/support/tickets/${ticketId}`, {
       method: "PATCH",
       accessToken: agentSession.accessToken,
-      body: { escalationStatus: "escalated", priorityKey: "urgent", categoryKey: "billing" }
+      body: {
+        escalationStatus: "escalated",
+        priorityKey: "urgent",
+        categoryKey: "billing",
+        customFields: { [customTicketFieldKey]: `Tier Updated ${runToken}` }
+      }
     });
     assert.equal(escalated.ticket.escalationStatus, "escalated");
     assert.equal(escalated.ticket.priority?.key, "urgent");
     assert.equal(escalated.ticket.category?.key, "billing");
+    assert.equal(escalated.ticket.customFields[customTicketFieldKey], `Tier Updated ${runToken}`);
 
     log("Updating ticket status and verifying resolved_at maintenance.");
     const resolved = await request(`/support/tickets/${ticketId}`, {

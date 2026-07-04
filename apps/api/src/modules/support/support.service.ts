@@ -29,12 +29,53 @@ import type {
   SupportTicketSummary,
   SupportTicketsResponse,
   RoleSummary,
-  UpdateSupportTicketRequestBody
+  UpdateSupportTicketRequestBody,
+  CloseTicketRequestBody,
+  EscalateTicketRequestBody,
+  LogKbUsageRequestBody,
+  SupportKbRecommendationsResponse,
+  SupportQueueResponse,
+  TicketIntakeAssistResponse,
+  CreateArticleFromTicketRequestBody,
+  EscalateBugRequestBody,
+  L2InvestigationResponse,
+  PublishKnowledgeArticleRequestBody,
+  RequestRcaShareRequestBody,
+  UpdateBugStatusRequestBody,
+  UpdateInvestigationRequestBody,
+  UpsertRcaRequestBody
 } from "@crm/types";
+import { computeQueueWeight, rankKnowledgeArticles, suggestTicketClassification } from "@crm/types";
+import { bugSeverities, bugSyncStatuses, isRcaRequired } from "@crm/types";
+import type {
+  AgentTicketFact,
+  ReassignTicketsRequestBody,
+  ReassignTicketsResponse,
+  RecordBreachReviewRequestBody,
+  RecordCsatRequestBody,
+  ReviewEscalationRequestBody,
+  SupportAgentPerformance,
+  SupportAgentWorkload,
+  SupportEscalationOversightResponse,
+  SupportTeamPerformanceResponse,
+  SupportWorkloadResponse,
+  WorkloadTicketFact
+} from "@crm/types";
+import { computeAgentPerformance, computeWorkload, escalationReviewDecisions, resolveCsatBand } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
+import {
+  loadCustomFieldDefinitions,
+  loadCustomFieldOptions,
+  sanitizeCustomFields
+} from "../../common/custom-fields.js";
 import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
+import { ApprovalService } from "../approvals/approvals.service.js";
+import { randomUUID } from "node:crypto";
+
+const SUPPORT_TICKET_ENTITY_KEY = "support_ticket";
 
 interface AuditMetadata {
   requestId: string;
@@ -228,10 +269,16 @@ function computeSlaStatus(row: SupportTicketRow): SupportSlaStatus {
 }
 
 export class SupportService {
+  private readonly notificationService: NotificationService;
+  private readonly approvalService: ApprovalService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
-  ) {}
+  ) {
+    this.notificationService = new NotificationService(databaseService, config);
+    this.approvalService = new ApprovalService(databaseService, config);
+  }
 
   private assertEnabled() {
     if (!this.databaseService.isEnabled()) {
@@ -433,8 +480,7 @@ export class SupportService {
       actor.permissionCodes.includes("support.assign") ||
       actor.permissionCodes.includes("support.configure") ||
       actor.permissionCodes.includes("support.view_dashboard") ||
-      actor.permissionCodes.includes("support.manage_workflow") ||
-      actor.permissionCodes.includes("dashboards.view_dashboard")
+      actor.permissionCodes.includes("support.manage_workflow")
     );
   }
 
@@ -491,10 +537,11 @@ export class SupportService {
       first_response_at: Date | null;
       resolved_at: Date | null;
       status_key: string;
+      custom_fields: Record<string, unknown> | null;
     }>(
       `
         SELECT support_tickets.id, support_tickets.assignee_id, support_tickets.owner_id,
-          support_tickets.first_response_at, support_tickets.resolved_at, status_values.value_key AS status_key
+          support_tickets.first_response_at, support_tickets.resolved_at, support_tickets.custom_fields, status_values.value_key AS status_key
         FROM support_tickets
         INNER JOIN tenant_option_values AS status_values
           ON status_values.id = support_tickets.status_option_id AND status_values.tenant_id = support_tickets.tenant_id
@@ -564,6 +611,7 @@ export class SupportService {
       support_tickets.resolution_due_at,
       support_tickets.first_response_at,
       support_tickets.resolved_at,
+      support_tickets.custom_fields,
       support_tickets.metadata,
       support_tickets.created_at,
       support_tickets.updated_at,
@@ -775,18 +823,27 @@ export class SupportService {
   async getSupportOptions(actor: ActorContext): Promise<SupportTicketOptionsResponse> {
     this.assertEnabled();
 
-    return this.databaseService.withClient(async (client) => ({
-      owners: await this.loadOwners(client, actor.tenantId),
-      accounts: await this.loadAccountsLookup(client, actor.tenantId),
-      contacts: await this.loadContactsLookup(client, actor.tenantId),
-      statuses: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-status"),
-      priorities: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-priority"),
-      categories: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-category"),
-      sources: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-source"),
-      knowledgeCategories: await this.loadOptionSetValues(client, actor.tenantId, "support-knowledge-category"),
-      slaPolicies: (await this.loadSlaPolicies(client, actor.tenantId)).policies,
-      availableScopes: await this.getAvailableScopes(client, actor)
-    }));
+    return this.databaseService.withClient(async (client) => {
+      const fieldDefinitions = await loadCustomFieldDefinitions(client, actor.tenantId, SUPPORT_TICKET_ENTITY_KEY);
+      const customFieldOptions = await loadCustomFieldOptions(client, actor.tenantId, fieldDefinitions);
+
+      return {
+        owners: await this.loadOwners(client, actor.tenantId),
+        accounts: await this.loadAccountsLookup(client, actor.tenantId),
+        contacts: await this.loadContactsLookup(client, actor.tenantId),
+        statuses: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-status"),
+        priorities: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-priority"),
+        categories: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-category"),
+        sources: await this.loadOptionSetValues(client, actor.tenantId, "support-ticket-source"),
+        knowledgeCategories: await this.loadOptionSetValues(client, actor.tenantId, "support-knowledge-category"),
+        rootCauses: await this.loadOptionSetValues(client, actor.tenantId, "support-root-cause"),
+        breachReasons: await this.loadOptionSetValues(client, actor.tenantId, "support-breach-reason"),
+        slaPolicies: (await this.loadSlaPolicies(client, actor.tenantId)).policies,
+        availableScopes: await this.getAvailableScopes(client, actor),
+        fieldDefinitions,
+        customFieldOptions
+      };
+    });
   }
 
   private async buildScopedWhere(client: PoolClient, actor: ActorContext, scope: SupportTicketScope) {
@@ -923,6 +980,9 @@ export class SupportService {
         [actor.tenantId]
       );
 
+      // Persona 23 (Support Manager) SPM-005: surface the real CSAT aggregate from captured surveys.
+      const csat = this.summarizeCsat(tickets);
+
       return {
         scope,
         totalTickets: tickets.length,
@@ -937,6 +997,13 @@ export class SupportService {
         csatPlaceholder: {
           available: false,
           message: "CSAT analytics will connect once the survey and feedback pipeline is introduced."
+        },
+        csat: {
+          responseCount: csat.responseCount,
+          averageScore: csat.averageScore,
+          detractors: csat.detractors,
+          passives: csat.passives,
+          promoters: csat.promoters
         }
       };
     });
@@ -965,6 +1032,7 @@ export class SupportService {
 
     return {
       ...summary,
+      customFields: getMetadata(row.custom_fields),
       description: row.description,
       rootCause: row.root_cause,
       resolutionNotes: row.resolution_notes,
@@ -998,6 +1066,7 @@ export class SupportService {
       const priorityOptionId = await this.resolveOptionValueId(client, actor.tenantId, "support-ticket-priority", input.priorityKey ?? "medium", "Ticket priority");
       const categoryOptionId = await this.resolveOptionValueId(client, actor.tenantId, "support-ticket-category", input.categoryKey ?? "technical", "Ticket category");
       const sourceOptionId = await this.resolveOptionValueId(client, actor.tenantId, "support-ticket-source", input.sourceKey ?? "email", "Ticket source");
+      const customFields = await sanitizeCustomFields(client, actor.tenantId, SUPPORT_TICKET_ENTITY_KEY, input.customFields);
 
       let firstResponseMinutes: number | null = null;
       let resolutionMinutes: number | null = null;
@@ -1015,13 +1084,13 @@ export class SupportService {
           INSERT INTO support_tickets (
             tenant_id, account_id, contact_id, customer_success_account_id, owner_id, assignee_id, sla_policy_id,
             subject, description, status_option_id, priority_option_id, category_option_id, source_option_id,
-            escalation_status, root_cause, resolution_notes, first_response_due_at, resolution_due_at, metadata, created_by, updated_by
+            escalation_status, root_cause, resolution_notes, first_response_due_at, resolution_due_at, custom_fields, metadata, created_by, updated_by
           )
           VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
             CASE WHEN $17::int IS NULL THEN NULL ELSE NOW() + ($17::int * INTERVAL '1 minute') END,
             CASE WHEN $18::int IS NULL THEN NULL ELSE NOW() + ($18::int * INTERVAL '1 minute') END,
-            $19::jsonb, $20, $20
+            $19::jsonb, $20::jsonb, $21, $21
           )
           RETURNING id
         `,
@@ -1044,7 +1113,8 @@ export class SupportService {
           getTrimmedNullableString(input.resolutionNotes),
           firstResponseMinutes,
           resolutionMinutes,
-          JSON.stringify(input.metadata ?? {}),
+          JSON.stringify(customFields),
+          JSON.stringify({ ...(input.metadata ?? {}), ...(Array.isArray(input.attachments) && input.attachments.length > 0 ? { attachments: input.attachments.filter((ref) => typeof ref === "string") } : {}) }),
           actor.userId
         ]
       );
@@ -1065,6 +1135,11 @@ export class SupportService {
 
       return nextTicketId;
     });
+
+    // L1-001: auto-acknowledgement on intake (opt-in so portal/API callers are unaffected).
+    if (input.autoAcknowledge) {
+      await this.acknowledgeTicket(actor, audit, ticketId);
+    }
 
     return this.getTicket(actor, ticketId);
   }
@@ -1134,6 +1209,16 @@ export class SupportService {
       }
       if (keys.includes("metadata")) {
         pushAssignment("metadata", JSON.stringify(input.metadata ?? {}), "::jsonb");
+      }
+      if (keys.includes("customFields")) {
+        const nextCustomFields = await sanitizeCustomFields(
+          client,
+          actor.tenantId,
+          SUPPORT_TICKET_ENTITY_KEY,
+          input.customFields,
+          getMetadata(state.custom_fields)
+        );
+        pushAssignment("custom_fields", JSON.stringify(nextCustomFields), "::jsonb");
       }
 
       // Maintain resolved_at based on status transitions.
@@ -1438,6 +1523,781 @@ export class SupportService {
 
     return this.getTicket(actor, ticketId);
   }
+
+  // ---- Persona 21 (Support Agent L1) -----------------------------------------------------------
+
+  private async loadTicketBasics(client: PoolClient, tenantId: string, ticketId: string) {
+    const result = await client.query<{ id: string; subject: string; description: string | null; account_id: string | null; owner_id: string | null; priority_key: string | null; metadata: Record<string, unknown> | null }>(
+      `
+        SELECT t.id, t.subject, t.description, t.account_id, t.owner_id, pv.value_key AS priority_key, t.metadata
+        FROM support_tickets t
+        LEFT JOIN tenant_option_values pv ON pv.id = t.priority_option_id AND pv.tenant_id = t.tenant_id
+        WHERE t.id = $1 AND t.tenant_id = $2 AND t.deleted_at IS NULL
+      `,
+      [ticketId, tenantId]
+    );
+    if (result.rowCount === 0) {
+      throw new AppError(404, "Support ticket not found.", undefined, "SUPPORT_TICKET_NOT_FOUND");
+    }
+    return { ...result.rows[0], metadata: getMetadata(result.rows[0].metadata) };
+  }
+
+  // L1-002
+  async getSupportQueue(actor: ActorContext, query: SupportTicketListQuery): Promise<SupportQueueResponse> {
+    this.assertEnabled();
+    const list = await this.listTickets(actor, { ...query, page: 1, pageSize: 200 });
+    const open = list.tickets.filter((ticket) => ticket.status?.key !== "closed" && ticket.status?.key !== "resolved");
+    // L1-002: customer tier = the customer-success account segment (accounts have no native tier).
+    const csAccountIds = [...new Set(open.map((ticket) => ticket.customerSuccessAccount?.id).filter((id): id is string => Boolean(id)))];
+    const tierByAccount = new Map<string, CrmOptionValueSummary>();
+    if (csAccountIds.length > 0) {
+      await this.databaseService.withClient(async (client) => {
+        const result = await client.query<{ account_id: string; seg_id: string; seg_key: string; seg_label: string; seg_color: string | null; seg_is_default: boolean; seg_is_active: boolean }>(
+          `
+            SELECT csa.account_id, sv.id AS seg_id, sv.value_key AS seg_key, sv.label AS seg_label, sv.color AS seg_color, sv.is_default AS seg_is_default, sv.is_active AS seg_is_active
+            FROM customer_success_accounts csa
+            INNER JOIN tenant_option_values sv ON sv.id = csa.segment_option_id AND sv.tenant_id = csa.tenant_id
+            WHERE csa.tenant_id = $1 AND csa.deleted_at IS NULL AND csa.account_id = ANY($2::uuid[])
+          `,
+          [actor.tenantId, csAccountIds]
+        );
+        for (const row of result.rows) {
+          tierByAccount.set(row.account_id, { id: row.seg_id, key: row.seg_key, label: row.seg_label, description: null, color: row.seg_color, isDefault: row.seg_is_default, isActive: row.seg_is_active });
+        }
+      });
+    }
+    let breachedCount = 0;
+    let atRiskCount = 0;
+    const entries = open.map((ticket) => {
+      const due = ticket.sla.resolutionDueAt ? Date.parse(ticket.sla.resolutionDueAt) : null;
+      const risk = ticket.sla.resolutionBreached ? "breached" : due !== null && due - Date.now() <= 60 * 60 * 1000 ? "at_risk" : "on_track";
+      if (risk === "breached") breachedCount += 1;
+      else if (risk === "at_risk") atRiskCount += 1;
+      return {
+        ticketId: ticket.id,
+        subject: ticket.subject,
+        customerName: ticket.account?.name ?? null,
+        customerTier: (ticket.customerSuccessAccount?.id ? tierByAccount.get(ticket.customerSuccessAccount.id) : undefined) ?? null,
+        category: ticket.category,
+        priority: ticket.priority,
+        status: ticket.status,
+        owner: ticket.owner,
+        slaDueAt: ticket.sla.resolutionDueAt,
+        slaStatus: null,
+        slaRisk: risk as "on_track" | "at_risk" | "breached",
+        breachAlert: ticket.sla.resolutionBreached || ticket.sla.firstResponseBreached,
+        queueWeight: computeQueueWeight(risk as "on_track" | "at_risk" | "breached", ticket.priority?.key ?? null)
+      };
+    });
+    entries.sort((a, b) => a.queueWeight - b.queueWeight || (a.slaDueAt ?? "9999").localeCompare(b.slaDueAt ?? "9999"));
+    return { entries, breachedCount, atRiskCount };
+  }
+
+  // L1-001
+  async getIntakeAssist(actor: ActorContext, ticketId: string): Promise<TicketIntakeAssistResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const firstWords = ticket.subject.split(/\s+/).filter((word) => word.length > 3).slice(0, 2).join(" ");
+      const duplicates = ticket.account_id
+        ? await client.query<{ id: string; subject: string; created_at: Date; status_id: string; status_key: string; status_label: string; status_color: string | null; status_is_default: boolean; status_is_active: boolean }>(
+            `
+              SELECT t.id, t.subject, t.created_at, sv.id AS status_id, sv.value_key AS status_key, sv.label AS status_label, sv.color AS status_color, sv.is_default AS status_is_default, sv.is_active AS status_is_active
+              FROM support_tickets t
+              INNER JOIN tenant_option_values sv ON sv.id = t.status_option_id AND sv.tenant_id = t.tenant_id
+              WHERE t.tenant_id = $1 AND t.deleted_at IS NULL AND t.account_id = $2 AND t.id <> $3
+                AND sv.value_key NOT IN ('closed', 'resolved')
+                AND ($4 = '' OR t.subject ILIKE '%' || $4 || '%')
+              ORDER BY t.created_at DESC LIMIT 5
+            `,
+            [actor.tenantId, ticket.account_id, ticketId, firstWords]
+          )
+        : { rows: [] as never[] };
+      return {
+        duplicates: duplicates.rows.map((row) => ({
+          ticketId: row.id,
+          subject: row.subject,
+          status: { id: row.status_id, key: row.status_key, label: row.status_label, description: null, color: row.status_color, isDefault: row.status_is_default, isActive: row.status_is_active },
+          createdAt: row.created_at.toISOString()
+        })),
+        classification: suggestTicketClassification(ticket.subject, ticket.description),
+        aiPlaceholder: { available: false, message: "AI ticket classification will connect with the governed AI Gateway." }
+      };
+    });
+  }
+
+  async acknowledgeTicket(actor: ActorContext, audit: AuditMetadata, ticketId: string): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, acknowledgedAt: new Date().toISOString() }), actor.userId]);
+    });
+    return this.addTicketMessage(actor, audit, ticketId, { body: "Thank you for contacting support. Your ticket has been received and an agent will respond shortly.", messageType: "customer_reply" });
+  }
+
+  // L1-003
+  async getKbRecommendations(actor: ActorContext, ticketId: string): Promise<SupportKbRecommendationsResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const articles = await this.listKnowledgeArticles(actor);
+      const ranked = rankKnowledgeArticles(`${ticket.subject} ${ticket.description ?? ""}`, articles.articles.map((article) => ({ id: article.id, title: article.title, body: article.body })));
+      const byId = new Map(articles.articles.map((article) => [article.id, article]));
+      return {
+        recommendations: ranked.slice(0, 5).map((entry) => {
+          const article = byId.get(entry.id)!;
+          return { articleId: article.id, title: article.title, category: article.category, score: entry.score };
+        }),
+        aiPlaceholder: { available: false, message: "AI knowledge-base recommendation will connect with the governed AI Gateway." }
+      };
+    });
+  }
+
+  // L1-003: insert an approved knowledge article as a customer reply (response template).
+  async insertKbTemplate(actor: ActorContext, audit: AuditMetadata, ticketId: string, articleId: string): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    const article = await this.databaseService.withClient((client) =>
+      client.query<{ title: string; summary: string | null; body: string | null }>(
+        `SELECT title, summary, body FROM support_knowledge_articles WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [articleId, actor.tenantId]
+      )
+    );
+    if (article.rowCount === 0) {
+      throw new AppError(404, "Knowledge article not found.", undefined, "NOT_FOUND");
+    }
+    const template = article.rows[0].summary?.trim() || article.rows[0].body?.trim() || article.rows[0].title;
+    await this.addTicketMessage(actor, audit, ticketId, { body: template, messageType: "customer_reply" });
+    return this.logKbUsage(actor, audit, ticketId, { articleId, helpful: true, note: "inserted as response template" });
+  }
+
+  async logKbUsage(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: LogKbUsageRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const usage = Array.isArray(ticket.metadata.kbUsage) ? ticket.metadata.kbUsage : [];
+      const entry = { articleId: input.articleId, helpful: Boolean(input.helpful), note: input.note?.trim() || null, by: actor.userId, at: new Date().toISOString() };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, kbUsage: [...usage, entry] }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.kb.usage", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { articleId: input.articleId, helpful: entry.helpful } });
+    });
+    return this.linkArticleToTicket(actor, audit, ticketId, input.articleId);
+  }
+
+  // L1-004
+  async escalateTicket(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: EscalateTicketRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    const reason = input.reason?.trim();
+    if (!reason) {
+      throw new AppError(400, "An escalation reason is required.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      let l2OwnerId = ticket.owner_id;
+      if (input.l2OwnerId) {
+        const owner = await client.query<{ id: string }>(`SELECT id FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [input.l2OwnerId, actor.tenantId]);
+        if (owner.rowCount === 0) {
+          throw new AppError(400, "The L2 owner was not found.", undefined, "VALIDATION_ERROR");
+        }
+        l2OwnerId = owner.rows[0].id;
+      }
+      const escalation = { reason, troubleshooting: input.troubleshooting?.trim() || null, logs: input.logs?.trim() || null, screenshots: input.screenshots?.trim() || null, impact: input.impact?.trim() || null, urgency: input.urgency ?? null, escalatedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email }, escalatedAt: new Date().toISOString() };
+      // L1-004: optionally switch SLA policy on escalation (recomputes the resolution due time).
+      let slaPolicyId: string | null = null;
+      let resolutionMinutes: number | null = null;
+      if (input.slaPolicyId) {
+        slaPolicyId = await this.ensureSlaPolicyId(client, actor.tenantId, input.slaPolicyId);
+        if (slaPolicyId) {
+          const policy = await client.query<{ resolution_minutes: number }>(`SELECT resolution_minutes FROM support_sla_policies WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`, [slaPolicyId, actor.tenantId]);
+          resolutionMinutes = policy.rows[0]?.resolution_minutes ?? null;
+        }
+      }
+      if (slaPolicyId && resolutionMinutes !== null) {
+        (escalation as Record<string, unknown>).slaChangedTo = slaPolicyId;
+        await client.query(
+          `UPDATE support_tickets SET escalation_status = 'escalated', owner_id = $3, sla_policy_id = $6, resolution_due_at = NOW() + ($7::int * interval '1 minute'), metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+          [ticketId, actor.tenantId, l2OwnerId, JSON.stringify({ ...ticket.metadata, escalation }), actor.userId, slaPolicyId, resolutionMinutes]
+        );
+      } else {
+        await client.query(
+          `UPDATE support_tickets SET escalation_status = 'escalated', owner_id = $3, metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+          [ticketId, actor.tenantId, l2OwnerId, JSON.stringify({ ...ticket.metadata, escalation }), actor.userId]
+        );
+      }
+      if (l2OwnerId && l2OwnerId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: l2OwnerId, title: "Ticket escalated to you (L2)", message: reason, linkedRecord: { entityType: "ticket", entityId: ticketId } });
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "support.ticket.escalate", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { l2OwnerId } });
+    });
+    if (input.notifyCustomer) {
+      await this.addTicketMessage(actor, audit, ticketId, { body: "Your ticket has been escalated to our specialist team for further investigation.", messageType: "customer_reply" });
+    }
+    return this.getTicket(actor, ticketId);
+  }
+
+  // L1-005
+  async closeTicket(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: CloseTicketRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    const summary = input.resolutionSummary?.trim();
+    if (!summary) {
+      throw new AppError(400, "A resolution summary is required.", undefined, "VALIDATION_ERROR");
+    }
+    const requestConfirmation = Boolean(input.requestCustomerConfirmation);
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      // L2-003: RCA is mandatory for critical incidents before closure.
+      if (isRcaRequired(ticket.priority_key) && !getMetadata(ticket.metadata.rca as Record<string, unknown> | undefined).rootCause) {
+        throw new AppError(409, "A root-cause analysis (RCA) is required before closing a critical incident.", undefined, "RCA_REQUIRED");
+      }
+      let rootCauseLabel: string | null = null;
+      if (input.rootCauseCategoryKey) {
+        const rootCauses = await this.loadOptionSetValues(client, actor.tenantId, "support-root-cause");
+        rootCauseLabel = rootCauses.find((value) => value.key === input.rootCauseCategoryKey)?.label ?? null;
+        if (!rootCauseLabel) {
+          throw new AppError(400, "Unknown root cause category.", undefined, "VALIDATION_ERROR");
+        }
+      }
+      const statusId = await this.resolveOptionValueId(client, actor.tenantId, "support-ticket-status", requestConfirmation ? "resolved" : "closed", "Support ticket status");
+      const csat = { requested: true, requestedAt: new Date().toISOString(), awaitingConfirmation: requestConfirmation };
+      await client.query(
+        `UPDATE support_tickets SET status_option_id = $3, resolution_notes = $4, root_cause = $5, resolved_at = NOW(), metadata = $6::jsonb, updated_by = $7 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [ticketId, actor.tenantId, statusId, summary, rootCauseLabel, JSON.stringify({ ...ticket.metadata, csat }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "support.ticket.close", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { requestConfirmation, rootCause: rootCauseLabel } });
+      // Section 14 (ticket_closed): notify the ticket owner when the ticket is closed by someone else.
+      if (ticket.owner_id && ticket.owner_id !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: ticket.owner_id,
+          title: `Ticket ${requestConfirmation ? "resolved" : "closed"}: ${ticket.subject}`,
+          message: `Resolution: ${summary}`,
+          linkedRecord: { entityType: "ticket", entityId: ticketId }
+        });
+      }
+    });
+    await this.addTicketMessage(actor, audit, ticketId, { body: `Resolution: ${summary}${requestConfirmation ? "\n\nPlease confirm this resolves your issue. We'd also appreciate your feedback via the CSAT survey." : ""}`, messageType: "customer_reply" });
+    return this.getTicket(actor, ticketId);
+  }
+
+  // ---- Persona 22 (Support Agent L2 / Technical Support) ---------------------------------------
+
+  private mapL2StoredUser(value: unknown): CrmLookupUserSummary | null {
+    const record = getMetadata(value as Record<string, unknown> | undefined);
+    const id = typeof record.id === "string" ? record.id : null;
+    if (!id) {
+      return null;
+    }
+    return { id, displayName: typeof record.displayName === "string" ? record.displayName : "", email: typeof record.email === "string" ? record.email : "", teamName: null, departmentName: null };
+  }
+
+  // L2-001
+  async getInvestigation(actor: ActorContext, ticketId: string): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    const { ticket } = await this.getTicket(actor, ticketId);
+    return this.databaseService.withClient(async (client) => {
+      const metadata = getMetadata(ticket.metadata);
+      const investigation = getMetadata(metadata.investigation as Record<string, unknown> | undefined);
+      const str = (record: Record<string, unknown>, key: string) => (typeof record[key] === "string" && (record[key] as string).length > 0 ? (record[key] as string) : null);
+
+      const priorTickets = ticket.account?.id
+        ? await client.query<{ id: string; subject: string; created_at: Date; status_id: string; status_key: string; status_label: string; status_color: string | null; status_is_default: boolean; status_is_active: boolean }>(
+            `
+              SELECT t.id, t.subject, t.created_at, sv.id AS status_id, sv.value_key AS status_key, sv.label AS status_label, sv.color AS status_color, sv.is_default AS status_is_default, sv.is_active AS status_is_active
+              FROM support_tickets t
+              INNER JOIN tenant_option_values sv ON sv.id = t.status_option_id AND sv.tenant_id = t.tenant_id
+              WHERE t.tenant_id = $1 AND t.deleted_at IS NULL AND t.account_id = $2 AND t.id <> $3
+              ORDER BY t.created_at DESC LIMIT 10
+            `,
+            [actor.tenantId, ticket.account.id, ticketId]
+          )
+        : { rows: [] as never[] };
+
+      const bugRaw = getMetadata(metadata.bugEscalation as Record<string, unknown> | undefined);
+      const bugEscalation = bugRaw.escalatedAt
+        ? {
+            stepsToReproduce: str(bugRaw, "stepsToReproduce"),
+            expectedResult: str(bugRaw, "expectedResult"),
+            actualResult: str(bugRaw, "actualResult"),
+            environment: str(bugRaw, "environment"),
+            logs: str(bugRaw, "logs"),
+            severity: (bugSeverities.includes(bugRaw.severity as never) ? bugRaw.severity : "medium") as (typeof bugSeverities)[number],
+            customerImpact: str(bugRaw, "customerImpact"),
+            engineeringRef: str(bugRaw, "engineeringRef"),
+            syncStatus: (bugSyncStatuses.includes(bugRaw.syncStatus as never) ? bugRaw.syncStatus : "open") as (typeof bugSyncStatuses)[number],
+            escalatedBy: this.mapL2StoredUser(bugRaw.escalatedBy),
+            escalatedAt: str(bugRaw, "escalatedAt") ?? new Date(0).toISOString(),
+            updatedAt: str(bugRaw, "updatedAt")
+          }
+        : null;
+
+      const rcaRaw = getMetadata(metadata.rca as Record<string, unknown> | undefined);
+      let rca = null;
+      if (Object.keys(rcaRaw).length > 0) {
+        const shareApprovalId = str(rcaRaw, "shareApprovalId");
+        let shareApprovalStatus: string | null = null;
+        if (shareApprovalId) {
+          const approval = await client.query<{ status: string }>(`SELECT status FROM approval_requests WHERE id = $1 AND tenant_id = $2`, [shareApprovalId, actor.tenantId]);
+          shareApprovalStatus = approval.rows[0]?.status ?? null;
+        }
+        rca = {
+          rootCause: str(rcaRaw, "rootCause"),
+          impact: str(rcaRaw, "impact"),
+          timeline: str(rcaRaw, "timeline"),
+          resolution: str(rcaRaw, "resolution"),
+          preventiveAction: str(rcaRaw, "preventiveAction"),
+          owner: this.mapL2StoredUser(rcaRaw.owner),
+          dueDate: str(rcaRaw, "dueDate"),
+          shareApprovalId,
+          shareApprovalStatus,
+          shareable: shareApprovalStatus === "approved",
+          updatedAt: str(rcaRaw, "updatedAt")
+        };
+      }
+
+      const notesRaw = Array.isArray(investigation.notes) ? investigation.notes : [];
+      return {
+        investigation: {
+          ticketId,
+          subject: ticket.subject,
+          slaStatus: null,
+          slaDueAt: ticket.sla?.resolutionDueAt ?? null,
+          environment: str(investigation, "environment"),
+          configuration: str(investigation, "configuration"),
+          logs: str(investigation, "logs"),
+          attachments: Array.isArray(metadata.attachments) ? metadata.attachments.filter((ref): ref is string => typeof ref === "string") : [],
+          notes: notesRaw
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+            .map((entry) => ({ id: typeof entry.id === "string" ? entry.id : randomUUID(), note: typeof entry.note === "string" ? entry.note : "", author: this.mapL2StoredUser(entry.author), createdAt: typeof entry.createdAt === "string" ? entry.createdAt : new Date(0).toISOString() })),
+          priorTickets: priorTickets.rows.map((row) => ({ ticketId: row.id, subject: row.subject, status: { id: row.status_id, key: row.status_key, label: row.status_label, description: null, color: row.status_color, isDefault: row.status_is_default, isActive: row.status_is_active }, createdAt: row.created_at.toISOString() })),
+          bugEscalation,
+          rca,
+          rcaRequired: isRcaRequired(ticket.priority?.key ?? null),
+          aiPlaceholder: { available: false, message: "AI similar-issue summarization and article formatting will connect with the governed AI Gateway." }
+        }
+      };
+    });
+  }
+
+  async updateInvestigation(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: UpdateInvestigationRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const investigation = getMetadata(ticket.metadata.investigation as Record<string, unknown> | undefined);
+      const trimmedOrKeep = (next: string | null | undefined, key: string) => (next !== undefined ? (next?.trim() || null) : investigation[key] ?? null);
+      const notes = Array.isArray(investigation.notes) ? investigation.notes : [];
+      if (input.note && input.note.trim()) {
+        notes.push({ id: randomUUID(), note: input.note.trim(), author: { id: actor.userId, displayName: actor.displayName, email: actor.email }, createdAt: new Date().toISOString() });
+      }
+      const next = { ...investigation, environment: trimmedOrKeep(input.environment, "environment"), configuration: trimmedOrKeep(input.configuration, "configuration"), logs: trimmedOrKeep(input.logs, "logs"), notes, updatedAt: new Date().toISOString() };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, investigation: next }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.l2.investigation.update", resourceType: "support_ticket", resourceId: ticketId, status: "success" });
+    });
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  // L2-002
+  async escalateBug(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: EscalateBugRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    const steps = input.stepsToReproduce?.trim();
+    if (!steps) {
+      throw new AppError(400, "Steps to reproduce are required to escalate a bug.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const existing = getMetadata(ticket.metadata.bugEscalation as Record<string, unknown> | undefined);
+      const bugEscalation = {
+        ...existing,
+        stepsToReproduce: steps,
+        expectedResult: input.expectedResult?.trim() || null,
+        actualResult: input.actualResult?.trim() || null,
+        environment: input.environment?.trim() || null,
+        logs: input.logs?.trim() || null,
+        severity: bugSeverities.includes(input.severity as never) ? input.severity : "medium",
+        customerImpact: input.customerImpact?.trim() || null,
+        engineeringRef: input.engineeringRef?.trim() || existing.engineeringRef || null,
+        syncStatus: existing.syncStatus ?? "open",
+        escalatedBy: existing.escalatedBy ?? { id: actor.userId, displayName: actor.displayName, email: actor.email },
+        escalatedAt: existing.escalatedAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, bugEscalation }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.l2.bug.escalate", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { severity: bugEscalation.severity } });
+    });
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  async updateBugStatus(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: UpdateBugStatusRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    if (!bugSyncStatuses.includes(input.syncStatus)) {
+      throw new AppError(400, "Invalid bug sync status.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const existing = getMetadata(ticket.metadata.bugEscalation as Record<string, unknown> | undefined);
+      if (!existing.escalatedAt) {
+        throw new AppError(409, "No engineering escalation exists for this ticket.", undefined, "INVALID_STATE");
+      }
+      const bugEscalation = { ...existing, syncStatus: input.syncStatus, engineeringRef: input.engineeringRef?.trim() || existing.engineeringRef || null, updatedAt: new Date().toISOString() };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, bugEscalation }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.l2.bug.status", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { syncStatus: input.syncStatus } });
+    });
+    if (input.generateCustomerUpdate) {
+      await this.addTicketMessage(actor, audit, ticketId, { body: `Engineering update: the reported issue is now "${input.syncStatus.replace(/_/g, " ")}".`, messageType: "customer_reply" });
+    }
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  // L2-003
+  async upsertRca(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: UpsertRcaRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const existing = getMetadata(ticket.metadata.rca as Record<string, unknown> | undefined);
+      let owner = existing.owner;
+      if (input.ownerId !== undefined) {
+        if (input.ownerId) {
+          const ownerRow = await client.query<{ id: string; display_name: string; email: string }>(`SELECT id, display_name, email FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [input.ownerId, actor.tenantId]);
+          if (ownerRow.rowCount === 0) {
+            throw new AppError(400, "RCA owner was not found.", undefined, "VALIDATION_ERROR");
+          }
+          owner = { id: ownerRow.rows[0].id, displayName: ownerRow.rows[0].display_name, email: ownerRow.rows[0].email };
+        } else {
+          owner = null;
+        }
+      }
+      const pick = (next: string | null | undefined, key: string) => (next !== undefined ? (next?.trim() || null) : existing[key] ?? null);
+      const rca = {
+        ...existing,
+        rootCause: pick(input.rootCause, "rootCause"),
+        impact: pick(input.impact, "impact"),
+        timeline: pick(input.timeline, "timeline"),
+        resolution: pick(input.resolution, "resolution"),
+        preventiveAction: pick(input.preventiveAction, "preventiveAction"),
+        owner,
+        dueDate: pick(input.dueDate, "dueDate"),
+        updatedAt: new Date().toISOString()
+      };
+      await client.query(`UPDATE support_tickets SET root_cause = COALESCE($3, root_cause), metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, rca.rootCause, JSON.stringify({ ...ticket.metadata, rca }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.l2.rca.upsert", resourceType: "support_ticket", resourceId: ticketId, status: "success" });
+    });
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  async requestRcaShare(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: RequestRcaShareRequestBody): Promise<L2InvestigationResponse> {
+    this.assertEnabled();
+    let subject = "";
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      subject = ticket.subject;
+      if (!getMetadata(ticket.metadata.rca as Record<string, unknown> | undefined).rootCause) {
+        throw new AppError(409, "Capture the RCA before requesting a share approval.", undefined, "INVALID_STATE");
+      }
+    });
+    const approval = await this.approvalService.createApproval(actor, audit, {
+      approvalType: "rca_share_approval",
+      title: `Share RCA with customer: ${subject}`,
+      description: input.note?.trim() || "Approval to share the root-cause analysis with the customer (L2-003).",
+      approverUserId: input.approverUserId,
+      linkedRecord: { entityType: "ticket", entityId: ticketId },
+      metadata: { ticketId }
+    });
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const rca = getMetadata(ticket.metadata.rca as Record<string, unknown> | undefined);
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, rca: { ...rca, shareApprovalId: approval.approval.id } }), actor.userId]);
+    });
+    return this.getInvestigation(actor, ticketId);
+  }
+
+  // L2-004
+  async createArticleFromTicket(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: CreateArticleFromTicketRequestBody): Promise<SupportKnowledgeArticleResponse> {
+    this.assertEnabled();
+    const ticket = await this.loadTicketBasicsWithClient(actor.tenantId, ticketId);
+    const title = input.title?.trim() || `KB: ${ticket.subject}`;
+    const body = input.body?.trim() || (typeof ticket.metadata.rca === "object" ? (getMetadata(ticket.metadata.rca as Record<string, unknown>).resolution as string) : null) || ticket.description || "";
+    const article = await this.createKnowledgeArticle(actor, audit, {
+      title,
+      categoryKey: input.categoryKey ?? null,
+      summary: input.summary?.trim() || ticket.subject,
+      body,
+      status: "draft",
+      metadata: { sourceTicketId: ticketId, createdFromTicket: true }
+    });
+    await this.linkArticleToTicket(actor, audit, ticketId, article.article.id);
+    return article;
+  }
+
+  async publishKnowledgeArticle(actor: ActorContext, audit: AuditMetadata, articleId: string, input: PublishKnowledgeArticleRequestBody): Promise<SupportKnowledgeArticleResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const existing = await client.query<{ id: string; metadata: Record<string, unknown> | null }>(`SELECT id, metadata FROM support_knowledge_articles WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [articleId, actor.tenantId]);
+      if (existing.rowCount === 0) {
+        throw new AppError(404, "Knowledge article not found.", undefined, "NOT_FOUND");
+      }
+      const metadata = { ...getMetadata(existing.rows[0].metadata), reviewedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email }, reviewedAt: new Date().toISOString(), reviewNote: input.note?.trim() || null };
+      await client.query(`UPDATE support_knowledge_articles SET status = 'published', metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [articleId, actor.tenantId, JSON.stringify(metadata), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.kb.publish", resourceType: "support_knowledge_article", resourceId: articleId, status: "success" });
+    });
+    const articles = await this.listKnowledgeArticles(actor);
+    const published = articles.articles.find((article) => article.id === articleId);
+    if (!published) {
+      throw new AppError(404, "Knowledge article not found.", undefined, "NOT_FOUND");
+    }
+    return { article: published };
+  }
+
+  // ---- Persona 23 (Support Manager) ------------------------------------------------------------
+
+  private readCsatScore(metadata: Record<string, unknown>): number | null {
+    const csat = getMetadata(metadata.csat as Record<string, unknown> | undefined);
+    return typeof csat.score === "number" ? csat.score : null;
+  }
+
+  private summarizeCsat(tickets: SupportTicketSummary[]) {
+    const scores = tickets.map((ticket) => this.readCsatScore(ticket.metadata)).filter((score): score is number => typeof score === "number");
+    let detractors = 0;
+    let passives = 0;
+    let promoters = 0;
+    for (const score of scores) {
+      const band = resolveCsatBand(score);
+      if (band === "detractor") detractors += 1;
+      else if (band === "promoter") promoters += 1;
+      else passives += 1;
+    }
+    const averageScore = scores.length > 0 ? Math.round((scores.reduce((total, score) => total + score, 0) / scores.length) * 10) / 10 : null;
+    return { responseCount: scores.length, averageScore, detractors, passives, promoters };
+  }
+
+  private buildAgentFact(ticket: SupportTicketSummary): AgentTicketFact {
+    const resolved = RESOLVED_STATUS_KEYS.has(ticket.status?.key ?? "");
+    const createdAtMs = Date.parse(ticket.createdAt);
+    const firstResponseAtMs = ticket.sla.firstResponseAt ? Date.parse(ticket.sla.firstResponseAt) : null;
+    const resolvedAtMs = ticket.sla.resolvedAt ? Date.parse(ticket.sla.resolvedAt) : null;
+    return {
+      resolved,
+      firstResponseBreached: ticket.sla.firstResponseBreached,
+      resolutionBreached: ticket.sla.resolutionBreached,
+      // A ticket that carries a resolved timestamp but is open again was reopened.
+      reopened: resolvedAtMs !== null && !Number.isNaN(resolvedAtMs) && !resolved,
+      createdAtMs: Number.isNaN(createdAtMs) ? Date.now() : createdAtMs,
+      firstResponseAtMs: firstResponseAtMs !== null && !Number.isNaN(firstResponseAtMs) ? firstResponseAtMs : null,
+      resolvedAtMs: resolvedAtMs !== null && !Number.isNaN(resolvedAtMs) ? resolvedAtMs : null,
+      csatScore: this.readCsatScore(ticket.metadata)
+    };
+  }
+
+  private async loadScopedTicketSummaries(client: PoolClient, actor: ActorContext, scope: SupportTicketScope): Promise<SupportTicketSummary[]> {
+    const { conditions, params } = await this.buildScopedWhere(client, actor, scope);
+    const result = await client.query<SupportTicketRow>(
+      `SELECT ${this.ticketSelectColumns()} ${this.ticketFromClause()} WHERE ${conditions.join(" AND ")}`,
+      params
+    );
+    return result.rows.map((row) => this.mapTicketSummary(row));
+  }
+
+  // SPM-001: per-agent + team performance and SLA compliance.
+  async getTeamPerformance(actor: ActorContext, query: SupportTicketListQuery): Promise<SupportTeamPerformanceResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const scope = await this.resolveScope(client, actor, query.scope);
+      const tickets = await this.loadScopedTicketSummaries(client, actor, scope);
+
+      const byAgent = new Map<string, { agent: SupportTicketSummary["assignee"]; facts: AgentTicketFact[] }>();
+      for (const ticket of tickets) {
+        if (!ticket.assignee) {
+          continue;
+        }
+        const entry = byAgent.get(ticket.assignee.id) ?? { agent: ticket.assignee, facts: [] };
+        entry.facts.push(this.buildAgentFact(ticket));
+        byAgent.set(ticket.assignee.id, entry);
+      }
+
+      const agents: SupportAgentPerformance[] = Array.from(byAgent.values())
+        .map((entry) => ({ agent: entry.agent, ...computeAgentPerformance(entry.facts) }))
+        .sort((a, b) => b.assigned - a.assigned);
+
+      return {
+        scope,
+        generatedAt: new Date().toISOString(),
+        team: computeAgentPerformance(tickets.map((ticket) => this.buildAgentFact(ticket))),
+        agents,
+        csat: this.summarizeCsat(tickets),
+        aiPlaceholder: { available: false, message: "AI performance insights and high-performer detection will connect with the governed AI Gateway." }
+      };
+    });
+  }
+
+  // SPM-002: per-agent open workload and overload detection.
+  async getWorkload(actor: ActorContext, query: SupportTicketListQuery, capacity: number): Promise<SupportWorkloadResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const scope = await this.resolveScope(client, actor, query.scope);
+      const tickets = await this.loadScopedTicketSummaries(client, actor, scope);
+      const open = tickets.filter((ticket) => !RESOLVED_STATUS_KEYS.has(ticket.status?.key ?? ""));
+
+      const toFact = (ticket: SupportTicketSummary): WorkloadTicketFact => {
+        const due = ticket.sla.resolutionDueAt ? Date.parse(ticket.sla.resolutionDueAt) : null;
+        const breached = ticket.sla.resolutionBreached || ticket.sla.firstResponseBreached;
+        return { open: true, breached, atRisk: !breached && due !== null && !Number.isNaN(due) && due - Date.now() <= 3600000 };
+      };
+
+      const byAgent = new Map<string, { agent: SupportTicketSummary["assignee"]; facts: WorkloadTicketFact[] }>();
+      let unassignedOpen = 0;
+      for (const ticket of open) {
+        if (!ticket.assignee) {
+          unassignedOpen += 1;
+          continue;
+        }
+        const entry = byAgent.get(ticket.assignee.id) ?? { agent: ticket.assignee, facts: [] };
+        entry.facts.push(toFact(ticket));
+        byAgent.set(ticket.assignee.id, entry);
+      }
+
+      const agents: SupportAgentWorkload[] = Array.from(byAgent.values())
+        .map((entry) => ({ agent: entry.agent, ...computeWorkload(entry.facts, capacity) }))
+        .sort((a, b) => b.openCount - a.openCount);
+
+      return { scope, capacity, unassignedOpen, agents };
+    });
+  }
+
+  // SPM-002: bulk-reassign tickets to balance load. Reuses the ticket assignment gate at the router.
+  async reassignTickets(actor: ActorContext, audit: AuditMetadata, input: ReassignTicketsRequestBody): Promise<ReassignTicketsResponse> {
+    this.assertEnabled();
+    const ticketIds = [...new Set((input.ticketIds ?? []).filter((id) => typeof id === "string" && id.length > 0))];
+    if (ticketIds.length === 0) {
+      throw new AppError(400, "At least one ticket is required.", undefined, "VALIDATION_ERROR");
+    }
+    let reassigned = 0;
+    await this.databaseService.withTransaction(async (client) => {
+      const assigneeId = await this.ensureReference(client, actor.tenantId, "users", input.assigneeId, "INVALID_ASSIGNEE", "assignee");
+      for (const ticketId of ticketIds) {
+        await this.loadTicketBasics(client, actor.tenantId, ticketId);
+        await client.query(
+          `UPDATE support_tickets SET assignee_id = $3, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+          [ticketId, actor.tenantId, assigneeId, actor.userId]
+        );
+        await this.recordAuditLog(client, actor, audit, { action: "support.manager.reassign", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { assigneeId } });
+        reassigned += 1;
+      }
+      if (assigneeId && assigneeId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: assigneeId,
+          title: `${reassigned} ticket(s) assigned to you`,
+          message: input.note?.trim() || "Your support manager has balanced these tickets to your queue.",
+          linkedRecord: { entityType: "ticket", entityId: ticketIds[0] }
+        });
+      }
+    });
+    return { reassigned, assigneeId: input.assigneeId };
+  }
+
+  // SPM-003: record why an SLA breach happened + the corrective action.
+  async recordBreachReview(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: RecordBreachReviewRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    const reasonKey = input.reasonKey?.trim();
+    if (!reasonKey) {
+      throw new AppError(400, "A breach reason is required.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const reasons = await this.loadOptionSetValues(client, actor.tenantId, "support-breach-reason");
+      const reasonLabel = reasons.find((value) => value.key === reasonKey)?.label ?? null;
+      if (!reasonLabel) {
+        throw new AppError(400, "Unknown breach reason.", undefined, "VALIDATION_ERROR");
+      }
+      const breachReview = {
+        reasonKey,
+        reasonLabel,
+        correctiveAction: input.correctiveAction?.trim() || null,
+        reviewedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email },
+        reviewedAt: new Date().toISOString()
+      };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, breachReview }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.manager.breach_review", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { reasonKey } });
+    });
+    return this.getTicket(actor, ticketId);
+  }
+
+  // SPM-004: escalated-ticket oversight with aging.
+  async getEscalationOversight(actor: ActorContext, query: SupportTicketListQuery): Promise<SupportEscalationOversightResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const scope = await this.resolveScope(client, actor, query.scope);
+      const tickets = await this.loadScopedTicketSummaries(client, actor, scope);
+      const escalated = tickets.filter((ticket) => ticket.escalationStatus === "escalated");
+      const entries = escalated.map((ticket) => {
+        const escalation = getMetadata(ticket.metadata.escalation as Record<string, unknown> | undefined);
+        const escalatedAt = typeof escalation.escalatedAt === "string" ? escalation.escalatedAt : null;
+        const escalatedMs = escalatedAt ? Date.parse(escalatedAt) : NaN;
+        return {
+          ticketId: ticket.id,
+          subject: ticket.subject,
+          priority: ticket.priority,
+          owner: ticket.owner,
+          reason: typeof escalation.reason === "string" ? escalation.reason : null,
+          escalatedAt,
+          ageHours: Number.isNaN(escalatedMs) ? null : Math.round(((Date.now() - escalatedMs) / 3600000) * 10) / 10
+        };
+      });
+      entries.sort((a, b) => (b.ageHours ?? -1) - (a.ageHours ?? -1));
+      return { entries, count: entries.length };
+    });
+  }
+
+  // SPM-004: reassign an escalation owner or return the ticket to L1.
+  async reviewEscalation(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: ReviewEscalationRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    if (!escalationReviewDecisions.includes(input.decision)) {
+      throw new AppError(400, "Invalid escalation decision.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const escalationReview = { decision: input.decision, note: input.note?.trim() || null, reviewedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email }, reviewedAt: new Date().toISOString() };
+      const nextMetadata = JSON.stringify({ ...ticket.metadata, escalationReview });
+      if (input.decision === "reassign") {
+        const ownerId = await this.ensureReference(client, actor.tenantId, "users", input.ownerId, "INVALID_OWNER", "owner");
+        if (!ownerId) {
+          throw new AppError(400, "An owner is required to reassign an escalation.", undefined, "VALIDATION_ERROR");
+        }
+        await client.query(`UPDATE support_tickets SET owner_id = $3, escalation_status = 'escalated', metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, ownerId, nextMetadata, actor.userId]);
+        if (ownerId !== actor.userId) {
+          await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: ownerId, title: "Escalation reassigned to you", message: escalationReview.note || "A support manager reassigned this escalation to you.", linkedRecord: { entityType: "ticket", entityId: ticketId } });
+        }
+      } else {
+        await client.query(`UPDATE support_tickets SET escalation_status = 'none', metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, nextMetadata, actor.userId]);
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "support.manager.escalation_review", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { decision: input.decision } });
+    });
+    return this.getTicket(actor, ticketId);
+  }
+
+  // SPM-005: capture a CSAT survey response, completing the L1-triggered survey.
+  async recordCsat(actor: ActorContext, audit: AuditMetadata, ticketId: string, input: RecordCsatRequestBody): Promise<SupportTicketResponse> {
+    this.assertEnabled();
+    if (typeof input.score !== "number" || input.score < 1 || input.score > 5) {
+      throw new AppError(400, "CSAT score must be between 1 and 5.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const ticket = await this.loadTicketBasics(client, actor.tenantId, ticketId);
+      const existing = getMetadata(ticket.metadata.csat as Record<string, unknown> | undefined);
+      const csat = {
+        ...existing,
+        score: input.score,
+        comment: input.comment?.trim() || null,
+        band: resolveCsatBand(input.score),
+        recordedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email },
+        recordedAt: new Date().toISOString(),
+        awaitingConfirmation: false
+      };
+      await client.query(`UPDATE support_tickets SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [ticketId, actor.tenantId, JSON.stringify({ ...ticket.metadata, csat }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "support.manager.csat", resourceType: "support_ticket", resourceId: ticketId, status: "success", metadata: { score: input.score, band: csat.band } });
+    });
+    return this.getTicket(actor, ticketId);
+  }
+
+  private async loadTicketBasicsWithClient(tenantId: string, ticketId: string) {
+    return this.databaseService.withClient((client) => this.loadTicketBasics(client, tenantId, ticketId));
+  }
 }
 
 interface SupportTicketRow {
@@ -1451,6 +2311,7 @@ interface SupportTicketRow {
   resolution_due_at: Date | null;
   first_response_at: Date | null;
   resolved_at: Date | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;

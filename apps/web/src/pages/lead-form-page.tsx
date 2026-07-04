@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type {
   CreateLeadRequestBody,
+  CrmFieldDefinition,
   CrmOptionValueSummary,
   LeadClassificationMetadata,
   LeadOptionsResponse,
@@ -13,7 +14,14 @@ import { Input } from "@/components/ui/input";
 import { CrmHero, CrmLoadingState } from "@/components/crm/crm-shell";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
-import { selectClassName } from "@/lib/crm";
+import {
+  getActiveCustomFieldDefinitions,
+  getCustomFieldOptions,
+  normalizeCustomFieldFormValue,
+  serializeCustomFieldFormValue,
+  type CrmCustomFieldFormValue
+} from "@/lib/crm-custom-fields";
+import { selectClassName, textareaClassName } from "@/lib/crm";
 import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -32,6 +40,7 @@ interface LeadFormState {
   leadFor: string;
   technologies: string[];
   products: string[];
+  customFields: Record<string, CrmCustomFieldFormValue>;
 }
 
 const defaultFormState: LeadFormState = {
@@ -46,7 +55,8 @@ const defaultFormState: LeadFormState = {
   ownerId: "",
   leadFor: "",
   technologies: [],
-  products: []
+  products: [],
+  customFields: {}
 };
 
 const SERVICE_PROJECT_KEY = "service_project";
@@ -106,6 +116,7 @@ export function LeadFormPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(options);
 
   useEffect(() => {
     if (!accessToken) {
@@ -152,7 +163,13 @@ export function LeadFormPage() {
           ownerId: lead.owner?.id ?? "",
           leadFor: classification.leadFor ?? optionsResponse.leadForOptions[0]?.key ?? "",
           technologies: Array.isArray(classification.technologies) ? classification.technologies : [],
-          products: Array.isArray(classification.products) ? classification.products : []
+          products: Array.isArray(classification.products) ? classification.products : [],
+          customFields: Object.fromEntries(
+            getActiveCustomFieldDefinitions(optionsResponse).map((field) => [
+              field.fieldKey,
+              normalizeCustomFieldFormValue(field, lead.customFields[field.fieldKey])
+            ])
+          )
         });
       } catch (error) {
         setErrorMessage(getErrorMessage(error));
@@ -179,6 +196,16 @@ export function LeadFormPage() {
       products: formState.leadFor === PRODUCT_KEY ? formState.products : []
     };
 
+    const customFields =
+      customFieldDefinitions.length > 0
+        ? Object.fromEntries(
+            customFieldDefinitions.map((field) => [
+              field.fieldKey,
+              serializeCustomFieldFormValue(field, getCustomFieldValue(field))
+            ])
+          )
+        : undefined;
+
     const payload = {
       firstName: formState.firstName,
       lastName: formState.lastName,
@@ -189,7 +216,8 @@ export function LeadFormPage() {
       sourceKey: formState.sourceKey,
       score: formState.score ? Number(formState.score) : null,
       ownerId: formState.ownerId || null,
-      metadata: classification as Record<string, unknown>
+      metadata: classification as Record<string, unknown>,
+      customFields
     } satisfies CreateLeadRequestBody & UpdateLeadRequestBody;
 
     try {
@@ -219,6 +247,137 @@ export function LeadFormPage() {
         title={isEditMode ? `Loading ${leadLabel.toLowerCase()} for editing` : `Preparing ${leadLabel.toLowerCase()} form`}
         description="The page is loading tenant-backed owners, dropdown values, and the current record when needed."
       />
+    );
+  }
+
+  function getCustomFieldValue(field: CrmFieldDefinition): CrmCustomFieldFormValue {
+    const value = formState.customFields[field.fieldKey];
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    return field.dataType === "multiselect" ? [] : "";
+  }
+
+  function updateCustomFieldValue(fieldKey: string, value: CrmCustomFieldFormValue) {
+    setFormState((currentValue) => ({
+      ...currentValue,
+      customFields: {
+        ...currentValue.customFields,
+        [fieldKey]: value
+      }
+    }));
+  }
+
+  function renderCustomField(field: CrmFieldDefinition) {
+    const value = getCustomFieldValue(field);
+    const fieldOptions = getCustomFieldOptions(options, field);
+    const labelClassName = field.dataType === "textarea" || field.dataType === "multiselect" ? "space-y-2 md:col-span-2" : "space-y-2";
+    const placeholder = field.placeholder ?? "";
+
+    if (field.dataType === "textarea") {
+      return (
+        <label key={field.fieldKey} className={labelClassName}>
+          <span className="text-sm font-medium">{field.label}</span>
+          <textarea
+            className={textareaClassName}
+            rows={4}
+            required={field.isRequired}
+            value={typeof value === "string" ? value : ""}
+            onChange={(event) => updateCustomFieldValue(field.fieldKey, event.target.value)}
+            placeholder={placeholder || undefined}
+          />
+          {field.description ? <span className="text-xs text-muted-foreground">{field.description}</span> : null}
+        </label>
+      );
+    }
+
+    if (field.dataType === "select") {
+      return (
+        <label key={field.fieldKey} className={labelClassName}>
+          <span className="text-sm font-medium">{field.label}</span>
+          <select
+            className={selectClassName}
+            required={field.isRequired}
+            value={typeof value === "string" ? value : ""}
+            onChange={(event) => updateCustomFieldValue(field.fieldKey, event.target.value)}
+          >
+            <option value="">{placeholder || `Select ${field.label.toLowerCase()}`}</option>
+            {fieldOptions.map((option) => (
+              <option key={option.id} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {field.description ? <span className="text-xs text-muted-foreground">{field.description}</span> : null}
+        </label>
+      );
+    }
+
+    if (field.dataType === "multiselect") {
+      return (
+        <div key={field.fieldKey} className={labelClassName}>
+          <span className="text-sm font-medium">{field.label}</span>
+          <MultiSelect
+            options={fieldOptions}
+            selected={Array.isArray(value) ? value : []}
+            onToggle={(optionKey) =>
+              updateCustomFieldValue(field.fieldKey, toggleValue(Array.isArray(value) ? value : [], optionKey))
+            }
+          />
+          {field.description ? <p className="text-xs text-muted-foreground">{field.description}</p> : null}
+        </div>
+      );
+    }
+
+    if (field.dataType === "boolean") {
+      return (
+        <label key={field.fieldKey} className={labelClassName}>
+          <span className="text-sm font-medium">{field.label}</span>
+          <select
+            className={selectClassName}
+            required={field.isRequired}
+            value={typeof value === "string" ? value : ""}
+            onChange={(event) => updateCustomFieldValue(field.fieldKey, event.target.value)}
+          >
+            <option value="">{placeholder || "Not set"}</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+          {field.description ? <span className="text-xs text-muted-foreground">{field.description}</span> : null}
+        </label>
+      );
+    }
+
+    const inputType =
+      field.dataType === "email"
+        ? "email"
+        : field.dataType === "url"
+          ? "url"
+          : field.dataType === "phone"
+            ? "tel"
+            : field.dataType === "date"
+              ? "date"
+              : field.dataType === "datetime"
+                ? "datetime-local"
+                : field.dataType === "number"
+                  ? "number"
+                  : "text";
+
+    return (
+      <label key={field.fieldKey} className={labelClassName}>
+        <span className="text-sm font-medium">{field.label}</span>
+        <Input
+          type={inputType}
+          required={field.isRequired}
+          value={typeof value === "string" ? value : ""}
+          onChange={(event) => updateCustomFieldValue(field.fieldKey, event.target.value)}
+          placeholder={placeholder || undefined}
+        />
+        {field.description ? <span className="text-xs text-muted-foreground">{field.description}</span> : null}
+      </label>
     );
   }
 
@@ -378,6 +537,19 @@ export function LeadFormPage() {
                 />
               </div>
             ) : null}
+
+            {customFieldDefinitions.length > 0 ? (
+              <div className="space-y-2 md:col-span-2">
+                <div>
+                  <p className="text-sm font-medium">Tenant-defined fields</p>
+                  <p className="text-sm text-muted-foreground">
+                    These extra fields come from your workspace configuration and are saved with the lead record.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {customFieldDefinitions.map((field) => renderCustomField(field))}
 
             <div className="md:col-span-2 flex flex-wrap items-center gap-3">
               <Button type="submit" disabled={isSaving}>

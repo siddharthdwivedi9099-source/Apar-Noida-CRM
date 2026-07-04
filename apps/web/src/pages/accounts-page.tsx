@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatusPill } from "@/components/ui/status-pill";
+import { Avatar } from "@/components/ui/avatar";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
@@ -308,13 +310,13 @@ export function AccountsPage() {
               <>
                 <div className="space-y-3">
                   {data.accounts.map((account) => (
-                    <div key={account.id} className="rounded-[1.5rem] bg-background/75 p-5 shadow-sm">
+                    <div key={account.id} className="interactive-card rounded-[1.5rem] border border-white/50 bg-background/80 p-5 shadow-sm backdrop-blur dark:border-white/10">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge>{account.accountType?.label ?? "Type open"}</Badge>
-                            <Badge variant="muted">{account.healthStatus?.label ?? "Health placeholder"}</Badge>
-                            <Badge variant="success">{account.contactCount} contacts</Badge>
+                            <Badge variant="muted">{account.accountType?.label ?? "Type open"}</Badge>
+                            {account.healthStatus ? <StatusPill value={account.healthStatus.key ?? account.healthStatus.label}>{account.healthStatus.label}</StatusPill> : null}
+                            <Badge variant="info">{account.contactCount} contacts</Badge>
                           </div>
                           <div>
                             <p className="font-display text-2xl font-semibold">{account.name}</p>
@@ -325,7 +327,10 @@ export function AccountsPage() {
                           <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
                             <div>
                               <p className="text-xs uppercase tracking-[0.18em]">Owner</p>
-                              <p className="mt-1 text-foreground">{account.owner?.displayName ?? "Unassigned"}</p>
+                              <p className="mt-1 flex items-center gap-2 text-foreground">
+                                <Avatar name={account.owner?.displayName} size="sm" />
+                                {account.owner?.displayName ?? "Unassigned"}
+                              </p>
                             </div>
                             <div>
                               <p className="text-xs uppercase tracking-[0.18em]">Timeline</p>

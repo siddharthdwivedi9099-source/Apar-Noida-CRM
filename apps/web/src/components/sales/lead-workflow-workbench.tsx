@@ -1,14 +1,20 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type {
+  ConvertLeadRequestBody,
   CreateCrmTaskRequestBody,
   LeadBantChecklist,
+  LeadCadenceStepView,
   LeadCustomQualificationFieldInput,
   LeadQualificationFramework,
+  LeadQualificationOutcome,
   SalesWorkspaceLeadSummary,
   SalesWorkspaceOptionsResponse,
   SalesWorkspaceTaskSummary,
+  ScheduleLeadMeetingRequestBody,
+  UpdateLeadCadenceInput,
   UpdateLeadWorkspaceRequestBody
 } from "@crm/types";
+import { LeadSdrPanels } from "@/components/sales/lead-sdr-panels";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,10 +35,15 @@ interface LeadWorkflowWorkbenchProps {
   canUpdateWorkflow: boolean;
   canAssignOwner: boolean;
   canCreateTask: boolean;
+  canScheduleMeeting: boolean;
+  canConvertLead: boolean;
   allowedTaskTypes: WorkspaceTaskType[];
   defaultTaskType: WorkspaceTaskType;
   onSaveWorkflow: (leadId: string, payload: UpdateLeadWorkspaceRequestBody) => Promise<void>;
   onCreateTask: (leadId: string, payload: CreateCrmTaskRequestBody) => Promise<void>;
+  onScheduleMeeting: (leadId: string, payload: ScheduleLeadMeetingRequestBody) => Promise<void>;
+  onMarkNoShow: (leadId: string) => Promise<void>;
+  onConvertLead: (leadId: string, payload: ConvertLeadRequestBody) => Promise<void>;
 }
 
 interface WorkflowDraftState {
@@ -45,6 +56,10 @@ interface WorkflowDraftState {
   qualificationChecklist: LeadBantChecklist;
   qualificationNotes: string;
   customQualificationFields: LeadCustomQualificationFieldInput[];
+  qualificationItems: Record<string, boolean>;
+  qualificationOutcome: LeadQualificationOutcome;
+  qualificationOverrideReason: string;
+  disqualificationReasonKey: string;
 }
 
 interface TaskDraftState {
@@ -76,7 +91,13 @@ function getInitialWorkflowDraft(lead: SalesWorkspaceLeadSummary | null): Workfl
       id: field.id,
       label: field.label,
       value: field.value
-    })) ?? []
+    })) ?? [],
+    qualificationItems: Object.fromEntries(
+      (lead?.workspace.qualificationItems ?? []).map((item) => [item.key, item.completed])
+    ),
+    qualificationOutcome: lead?.workspace.qualificationOutcome ?? "pending",
+    qualificationOverrideReason: lead?.workspace.qualificationOverrideReason ?? "",
+    disqualificationReasonKey: lead?.workspace.disqualificationReason?.key ?? ""
   };
 }
 
@@ -116,6 +137,35 @@ function getQualificationFieldLabel(key: keyof LeadBantChecklist) {
   }
 }
 
+function getCadenceStatusVariant(status: LeadCadenceStepView["status"]) {
+  if (status === "completed") {
+    return "success" as const;
+  }
+  return "muted" as const;
+}
+
+function cnStep(isCurrent: boolean) {
+  return `rounded-[1rem] border bg-background/75 p-3 ${isCurrent ? "border-primary" : "border-border/70"}`;
+}
+
+interface MeetingDraftState {
+  meetingTypeKey: string;
+  title: string;
+  agenda: string;
+  scheduledAt: string;
+  reminderMinutesBefore: string;
+}
+
+function getInitialMeetingDraft(options: SalesWorkspaceOptionsResponse | null): MeetingDraftState {
+  return {
+    meetingTypeKey: options?.meetingTypes[0]?.key ?? "",
+    title: "",
+    agenda: "",
+    scheduledAt: "",
+    reminderMinutesBefore: "60"
+  };
+}
+
 export function LeadWorkflowWorkbench({
   workspaceLabel,
   leadLabel,
@@ -126,28 +176,93 @@ export function LeadWorkflowWorkbench({
   canUpdateWorkflow,
   canAssignOwner,
   canCreateTask,
+  canScheduleMeeting,
+  canConvertLead,
   allowedTaskTypes,
   defaultTaskType,
   onSaveWorkflow,
-  onCreateTask
+  onCreateTask,
+  onScheduleMeeting,
+  onMarkNoShow,
+  onConvertLead
 }: LeadWorkflowWorkbenchProps) {
   const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraftState>(getInitialWorkflowDraft(lead));
   const [taskDraft, setTaskDraft] = useState<TaskDraftState>(getInitialTaskDraft(lead, defaultTaskType));
+  const [meetingDraft, setMeetingDraft] = useState<MeetingDraftState>(getInitialMeetingDraft(options));
   const [isSavingWorkflow, setIsSavingWorkflow] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [isCadenceSaving, setIsCadenceSaving] = useState(false);
+  const [isSchedulingMeeting, setIsSchedulingMeeting] = useState(false);
+  const [cadencePauseReason, setCadencePauseReason] = useState("");
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [taskMessage, setTaskMessage] = useState<string | null>(null);
+  const [cadenceMessage, setCadenceMessage] = useState<string | null>(null);
+  const [meetingMessage, setMeetingMessage] = useState<string | null>(null);
   const [workflowErrorMessage, setWorkflowErrorMessage] = useState<string | null>(null);
   const [taskErrorMessage, setTaskErrorMessage] = useState<string | null>(null);
+  const [cadenceErrorMessage, setCadenceErrorMessage] = useState<string | null>(null);
+  const [meetingErrorMessage, setMeetingErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setWorkflowDraft(getInitialWorkflowDraft(lead));
     setTaskDraft(getInitialTaskDraft(lead, defaultTaskType));
+    setMeetingDraft(getInitialMeetingDraft(options));
     setWorkflowMessage(null);
     setTaskMessage(null);
+    setCadenceMessage(null);
+    setMeetingMessage(null);
     setWorkflowErrorMessage(null);
     setTaskErrorMessage(null);
-  }, [defaultTaskType, lead]);
+    setCadenceErrorMessage(null);
+    setMeetingErrorMessage(null);
+  }, [defaultTaskType, lead, options]);
+
+  async function runCadenceAction(cadence: UpdateLeadCadenceInput) {
+    if (!lead) {
+      return;
+    }
+
+    setIsCadenceSaving(true);
+    setCadenceMessage(null);
+    setCadenceErrorMessage(null);
+
+    try {
+      await onSaveWorkflow(lead.id, { cadence });
+      setCadenceMessage("Cadence updated.");
+    } catch (error) {
+      setCadenceErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsCadenceSaving(false);
+    }
+  }
+
+  async function handleScheduleMeeting(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!lead) {
+      return;
+    }
+
+    setIsSchedulingMeeting(true);
+    setMeetingMessage(null);
+    setMeetingErrorMessage(null);
+
+    try {
+      await onScheduleMeeting(lead.id, {
+        meetingTypeKey: meetingDraft.meetingTypeKey,
+        title: meetingDraft.title.trim(),
+        agenda: meetingDraft.agenda.trim() || null,
+        scheduledAt: new Date(meetingDraft.scheduledAt).toISOString(),
+        reminderMinutesBefore: Number(meetingDraft.reminderMinutesBefore) || 60
+      });
+      setMeetingDraft(getInitialMeetingDraft(options));
+      setMeetingMessage(`Meeting booked for ${lead.fullName}.`);
+    } catch (error) {
+      setMeetingErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsSchedulingMeeting(false);
+    }
+  }
 
   async function handleSaveWorkflow(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -178,6 +293,10 @@ export function LeadWorkflowWorkbench({
             value: field.value.trim()
           }))
           .filter((field) => field.label.length > 0 || field.value.length > 0);
+        payload.qualificationItems = workflowDraft.qualificationItems;
+        payload.qualificationOutcome = workflowDraft.qualificationOutcome;
+        payload.qualificationOverrideReason = workflowDraft.qualificationOverrideReason.trim() || null;
+        payload.disqualificationReasonKey = workflowDraft.disqualificationReasonKey || null;
       }
 
       if (canAssignOwner) {
@@ -261,6 +380,12 @@ export function LeadWorkflowWorkbench({
               <Badge variant="muted">{lead.workspace.handoffStatus?.label ?? "Handoff not started"}</Badge>
               {lead.workspace.callDisposition ? <Badge variant="muted">{lead.workspace.callDisposition.label}</Badge> : null}
             </div>
+
+            {lead.slaBreachAlert ? (
+              <div className="rounded-[1rem] border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                ⚠️ SLA breached ({lead.slaLabel ?? "first response"}) — follow up immediately.
+              </div>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-[1.25rem] bg-background/75 p-4">
@@ -446,6 +571,36 @@ export function LeadWorkflowWorkbench({
                   </label>
                 </div>
 
+                {workflowDraft.statusKey === "disqualified" ? (
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium">
+                      Disqualification reason <span className="text-rose-600">*</span>
+                    </span>
+                    <select
+                      className={selectClassName}
+                      value={workflowDraft.disqualificationReasonKey}
+                      onChange={(event) =>
+                        setWorkflowDraft((currentValue) => ({
+                          ...currentValue,
+                          disqualificationReasonKey: event.target.value
+                        }))
+                      }
+                      disabled={isSavingWorkflow || !canUpdateWorkflow}
+                    >
+                      <option value="">Select a reason…</option>
+                      {options.disqualificationReasons.map((reason) => (
+                        <option key={reason.id} value={reason.key}>
+                          {reason.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-muted-foreground">
+                      A reason is required to disqualify. Selecting “Future Need” routes the lead to nurture instead of
+                      discarding it.
+                    </span>
+                  </label>
+                ) : null}
+
                 <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-5">
                   <div className="space-y-2">
                     <h4 className="font-semibold">BANT qualification checklist</h4>
@@ -479,6 +634,80 @@ export function LeadWorkflowWorkbench({
                     ))}
                   </div>
                 </div>
+
+                {options.qualificationChecklistItems.length > 0 ? (
+                  <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-5">
+                    <div className="space-y-2">
+                      <h4 className="font-semibold">Qualification checklist</h4>
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        Tenant-configured qualification items. Required items (
+                        <span className="text-rose-600">*</span>) must be complete to mark the lead qualified, unless an
+                        override reason is provided.
+                      </p>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      {options.qualificationChecklistItems.map((item) => (
+                        <label
+                          key={item.key}
+                          className="flex items-center gap-3 rounded-[1rem] bg-background/75 px-4 py-3 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={workflowDraft.qualificationItems[item.key] ?? false}
+                            onChange={(event) =>
+                              setWorkflowDraft((currentValue) => ({
+                                ...currentValue,
+                                qualificationItems: {
+                                  ...currentValue.qualificationItems,
+                                  [item.key]: event.target.checked
+                                }
+                              }))
+                            }
+                            disabled={isSavingWorkflow || !canUpdateWorkflow}
+                          />
+                          <span>
+                            {item.label}
+                            {item.required ? <span className="text-rose-600"> *</span> : null}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="space-y-2">
+                        <span className="text-sm font-medium">Qualification outcome</span>
+                        <select
+                          className={selectClassName}
+                          value={workflowDraft.qualificationOutcome}
+                          onChange={(event) =>
+                            setWorkflowDraft((currentValue) => ({
+                              ...currentValue,
+                              qualificationOutcome: event.target.value as LeadQualificationOutcome
+                            }))
+                          }
+                          disabled={isSavingWorkflow || !canUpdateWorkflow}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="qualified">Qualified</option>
+                          <option value="not_qualified">Not qualified</option>
+                        </select>
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-sm font-medium">AI override reason</span>
+                        <Input
+                          value={workflowDraft.qualificationOverrideReason}
+                          onChange={(event) =>
+                            setWorkflowDraft((currentValue) => ({
+                              ...currentValue,
+                              qualificationOverrideReason: event.target.value
+                            }))
+                          }
+                          placeholder="Reason to override the AI suggestion / required items"
+                          disabled={isSavingWorkflow || !canUpdateWorkflow}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
 
                 <label className="space-y-2">
                   <span className="text-sm font-medium">Qualification notes</span>
@@ -605,6 +834,254 @@ export function LeadWorkflowWorkbench({
       </div>
 
       <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Guided first-contact script</CardTitle>
+            <CardDescription>
+              Resolved from the tenant&apos;s configurable scripts based on this {leadLabel.toLowerCase()}&apos;s product
+              and source so qualification stays consistent.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {lead.firstContactScript ? (
+              <div className="rounded-[1.25rem] bg-background/75 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="muted">{lead.firstContactScript.label}</Badge>
+                  <Badge variant="muted">matched: {lead.firstContactScript.matchedOn.replace(/_/g, " ")}</Badge>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{lead.firstContactScript.body}</p>
+              </div>
+            ) : (
+              <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
+                No first-contact script is configured for this {leadLabel.toLowerCase()} yet. Add one under lead
+                configuration to guide outreach.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Contact cadence</CardTitle>
+            <CardDescription>
+              Configurable multi-channel cadence. Advance steps, pause with a reason, or log a failed attempt — repeated
+              failures route the {leadLabel.toLowerCase()} to nurture automatically.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {cadenceMessage ? <p className="text-sm text-emerald-600">{cadenceMessage}</p> : null}
+            {cadenceErrorMessage ? <p className="text-sm text-rose-600">{cadenceErrorMessage}</p> : null}
+
+            {!lead.workspace.cadence.configured ? (
+              <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
+                No cadence is configured for this tenant yet. Add cadence steps under lead configuration.
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="muted">
+                    {lead.workspace.cadence.completedCount}/{lead.workspace.cadence.totalCount} steps
+                  </Badge>
+                  {lead.workspace.cadence.paused ? <Badge>Paused</Badge> : null}
+                  {lead.workspace.cadence.movedToNurture ? <Badge>Moved to nurture</Badge> : null}
+                  <Badge variant="muted">
+                    {lead.workspace.cadence.failedAttemptCount}/{lead.workspace.cadence.failedAttemptsBeforeNurture} failed
+                  </Badge>
+                </div>
+
+                {lead.workspace.cadence.paused && lead.workspace.cadence.pauseReason ? (
+                  <p className="text-xs text-muted-foreground">Pause reason: {lead.workspace.cadence.pauseReason}</p>
+                ) : null}
+
+                <div className="space-y-2">
+                  {lead.workspace.cadence.steps.map((step) => (
+                    <div
+                      key={step.key}
+                      className={cnStep(step.key === lead.workspace.cadence.currentStep?.key)}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={getCadenceStatusVariant(step.status)}>{step.status}</Badge>
+                        <Badge variant="muted">{step.channel.replace(/_/g, " ")}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm font-medium">{step.label}</p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                        Due {formatDateTime(step.dueAt)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {canUpdateWorkflow ? (
+                  <div className="space-y-3 rounded-[1.25rem] border border-border/70 bg-background/70 p-4">
+                    {lead.workspace.cadence.currentStep ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isCadenceSaving}
+                        onClick={() =>
+                          void runCadenceAction({ completeStepKey: lead.workspace.cadence.currentStep?.key })
+                        }
+                      >
+                        Complete “{lead.workspace.cadence.currentStep.label}”
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isCadenceSaving}
+                      onClick={() => void runCadenceAction({ logFailedAttempt: true })}
+                    >
+                      Log failed attempt
+                    </Button>
+                    {lead.workspace.cadence.paused ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isCadenceSaving}
+                        onClick={() => void runCadenceAction({ paused: false })}
+                      >
+                        Resume cadence
+                      </Button>
+                    ) : (
+                      <div className="flex flex-wrap items-end gap-2">
+                        <label className="flex-1 space-y-2">
+                          <span className="text-sm font-medium">Pause reason</span>
+                          <Input
+                            value={cadencePauseReason}
+                            onChange={(event) => setCadencePauseReason(event.target.value)}
+                            placeholder="e.g. Customer on holiday"
+                            disabled={isCadenceSaving}
+                          />
+                        </label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={isCadenceSaving || cadencePauseReason.trim().length < 2}
+                          onClick={() => void runCadenceAction({ paused: true, pauseReason: cadencePauseReason.trim() })}
+                        >
+                          Pause
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Book meeting</CardTitle>
+            <CardDescription>
+              Schedule a sales, presales, or manager meeting. The CRM meeting record, status change, and reminder tasks
+              are created immediately.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {meetingMessage ? <p className="text-sm text-emerald-600">{meetingMessage}</p> : null}
+            {meetingErrorMessage ? <p className="text-sm text-rose-600">{meetingErrorMessage}</p> : null}
+
+            {canScheduleMeeting ? (
+              <form className="space-y-4" onSubmit={handleScheduleMeeting}>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium">Meeting type</span>
+                    <select
+                      className={selectClassName}
+                      value={meetingDraft.meetingTypeKey}
+                      onChange={(event) =>
+                        setMeetingDraft((currentValue) => ({ ...currentValue, meetingTypeKey: event.target.value }))
+                      }
+                      disabled={isSchedulingMeeting}
+                    >
+                      {options.meetingTypes.map((type) => (
+                        <option key={type.key} value={type.key}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium">When</span>
+                    <Input
+                      type="datetime-local"
+                      value={meetingDraft.scheduledAt}
+                      onChange={(event) =>
+                        setMeetingDraft((currentValue) => ({ ...currentValue, scheduledAt: event.target.value }))
+                      }
+                      disabled={isSchedulingMeeting}
+                    />
+                  </label>
+                </div>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium">Title</span>
+                  <Input
+                    value={meetingDraft.title}
+                    onChange={(event) =>
+                      setMeetingDraft((currentValue) => ({ ...currentValue, title: event.target.value }))
+                    }
+                    placeholder="Discovery call"
+                    disabled={isSchedulingMeeting}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium">Agenda</span>
+                  <textarea
+                    className={textareaClassName}
+                    value={meetingDraft.agenda}
+                    onChange={(event) =>
+                      setMeetingDraft((currentValue) => ({ ...currentValue, agenda: event.target.value }))
+                    }
+                    placeholder="Goals, attendees, and topics to cover."
+                    disabled={isSchedulingMeeting}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium">Reminder (minutes before)</span>
+                  <Input
+                    type="number"
+                    min={5}
+                    value={meetingDraft.reminderMinutesBefore}
+                    onChange={(event) =>
+                      setMeetingDraft((currentValue) => ({
+                        ...currentValue,
+                        reminderMinutesBefore: event.target.value
+                      }))
+                    }
+                    disabled={isSchedulingMeeting}
+                  />
+                </label>
+                <Button
+                  type="submit"
+                  disabled={
+                    isSchedulingMeeting ||
+                    meetingDraft.title.trim().length < 2 ||
+                    meetingDraft.scheduledAt.length === 0 ||
+                    meetingDraft.meetingTypeKey.length === 0
+                  }
+                >
+                  {isSchedulingMeeting ? "Booking meeting..." : "Book meeting"}
+                </Button>
+              </form>
+            ) : (
+              <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
+                Meeting booking is hidden until the role includes lead edit, assign, or configure permissions.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <LeadSdrPanels
+          lead={lead}
+          options={options}
+          canUpdate={canUpdateWorkflow}
+          canConvert={canConvertLead}
+          onPatch={(payload) => onSaveWorkflow(lead.id, payload)}
+          onMarkNoShow={() => onMarkNoShow(lead.id)}
+          onConvert={(payload) => onConvertLead(lead.id, payload)}
+        />
+
         <Card>
           <CardHeader>
             <CardTitle>Linked tasks</CardTitle>

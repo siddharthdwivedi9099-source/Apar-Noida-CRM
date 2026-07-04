@@ -1,3 +1,7 @@
+import type { SlaStatus } from "./lead-assignment.js";
+import type { OpportunityArchitectureSummary } from "./solution-architecture.js";
+import type { OpportunityLegalSummary } from "./legal.js";
+
 export const crmEntityTypes = [
   "lead",
   "account",
@@ -73,6 +77,41 @@ export interface CrmOptionValueSummary {
   color: string | null;
   isDefault: boolean;
   isActive: boolean;
+}
+
+export const crmFieldDataTypes = [
+  "text",
+  "textarea",
+  "number",
+  "currency",
+  "percent",
+  "date",
+  "datetime",
+  "email",
+  "phone",
+  "url",
+  "select",
+  "multiselect",
+  "boolean",
+  "lookup",
+  "json"
+] as const;
+export type CrmFieldDataType = (typeof crmFieldDataTypes)[number];
+
+export interface CrmFieldDefinition {
+  fieldKey: string;
+  label: string;
+  description: string | null;
+  dataType: CrmFieldDataType;
+  placeholder: string | null;
+  optionSetKey: string | null;
+  targetObject: string | null;
+  isRequired: boolean;
+  isActive: boolean;
+  isSystemField: boolean;
+  sortOrder: number;
+  settings: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }
 
 export interface CrmRecordLinkSummary {
@@ -269,11 +308,40 @@ export interface LeadSummary {
   updatedAt: string;
 }
 
+export const leadDuplicateMatchReasons = ["company_name", "email_domain", "email", "phone", "full_name"] as const;
+export type LeadDuplicateMatchReason = (typeof leadDuplicateMatchReasons)[number];
+
+export interface LeadDuplicateMatchSummary {
+  id: string;
+  label: string;
+  secondaryLabel: string | null;
+  reasons: LeadDuplicateMatchReason[];
+}
+
+export interface LeadConversionSummary {
+  convertedAt: string;
+  convertedByUserId: string;
+  account: AccountLookupSummary | null;
+  accountLinkMode: "created" | "existing";
+  contact: ContactRelationshipSummary | null;
+  contactLinkMode: "created" | "existing";
+  opportunity: OpportunityLookupSummary | null;
+  handoffTask: CrmTaskSummary | null;
+  duplicateCheckCompletedAt: string;
+  duplicateMatches: {
+    accountMatches: LeadDuplicateMatchSummary[];
+    contactMatches: LeadDuplicateMatchSummary[];
+  };
+  qualificationSummary: string | null;
+}
+
 export interface LeadDetail extends LeadSummary {
+  customFields: Record<string, unknown>;
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
   tasks: CrmTaskSummary[];
   timeline: CrmTimelineItem[];
+  conversion: LeadConversionSummary | null;
   conversionPlaceholder: {
     available: false;
     message: string;
@@ -291,6 +359,7 @@ export interface CreateLeadRequestBody {
   score?: number | null;
   ownerId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateLeadRequestBody {
@@ -304,10 +373,39 @@ export interface UpdateLeadRequestBody {
   score?: number | null;
   ownerId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface LeadResponse {
   lead: LeadDetail;
+}
+
+export interface ConvertLeadRequestBody {
+  accountId?: string | null;
+  contactId?: string | null;
+  opportunityName?: string | null;
+  ownerId?: string | null;
+  stageKey: string;
+  amount: number;
+  probability?: number | null;
+  expectedCloseDate: string;
+  sourceKey?: string | null;
+  nextStep: string;
+  competitor?: string | null;
+  handoverNotes?: string | null;
+  taskDueAt?: string | null;
+}
+
+export interface LeadConversionResponse {
+  lead: LeadDetail;
+  account: AccountLookupSummary | null;
+  contact: ContactRelationshipSummary | null;
+  opportunity: OpportunityLookupSummary | null;
+  handoffTask: CrmTaskSummary | null;
+  duplicateMatches: {
+    accountMatches: LeadDuplicateMatchSummary[];
+    contactMatches: LeadDuplicateMatchSummary[];
+  };
 }
 
 export interface LeadsResponse {
@@ -319,6 +417,8 @@ export interface LeadOptionsResponse {
   owners: CrmLookupUserSummary[];
   statuses: CrmOptionValueSummary[];
   sources: CrmOptionValueSummary[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
   // Lead classification: "IT Service Project" vs "Product" (single-select),
   // plus the multi-select technology / product catalogs that apply to each.
   leadForOptions: CrmOptionValueSummary[];
@@ -375,6 +475,24 @@ export interface LeadWorkspaceState {
   qualificationChecklistTotal: number;
   customQualificationFields: LeadCustomQualificationField[];
   qualificationNotes: string | null;
+  // ISR-004 configurable qualification checklist (alongside the legacy BANT checklist above).
+  qualificationItems: LeadQualificationItemState[];
+  qualificationItemsCompletionCount: number;
+  qualificationItemsTotal: number;
+  qualificationItemsRequiredCount: number;
+  qualificationItemsRequiredComplete: boolean;
+  qualificationOutcome: LeadQualificationOutcome;
+  qualificationOverrideReason: string | null;
+  // ISR-006 structured disqualification reason.
+  disqualificationReason: CrmOptionValueSummary | null;
+  // ISR-003 configurable contact cadence state + computed view.
+  cadence: LeadCadenceView;
+  // Persona 7 (SDR) state.
+  research: LeadAccountResearch;
+  icpFit: LeadIcpFitView;
+  discovery: LeadDiscoveryView;
+  objections: LeadObjection[];
+  noShowCount: number;
   handoffUpdatedAt: string | null;
   meddicPlaceholder: {
     available: false;
@@ -390,13 +508,252 @@ export interface LeadWorkspaceState {
   };
 }
 
+// First-contact script (ISR-002) resolved from the configurable `lead-contact-script` option set.
+export const leadContactScriptMatchReasons = [
+  "lead_for_and_source",
+  "campaign",
+  "source",
+  "lead_for",
+  "persona",
+  "default"
+] as const;
+export type LeadContactScriptMatchReason = (typeof leadContactScriptMatchReasons)[number];
+
+export interface LeadContactScriptView {
+  key: string;
+  label: string;
+  body: string;
+  matchedOn: LeadContactScriptMatchReason;
+}
+
+// Configurable qualification checklist item (ISR-004) from the `lead-qualification-checklist` option set.
+export interface LeadQualificationChecklistItemDefinition {
+  key: string;
+  label: string;
+  description: string | null;
+  required: boolean;
+  sortOrder: number;
+}
+
+export interface LeadQualificationItemState {
+  key: string;
+  label: string;
+  required: boolean;
+  completed: boolean;
+}
+
+export const leadQualificationOutcomes = ["pending", "qualified", "not_qualified"] as const;
+export type LeadQualificationOutcome = (typeof leadQualificationOutcomes)[number];
+
+export const leadWorkspacePriorities = ["hot", "high", "medium", "low"] as const;
+export type LeadWorkspacePriority = (typeof leadWorkspacePriorities)[number];
+
+// ISR-003: configurable contact cadence from the `lead-cadence-step` option set.
+export const leadCadenceChannels = ["call", "email", "sms", "whatsapp", "linkedin", "follow_up"] as const;
+export type LeadCadenceChannel = (typeof leadCadenceChannels)[number];
+
+export interface LeadCadenceStepDefinition {
+  key: string;
+  label: string;
+  channel: LeadCadenceChannel;
+  offsetHours: number;
+  order: number;
+}
+
+export const leadCadenceStepStatuses = ["completed", "overdue", "due", "upcoming"] as const;
+export type LeadCadenceStepStatus = (typeof leadCadenceStepStatuses)[number];
+
+export interface LeadCadenceStepView extends LeadCadenceStepDefinition {
+  completed: boolean;
+  dueAt: string | null;
+  status: LeadCadenceStepStatus;
+}
+
+export interface LeadCadenceView {
+  configured: boolean;
+  paused: boolean;
+  pauseReason: string | null;
+  steps: LeadCadenceStepView[];
+  currentStep: LeadCadenceStepView | null;
+  nextDueAt: string | null;
+  completedCount: number;
+  totalCount: number;
+  failedAttemptCount: number;
+  failedAttemptsBeforeNurture: number;
+  movedToNurture: boolean;
+}
+
+export interface UpdateLeadCadenceInput {
+  paused?: boolean;
+  pauseReason?: string | null;
+  completeStepKey?: string;
+  logFailedAttempt?: boolean;
+}
+
+// ISR-005: meeting booking.
+export interface LeadMeetingTypeDefinition {
+  key: string;
+  label: string;
+}
+
+export interface ScheduleLeadMeetingRequestBody {
+  meetingTypeKey: string;
+  title: string;
+  agenda?: string | null;
+  scheduledAt: string;
+  durationMinutes?: number;
+  participantUserIds?: string[];
+  reminderMinutesBefore?: number;
+}
+
+// ---- Persona 7 (SDR) ----------------------------------------------------------------------------
+
+// SDR-001: AI-assisted account research (capture + sources + confidence; generation is a placeholder).
+export const leadResearchConfidences = ["high", "medium", "low"] as const;
+export type LeadResearchConfidence = (typeof leadResearchConfidences)[number];
+
+export interface LeadAccountResearch {
+  companyProfile: string | null;
+  industry: string | null;
+  size: string | null;
+  leadership: string | null;
+  locations: string | null;
+  likelyNeeds: string | null;
+  recentSignals: string | null;
+  talkingPoints: string | null;
+  sources: string[];
+  confidence: LeadResearchConfidence | null;
+  savedAt: string | null;
+}
+
+export interface LeadAccountResearchInput {
+  companyProfile?: string | null;
+  industry?: string | null;
+  size?: string | null;
+  leadership?: string | null;
+  locations?: string | null;
+  likelyNeeds?: string | null;
+  recentSignals?: string | null;
+  talkingPoints?: string | null;
+  sources?: string[];
+  confidence?: LeadResearchConfidence | null;
+}
+
+// SDR-002: ICP fit assessment.
+export const leadIcpFitBands = ["high", "medium", "low"] as const;
+export type LeadIcpFitBand = (typeof leadIcpFitBands)[number];
+
+export const leadStrategicValues = ["high", "medium", "low"] as const;
+export type LeadStrategicValue = (typeof leadStrategicValues)[number];
+
+export interface LeadIcpCriterionDefinition {
+  key: string;
+  label: string;
+  weight: number;
+}
+
+export interface LeadIcpAttributes {
+  industry: string | null;
+  segment: string | null;
+  size: string | null;
+  geography: string | null;
+  useCase: string | null;
+  budget: string | null;
+  strategicValue: LeadStrategicValue | null;
+}
+
+export interface LeadIcpExplanationEntry {
+  key: string;
+  label: string;
+  satisfied: boolean;
+  weight: number;
+  contribution: number;
+}
+
+export interface LeadIcpFitView {
+  configured: boolean;
+  band: LeadIcpFitBand;
+  score: number;
+  explanation: LeadIcpExplanationEntry[];
+  attributes: LeadIcpAttributes;
+}
+
+// SDR-003: structured discovery call form (configurable fields).
+export interface LeadDiscoveryFieldDefinition {
+  key: string;
+  label: string;
+  description: string | null;
+  required: boolean;
+  sortOrder: number;
+}
+
+export interface LeadDiscoveryItemState {
+  key: string;
+  label: string;
+  required: boolean;
+  value: string;
+  completed: boolean;
+}
+
+export interface LeadDiscoveryView {
+  items: LeadDiscoveryItemState[];
+  completionCount: number;
+  total: number;
+  requiredCount: number;
+  requiredComplete: boolean;
+}
+
+// SDR-006: objection capture.
+export interface LeadObjectionTypeDefinition {
+  key: string;
+  label: string;
+}
+
+export interface LeadObjection {
+  id: string;
+  typeKey: string;
+  typeLabel: string | null;
+  note: string | null;
+  capturedAt: string;
+}
+
+export interface LeadObjectionInput {
+  typeKey: string;
+  note?: string | null;
+}
+
+export interface LeadObjectionTrendEntry {
+  typeKey: string;
+  label: string;
+  count: number;
+}
+
+// SDR-005: no-show workflow.
+export interface MarkLeadNoShowRequestBody {
+  reschedule?: boolean;
+  note?: string | null;
+}
+
+export interface MarkLeadNoShowResponse {
+  lead: SalesWorkspaceLeadSummary;
+  noShowCount: number;
+  routedTo: "nurture" | "disqualified" | null;
+}
+
 export interface SalesWorkspaceAiPlaceholderAction {
   key:
     | "call_script_generator"
     | "objection_handling"
     | "lead_research_summary"
     | "follow_up_email_generator"
-    | "qualification_score";
+    | "qualification_score"
+    | "best_contact_recommendation"
+    | "lead_summary"
+    | "call_note_summary"
+    | "qualification_outcome_suggestion"
+    | "account_research"
+    | "discovery_summary"
+    | "icp_explanation";
   label: string;
   description: string;
 }
@@ -412,6 +769,17 @@ export interface SalesWorkspaceLeadSummary extends LeadSummary {
   openCallTaskCount: number;
   overdueTaskCount: number;
   nextOpenTaskDueAt: string | null;
+  // ISR-001 prioritized lead queue enrichment.
+  priority: LeadWorkspacePriority;
+  isHot: boolean;
+  scoreGrade: string | null;
+  productSummary: string | null;
+  slaDueAt: string | null;
+  slaStatus: SlaStatus | null;
+  slaLabel: string | null;
+  slaRemainingHours: number | null;
+  slaBreachAlert: boolean;
+  firstContactScript: LeadContactScriptView | null;
 }
 
 export interface SalesWorkspaceTaskSummary extends CrmTaskSummary {
@@ -432,6 +800,15 @@ export interface SalesWorkspaceOptionsResponse {
   handoffStatuses: CrmOptionValueSummary[];
   callDispositions: CrmOptionValueSummary[];
   qualificationFrameworks: LeadQualificationFrameworkDefinition[];
+  disqualificationReasons: CrmOptionValueSummary[];
+  qualificationChecklistItems: LeadQualificationChecklistItemDefinition[];
+  qualificationOutcomes: CrmOptionValueSummary[];
+  cadenceSteps: LeadCadenceStepDefinition[];
+  meetingTypes: LeadMeetingTypeDefinition[];
+  discoveryFields: LeadDiscoveryFieldDefinition[];
+  objectionTypes: LeadObjectionTypeDefinition[];
+  icpCriteria: LeadIcpCriterionDefinition[];
+  opportunityStages: CrmOptionValueSummary[];
 }
 
 export interface SdrWorkspaceResponse {
@@ -446,6 +823,9 @@ export interface SdrWorkspaceResponse {
   assignedLeads: SalesWorkspaceLeadSummary[];
   prospectingQueue: SalesWorkspaceLeadSummary[];
   callTaskList: SalesWorkspaceTaskSummary[];
+  // SDR-002 ICP fit distribution + SDR-006 objection trends across the visible pipeline.
+  icpFitDistribution: { high: number; medium: number; low: number };
+  objectionTrends: LeadObjectionTrendEntry[];
   aiPlaceholders: SalesWorkspaceAiPlaceholderSummary;
 }
 
@@ -474,11 +854,38 @@ export interface UpdateLeadWorkspaceRequestBody {
   qualificationChecklist?: Partial<LeadBantChecklist>;
   customQualificationFields?: LeadCustomQualificationFieldInput[];
   qualificationNotes?: string | null;
+  // ISR-004 configurable qualification checklist answers keyed by item value_key.
+  qualificationItems?: Record<string, boolean>;
+  qualificationOutcome?: LeadQualificationOutcome;
+  qualificationOverrideReason?: string | null;
+  // ISR-006 structured disqualification reason (mandatory when moving a lead to disqualified).
+  disqualificationReasonKey?: string | null;
+  // ISR-003 cadence controls (advance a step, pause with reason, log a failed attempt).
+  cadence?: UpdateLeadCadenceInput;
+  // Persona 7 (SDR) capture: account research, ICP attributes, discovery answers, objections.
+  research?: LeadAccountResearchInput;
+  icpAttributes?: Partial<LeadIcpAttributes>;
+  discovery?: Record<string, string>;
+  addObjection?: LeadObjectionInput;
+  removeObjectionId?: string;
   metadata?: Record<string, unknown>;
 }
 
 export interface SalesWorkspaceLeadResponse {
   lead: SalesWorkspaceLeadSummary;
+}
+
+export interface ScheduleLeadMeetingResponse {
+  lead: SalesWorkspaceLeadSummary;
+  meeting: {
+    activityId: string;
+    meetingTaskId: string;
+    reminderTaskId: string;
+    deliveryPlaceholder: {
+      available: false;
+      message: string;
+    };
+  };
 }
 
 export const accountSortFields = ["createdAt", "updatedAt", "name", "accountType", "industry", "owner"] as const;
@@ -525,6 +932,7 @@ export interface AccountSummary {
 }
 
 export interface AccountDetail extends AccountSummary {
+  customFields: Record<string, unknown>;
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
   tasks: CrmTaskSummary[];
@@ -544,6 +952,7 @@ export interface CreateAccountRequestBody {
   healthStatusKey?: string | null;
   ownerId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateAccountRequestBody {
@@ -554,6 +963,7 @@ export interface UpdateAccountRequestBody {
   healthStatusKey?: string | null;
   ownerId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface AccountResponse {
@@ -569,6 +979,93 @@ export interface AccountOptionsResponse {
   owners: CrmLookupUserSummary[];
   accountTypes: CrmOptionValueSummary[];
   healthStatuses: CrmOptionValueSummary[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
+}
+
+// ---- Persona 10 (Enterprise Sales) — account level ---------------------------------------------
+
+// ES-001: strategic account plan (stored in account metadata.strategicPlan).
+export const strategicPlanReviewStatuses = ["draft", "in_review", "reviewed"] as const;
+export type StrategicPlanReviewStatus = (typeof strategicPlanReviewStatuses)[number];
+
+export interface StrategicAccountPlanState {
+  accountOverview: string | null;
+  businessUnits: string | null;
+  stakeholders: string | null;
+  systems: string | null;
+  painPoints: string | null;
+  opportunities: string | null;
+  competitors: string | null;
+  revenuePotential: number | null;
+  risks: string | null;
+  actionPlan: string | null;
+  reviewStatus: StrategicPlanReviewStatus;
+  reviewerUserId: string | null;
+  reviewRequestedAt: string | null;
+  updatedAt: string | null;
+}
+
+// ES-004: executive engagement (stored in account metadata.executiveEngagement.meetings).
+export interface ExecutiveMeeting {
+  id: string;
+  contactId: string | null;
+  contactName: string | null;
+  notes: string | null;
+  commitments: string | null;
+  followUps: string | null;
+  meetingDate: string | null;
+  createdAt: string;
+}
+
+export const executiveEngagementBands = ["low", "medium", "high"] as const;
+export type ExecutiveEngagementBand = (typeof executiveEngagementBands)[number];
+
+export interface ExecutiveEngagementView {
+  score: number;
+  band: ExecutiveEngagementBand;
+  meetingCount: number;
+  commitmentCount: number;
+  followUpCount: number;
+  meetings: ExecutiveMeeting[];
+}
+
+export interface AccountEnterpriseView {
+  strategicPlan: StrategicAccountPlanState;
+  executiveEngagement: ExecutiveEngagementView;
+  whitespacePlaceholder: { available: false; message: string };
+}
+
+export interface AccountEnterpriseResponse {
+  accountId: string;
+  enterprise: AccountEnterpriseView;
+}
+
+export interface UpsertStrategicAccountPlanRequestBody {
+  accountOverview?: string | null;
+  businessUnits?: string | null;
+  stakeholders?: string | null;
+  systems?: string | null;
+  painPoints?: string | null;
+  opportunities?: string | null;
+  competitors?: string | null;
+  revenuePotential?: number | null;
+  risks?: string | null;
+  actionPlan?: string | null;
+}
+
+export interface SubmitAccountPlanReviewRequestBody {
+  reviewerUserId: string;
+  note?: string | null;
+}
+
+export interface AddExecutiveMeetingRequestBody {
+  contactId?: string | null;
+  contactName: string;
+  notes?: string | null;
+  commitments?: string | null;
+  followUps?: string | null;
+  meetingDate?: string | null;
 }
 
 export const contactSortFields = [
@@ -612,6 +1109,7 @@ export interface ContactSummary {
 }
 
 export interface ContactDetail extends ContactSummary {
+  customFields: Record<string, unknown>;
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
   tasks: CrmTaskSummary[];
@@ -628,6 +1126,7 @@ export interface CreateContactRequestBody {
   ownerId?: string | null;
   accountId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateContactRequestBody {
@@ -640,6 +1139,7 @@ export interface UpdateContactRequestBody {
   ownerId?: string | null;
   accountId?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface ContactResponse {
@@ -655,6 +1155,8 @@ export interface ContactOptionsResponse {
   owners: CrmLookupUserSummary[];
   roles: CrmOptionValueSummary[];
   accounts: AccountLookupSummary[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
 }
 
 export const opportunitySortFields = [
@@ -692,7 +1194,29 @@ export interface OpportunityListQuery {
   sortOrder?: CrmSortOrder;
 }
 
-export interface OpportunityStakeholderSummary extends ContactRelationshipSummary {}
+export const opportunityStakeholderSentiments = ["positive", "neutral", "negative"] as const;
+export type OpportunityStakeholderSentiment = (typeof opportunityStakeholderSentiments)[number];
+export const opportunityInfluenceLevels = ["low", "medium", "high", "champion", "blocker"] as const;
+export type OpportunityInfluenceLevel = (typeof opportunityInfluenceLevels)[number];
+export const opportunityRelationshipStrengths = ["none", "developing", "engaged", "strong"] as const;
+export type OpportunityRelationshipStrength = (typeof opportunityRelationshipStrengths)[number];
+
+// AE-003: stakeholder mapping enrichment (stored in opportunity metadata keyed by contact id).
+export interface OpportunityStakeholderSummary extends ContactRelationshipSummary {
+  roleKey: string | null;
+  roleLabel: string | null;
+  influence: OpportunityInfluenceLevel | null;
+  sentiment: OpportunityStakeholderSentiment | null;
+  relationship: OpportunityRelationshipStrength | null;
+}
+
+export interface OpportunityStakeholderProfileInput {
+  contactId: string;
+  roleKey?: string | null;
+  influence?: OpportunityInfluenceLevel | null;
+  sentiment?: OpportunityStakeholderSentiment | null;
+  relationship?: OpportunityRelationshipStrength | null;
+}
 
 export interface OpportunityPlaceholderSurface {
   available: false;
@@ -705,7 +1229,11 @@ export interface OpportunityAiPlaceholderAction {
     | "deal_risk"
     | "next_best_action"
     | "proposal_draft"
-    | "win_probability";
+    | "win_probability"
+    | "discovery_summary"
+    | "engagement_strategy"
+    | "negotiation_risk"
+    | "lessons_learned";
   label: string;
   description: string;
 }
@@ -747,6 +1275,7 @@ export interface OpportunitySummary {
 }
 
 export interface OpportunityDetail extends OpportunitySummary {
+  customFields: Record<string, unknown>;
   stakeholders: OpportunityStakeholderSummary[];
   notes: CrmNoteSummary[];
   activities: CrmActivitySummary[];
@@ -755,6 +1284,16 @@ export interface OpportunityDetail extends OpportunitySummary {
   productsServicesPlaceholder: OpportunityPlaceholderSurface;
   forecastPlaceholder: OpportunityPlaceholderSurface;
   dealRiskPlaceholder: OpportunityPlaceholderSurface;
+  // Persona 9 (AE) workspace state.
+  execWorkspace: OpportunityExecWorkspace;
+  // Persona 10 (Enterprise Sales) state.
+  enterprise: OpportunityEnterpriseView;
+  // Persona 12 (Sales Manager) deal-review history.
+  managerDealReviews: OpportunityDealReviewEntry[];
+  // Persona 15 (Solution Architect) summary (full detail via /solution-architecture).
+  architectureSummary: OpportunityArchitectureSummary;
+  // Persona 18 (Legal / Contract Reviewer) summary (full detail via /legal).
+  legalSummary: OpportunityLegalSummary;
   aiPlaceholders: OpportunityAiPlaceholderSummary;
 }
 
@@ -774,6 +1313,7 @@ export interface CreateOpportunityRequestBody {
   outcomeStatusKey?: string | null;
   outcomeReason?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateOpportunityRequestBody {
@@ -792,6 +1332,7 @@ export interface UpdateOpportunityRequestBody {
   outcomeStatusKey?: string | null;
   outcomeReason?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface OpportunityResponse {
@@ -811,6 +1352,334 @@ export interface OpportunityOptionsResponse {
   sources: CrmOptionValueSummary[];
   outcomeStatuses: CrmOptionValueSummary[];
   availableScopes: OpportunityPipelineScope[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
+  // Persona 9 (AE) configuration.
+  discoveryFields: LeadDiscoveryFieldDefinition[];
+  stakeholderRoles: CrmOptionValueSummary[];
+  proposalTemplates: CrmOptionValueSummary[];
+  lossReasons: CrmOptionValueSummary[];
+  tenderChecklistItems: OpportunityTenderChecklistItemDefinition[];
+  forecastCategories: CrmOptionValueSummary[];
+}
+
+// ---- Persona 9 (Account Executive) --------------------------------------------------------------
+
+export const opportunityAcceptanceStatuses = ["pending", "accepted", "rejected"] as const;
+export type OpportunityAcceptanceStatus = (typeof opportunityAcceptanceStatuses)[number];
+
+export interface OpportunityAcceptanceState {
+  status: OpportunityAcceptanceStatus;
+  acceptedAt: string | null;
+  rejectedReason: string | null;
+  slaStartedAt: string | null;
+}
+
+export const opportunityProposalStatuses = ["draft", "pending_approval", "approved", "sent"] as const;
+export type OpportunityProposalStatus = (typeof opportunityProposalStatuses)[number];
+
+export interface OpportunityProposalState {
+  templateKey: string | null;
+  scope: string | null;
+  pricing: string | null;
+  timeline: string | null;
+  terms: string | null;
+  assumptions: string | null;
+  exclusions: string | null;
+  executiveSummary: string | null;
+  status: OpportunityProposalStatus;
+  approvalId: string | null;
+  updatedAt: string | null;
+}
+
+export const opportunityDiscountStatuses = ["none", "pending_approval", "approved", "rejected"] as const;
+export type OpportunityDiscountStatus = (typeof opportunityDiscountStatuses)[number];
+
+export interface OpportunityDiscountState {
+  percent: number | null;
+  justification: string | null;
+  competitorContext: string | null;
+  marginImpact: string | null;
+  value: number | null;
+  closeProbability: number | null;
+  status: OpportunityDiscountStatus;
+  approvalId: string | null;
+  requestedAt: string | null;
+}
+
+export interface OpportunityNegotiationState {
+  commercialAsks: string | null;
+  legalAsks: string | null;
+  procurementBlockers: string | null;
+  competitorOffers: string | null;
+  finalPrice: number | null;
+  nextAction: string | null;
+  updatedAt: string | null;
+}
+
+export interface OpportunityDemoState {
+  useCase: string | null;
+  audience: string | null;
+  painPoints: string | null;
+  modules: string | null;
+  desiredOutcome: string | null;
+  requestedDate: string | null;
+  presalesOwnerId: string | null;
+  presalesOwnerName: string | null;
+  status: "requested" | "scheduled" | "delivered" | "cancelled";
+  feedback: string | null;
+  requestedAt: string | null;
+}
+
+export interface OpportunityCloseWonState {
+  finalValue: number | null;
+  contractStatus: string | null;
+  poStatus: string | null;
+  billingTerms: string | null;
+  startDate: string | null;
+  implementationScope: string | null;
+  onboardingOwnerId: string | null;
+  onboardingOwnerName: string | null;
+  handoverNote: string | null;
+}
+
+export interface OpportunityCloseLostState {
+  lossReasonKey: string | null;
+  lossReasonLabel: string | null;
+  competitor: string | null;
+  revisitDate: string | null;
+  reactivationStatus: "none" | "pending_approval" | "reactivated";
+  reactivationApprovalId: string | null;
+}
+
+export interface OpportunityStageRequirementView {
+  stageKey: string;
+  requiredFields: string[];
+  missingFields: string[];
+  satisfied: boolean;
+}
+
+// AE workspace state assembled on the opportunity detail.
+export interface OpportunityExecWorkspace {
+  acceptance: OpportunityAcceptanceState;
+  discovery: LeadDiscoveryView;
+  buyingCommittee: BdBuyingCommitteeView;
+  negotiation: OpportunityNegotiationState;
+  proposal: OpportunityProposalState | null;
+  discount: OpportunityDiscountState;
+  demo: OpportunityDemoState | null;
+  closeWon: OpportunityCloseWonState | null;
+  closeLost: OpportunityCloseLostState | null;
+  stageRequirement: OpportunityStageRequirementView;
+}
+
+export interface AcceptOpportunityRequestBody {
+  slaHours?: number | null;
+}
+
+export interface RejectOpportunityRequestBody {
+  reason: string;
+  reassignToUserId?: string | null;
+}
+
+export interface OpportunityDiscoveryUpdateBody {
+  discovery: Record<string, string>;
+}
+
+export interface OpportunityStakeholderProfilesUpdateBody {
+  profiles: OpportunityStakeholderProfileInput[];
+}
+
+export interface OpportunityNegotiationUpdateBody {
+  commercialAsks?: string | null;
+  legalAsks?: string | null;
+  procurementBlockers?: string | null;
+  competitorOffers?: string | null;
+  finalPrice?: number | null;
+  nextAction?: string | null;
+}
+
+export interface OpportunityDemoRequestBody {
+  useCase: string;
+  audience?: string | null;
+  painPoints?: string | null;
+  modules?: string | null;
+  desiredOutcome?: string | null;
+  requestedDate?: string | null;
+  presalesOwnerId: string;
+}
+
+export interface OpportunityDemoFeedbackBody {
+  status?: OpportunityDemoState["status"];
+  feedback?: string | null;
+}
+
+export interface OpportunityProposalRequestBody {
+  templateKey?: string | null;
+  scope?: string | null;
+  pricing?: string | null;
+  timeline?: string | null;
+  terms?: string | null;
+  assumptions?: string | null;
+  exclusions?: string | null;
+  executiveSummary?: string | null;
+  requireApproval?: boolean;
+  approverUserId?: string | null;
+}
+
+export interface OpportunityDiscountRequestBody {
+  percent: number;
+  justification: string;
+  competitorContext?: string | null;
+  marginImpact?: string | null;
+  value?: number | null;
+  closeProbability?: number | null;
+  approverUserId: string;
+}
+
+export interface OpportunityCloseWonRequestBody {
+  finalValue: number;
+  contractStatus: string;
+  poStatus: string;
+  billingTerms: string;
+  startDate: string;
+  implementationScope: string;
+  onboardingOwnerId: string;
+  handoverNote: string;
+}
+
+export interface OpportunityCloseLostRequestBody {
+  lossReasonKey: string;
+  competitor?: string | null;
+  revisitDate?: string | null;
+}
+
+export interface OpportunityReactivateRequestBody {
+  reason: string;
+  approverUserId: string;
+}
+
+// ---- Persona 10 (Enterprise Sales) — opportunity level -----------------------------------------
+
+// ES-003: RFP / tender tracking.
+export interface OpportunityTenderChecklistItemDefinition {
+  key: string;
+  label: string;
+  required: boolean;
+  sortOrder: number;
+}
+
+export interface OpportunityTenderChecklistItemState {
+  key: string;
+  label: string;
+  required: boolean;
+  completed: boolean;
+}
+
+export interface OpportunityTenderState {
+  tenderNumber: string | null;
+  issuingAuthority: string | null;
+  deadline: string | null;
+  eligibility: string | null;
+  scope: string | null;
+  preBidDate: string | null;
+  emd: string | null;
+  commercialFormat: string | null;
+  checklist: Record<string, boolean>;
+  tasksGenerated: boolean;
+  updatedAt: string | null;
+}
+
+export interface OpportunityTenderView extends OpportunityTenderState {
+  checklistItems: OpportunityTenderChecklistItemState[];
+  completionCount: number;
+  total: number;
+  requiredComplete: boolean;
+  missingDocuments: string[];
+}
+
+// ES-005: strategic deal governance.
+export const opportunityDealReviewStatuses = ["draft", "pending_approval", "approved"] as const;
+export type OpportunityDealReviewStatus = (typeof opportunityDealReviewStatuses)[number];
+
+export interface OpportunityDealReviewState {
+  solutionFit: string | null;
+  pricing: string | null;
+  legal: string | null;
+  risk: string | null;
+  deliveryReadiness: string | null;
+  leadershipSupport: string | null;
+  status: OpportunityDealReviewStatus;
+  approvalId: string | null;
+  updatedAt: string | null;
+}
+
+// ES-002: multi-opportunity roll-up.
+export interface OpportunityRollupStageEntry {
+  stageKey: string;
+  stageLabel: string;
+  count: number;
+  value: number;
+}
+
+export interface OpportunityRollup {
+  childCount: number;
+  totalValue: number;
+  weightedValue: number;
+  byStage: OpportunityRollupStageEntry[];
+}
+
+export interface OpportunityRollupChild {
+  id: string;
+  name: string;
+  stageKey: string | null;
+  stageLabel: string | null;
+  amount: number | null;
+  probability: number | null;
+  expectedCloseDate: string | null;
+}
+
+export interface OpportunityEnterpriseView {
+  parentOpportunityId: string | null;
+  parent: OpportunityLookupSummary | null;
+  children: OpportunityRollupChild[];
+  rollup: OpportunityRollup;
+  tender: OpportunityTenderView | null;
+  dealReview: OpportunityDealReviewState;
+  dealReviewThreshold: number;
+  dealReviewRequired: boolean;
+  dealReviewComplete: boolean;
+}
+
+export interface SetOpportunityParentRequestBody {
+  parentOpportunityId: string | null;
+}
+
+export interface UpsertOpportunityTenderRequestBody {
+  tenderNumber?: string | null;
+  issuingAuthority?: string | null;
+  deadline?: string | null;
+  eligibility?: string | null;
+  scope?: string | null;
+  preBidDate?: string | null;
+  emd?: string | null;
+  commercialFormat?: string | null;
+  generateTasks?: boolean;
+}
+
+export interface OpportunityTenderChecklistUpdateBody {
+  checklist: Record<string, boolean>;
+}
+
+export interface UpsertOpportunityDealReviewRequestBody {
+  solutionFit?: string | null;
+  pricing?: string | null;
+  legal?: string | null;
+  risk?: string | null;
+  deliveryReadiness?: string | null;
+  leadershipSupport?: string | null;
+  submitForApproval?: boolean;
+  approverUserId?: string | null;
 }
 
 export interface OpportunityDashboardResponse {
@@ -824,6 +1693,142 @@ export interface OpportunityDashboardResponse {
   stageDistribution: OpportunityStageDistributionItem[];
   forecastPlaceholder: OpportunityPlaceholderSurface;
   dealRiskPlaceholder: OpportunityPlaceholderSurface;
+}
+
+// ---- Persona 12 (Sales Manager) ----------------------------------------------------------------
+
+export const managerDealRisks = ["low", "medium", "high"] as const;
+export type ManagerDealRisk = (typeof managerDealRisks)[number];
+
+export interface ManagerOwnerPipeline {
+  owner: CrmLookupUserSummary | null;
+  openCount: number;
+  pipelineValue: number;
+  weightedValue: number;
+}
+
+export interface ManagerAgingBucket {
+  bucket: string;
+  count: number;
+  value: number;
+}
+
+export interface ManagerPipelineDeal {
+  id: string;
+  name: string;
+  owner: CrmLookupUserSummary | null;
+  stage: CrmOptionValueSummary | null;
+  amount: number | null;
+  probability: number | null;
+  expectedCloseDate: string | null;
+  ageDays: number;
+  risk: ManagerDealRisk;
+  riskReasons: string[];
+}
+
+export interface ManagerPipelineResponse {
+  totalOpen: number;
+  pipelineValue: number;
+  weightedValue: number;
+  byOwner: ManagerOwnerPipeline[];
+  byStage: OpportunityStageDistributionItem[];
+  aging: ManagerAgingBucket[];
+  highRiskDeals: ManagerPipelineDeal[];
+  aiPlaceholder: { available: false; message: string };
+}
+
+export interface ManagerPerformanceRep {
+  owner: CrmLookupUserSummary | null;
+  openCount: number;
+  wonCount: number;
+  lostCount: number;
+  winRate: number;
+  conversionRate: number;
+  avgDealSize: number;
+  avgCycleDays: number;
+}
+
+export interface ManagerPerformanceResponse {
+  reps: ManagerPerformanceRep[];
+  aiPlaceholder: { available: false; message: string };
+}
+
+export interface ManagerForecastCategoryEntry {
+  category: CrmOptionValueSummary | null;
+  count: number;
+  value: number;
+}
+
+export interface ManagerForecastResponse {
+  categories: ManagerForecastCategoryEntry[];
+  wonValue: number;
+  openWeightedValue: number;
+  aiPlaceholder: { available: false; message: string };
+}
+
+export interface OpportunityDealReviewEntry {
+  id: string;
+  stage: string | null;
+  closeDate: string | null;
+  nextStep: string | null;
+  stakeholders: string | null;
+  competitor: string | null;
+  risks: string | null;
+  blockers: string | null;
+  probability: number | null;
+  comments: string | null;
+  reviewedBy: CrmLookupUserSummary | null;
+  createdAt: string;
+}
+
+export interface AddOpportunityDealReviewRequestBody {
+  closeDate?: string | null;
+  nextStep?: string | null;
+  stakeholders?: string | null;
+  competitor?: string | null;
+  risks?: string | null;
+  blockers?: string | null;
+  probability?: number | null;
+  comments: string;
+}
+
+export interface SetOpportunityForecastRequestBody {
+  forecastCategoryKey?: string | null;
+  managerOverrideCategoryKey?: string | null;
+  overrideReason?: string | null;
+}
+
+export interface CreateCoachingTaskRequestBody {
+  assigneeUserId: string;
+  title: string;
+  description?: string | null;
+  dueAt?: string | null;
+}
+
+export interface ManagerLeadSlaLead {
+  id: string;
+  fullName: string;
+  companyName: string;
+  owner: CrmLookupUserSummary | null;
+  status: CrmOptionValueSummary | null;
+  slaStatus: SlaStatus | null;
+  slaDueAt: string | null;
+  untouched: boolean;
+  accepted: boolean;
+}
+
+export interface ManagerLeadSlaResponse {
+  assignedCount: number;
+  acceptedCount: number;
+  overdueFirstContactCount: number;
+  untouchedCount: number;
+  breachedCount: number;
+  leads: ManagerLeadSlaLead[];
+}
+
+export interface ReassignLeadRequestBody {
+  ownerId: string;
+  reason: string;
 }
 
 export const campaignSortFields = [
@@ -1189,7 +2194,13 @@ export interface BdPlaceholderSurface {
 }
 
 export interface BdAiPlaceholderAction {
-  key: "account_research_brief" | "stakeholder_map";
+  key:
+    | "account_research_brief"
+    | "stakeholder_map"
+    | "high_potential_accounts"
+    | "buying_committee_gap"
+    | "sequence_message"
+    | "buying_signal_accounts";
   label: string;
   description: string;
 }
@@ -1207,6 +2218,8 @@ export interface BdAccountStakeholderSummary {
   influenceLevel: BdInfluenceLevel;
   relationshipStrength: BdRelationshipStrength;
   isExecutive: boolean;
+  // BDR-002 buying-committee role.
+  buyerRole: CrmOptionValueSummary | null;
   lastEngagementAt: string | null;
   engagementNotes: string | null;
   createdAt: string;
@@ -1221,6 +2234,7 @@ export interface BdAccountStakeholderInput {
   influenceLevel?: BdInfluenceLevel;
   relationshipStrength?: BdRelationshipStrength;
   isExecutive?: boolean;
+  buyerRoleKey?: string | null;
   lastEngagementAt?: string | null;
   engagementNotes?: string | null;
 }
@@ -1243,6 +2257,10 @@ export interface BdTargetAccountSummary {
   isPartnership: boolean;
   stakeholderCount: number;
   executiveStakeholderCount: number;
+  // BDR-001 segmentation + BDR-004 engagement.
+  priority: CrmOptionValueSummary | null;
+  technologies: CrmOptionValueSummary[];
+  engagement: BdEngagementView;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -1250,6 +2268,10 @@ export interface BdTargetAccountSummary {
 
 export interface BdTargetAccountDetail extends BdTargetAccountSummary {
   stakeholders: BdAccountStakeholderSummary[];
+  // BDR-002 buying-committee completeness + BDR-003 sequence + BDR-005 handoff.
+  buyingCommittee: BdBuyingCommitteeView;
+  sequence: BdSequenceView;
+  handoff: BdHandoffRecord | null;
   territoryPlaceholder: BdPlaceholderSurface;
   aiPlaceholders: BdAiPlaceholderSummary;
 }
@@ -1270,6 +2292,8 @@ export interface CreateBdTargetAccountRequestBody {
   nextStep?: string | null;
   isPartnership?: boolean;
   stakeholders?: BdAccountStakeholderInput[];
+  priorityKey?: string | null;
+  technologies?: string[];
   metadata?: Record<string, unknown>;
 }
 
@@ -1289,6 +2313,11 @@ export interface UpdateBdTargetAccountRequestBody {
   nextStep?: string | null;
   isPartnership?: boolean;
   stakeholders?: BdAccountStakeholderInput[];
+  priorityKey?: string | null;
+  technologies?: string[];
+  // BDR-003 sequence controls + BDR-004 engagement-signal capture.
+  sequence?: UpdateBdSequenceInput;
+  engagementSignals?: Partial<BdEngagementSignals>;
   metadata?: Record<string, unknown>;
 }
 
@@ -1309,6 +2338,284 @@ export interface BdTargetAccountOptionsResponse {
   stages: CrmOptionValueSummary[];
   partnershipTypes: CrmOptionValueSummary[];
   availableScopes: BdPipelineScope[];
+  // Persona 8 (BDR) configuration.
+  priorities: CrmOptionValueSummary[];
+  technologies: CrmOptionValueSummary[];
+  buyerRoles: CrmOptionValueSummary[];
+  sequenceSteps: BdSequenceStepDefinition[];
+  opportunityStages: CrmOptionValueSummary[];
+  marketSignalTypes: CrmOptionValueSummary[];
+}
+
+// ---- Persona 8 (BDR) enhancements ---------------------------------------------------------------
+
+// BDR-003: outbound sequence.
+export const bdSequenceChannels = ["email", "call", "linkedin", "whatsapp", "sms", "task"] as const;
+export type BdSequenceChannel = (typeof bdSequenceChannels)[number];
+
+export interface BdSequenceStepDefinition {
+  key: string;
+  label: string;
+  channel: BdSequenceChannel;
+  offsetHours: number;
+  order: number;
+  // Optional targeting; the step only applies when it matches the account's persona/product/region.
+  persona: string | null;
+  product: string | null;
+  region: string | null;
+}
+
+export const bdSequenceStepStatuses = ["completed", "overdue", "due", "upcoming"] as const;
+export type BdSequenceStepStatus = (typeof bdSequenceStepStatuses)[number];
+
+export interface BdSequenceStepView extends BdSequenceStepDefinition {
+  completed: boolean;
+  dueAt: string | null;
+  status: BdSequenceStepStatus;
+}
+
+export interface BdSequenceView {
+  configured: boolean;
+  paused: boolean;
+  pauseReason: string | null;
+  steps: BdSequenceStepView[];
+  currentStep: BdSequenceStepView | null;
+  nextDueAt: string | null;
+  completedCount: number;
+  totalCount: number;
+}
+
+export interface UpdateBdSequenceInput {
+  paused?: boolean;
+  pauseReason?: string | null;
+  completeStepKey?: string;
+  // A logged reply pauses the sequence (BDR-003).
+  logReply?: boolean;
+}
+
+// BDR-004: account engagement score.
+export interface BdEngagementSignals {
+  opens: number;
+  clicks: number;
+  websiteVisits: number;
+  eventAttendance: number;
+  replies: number;
+  meetings: number;
+  stakeholderEngagement: number;
+}
+
+export const bdEngagementBands = ["cold", "warming", "hot"] as const;
+export type BdEngagementBand = (typeof bdEngagementBands)[number];
+
+export interface BdEngagementView {
+  score: number;
+  band: BdEngagementBand;
+  buyingSignal: boolean;
+  signals: BdEngagementSignals;
+}
+
+// BDR-002: buying-committee completeness.
+export interface BdBuyingCommitteeRole {
+  key: string;
+  label: string;
+  covered: boolean;
+}
+
+export interface BdBuyingCommitteeView {
+  score: number;
+  total: number;
+  covered: number;
+  roles: BdBuyingCommitteeRole[];
+  missingRoles: BdBuyingCommitteeRole[];
+}
+
+// BDR-005: strategic handoff record.
+export interface BdHandoffRecord {
+  salesOwnerId: string | null;
+  salesOwnerName: string | null;
+  recommendedApproach: string | null;
+  painPoints: string | null;
+  nextMeetingAt: string | null;
+  status: "pending_approval" | "handed_off";
+  requestedAt: string;
+  approvalId: string | null;
+}
+
+export interface BdImportAccountInput {
+  name: string;
+  accountId?: string | null;
+  industry?: string | null;
+  region?: string | null;
+  tierKey?: string | null;
+  stageKey?: string | null;
+  priorityKey?: string | null;
+  technologies?: string[];
+  annualRevenue?: number | null;
+  employeeCount?: number | null;
+}
+
+export interface BdImportRequestBody {
+  accounts: BdImportAccountInput[];
+}
+
+export interface BdImportSkippedEntry {
+  name: string;
+  reason: string;
+}
+
+export interface BdImportResponse {
+  createdCount: number;
+  skipped: BdImportSkippedEntry[];
+  targetAccounts: BdTargetAccountSummary[];
+}
+
+export interface BdConvertRequestBody {
+  opportunityName?: string | null;
+  stageKey: string;
+  amount: number;
+  expectedCloseDate: string;
+  nextStep: string;
+  ownerId?: string | null;
+  // BDM-004 strategic opportunity attribution + context.
+  sourceKey?: string | null;
+  useCase?: string | null;
+  product?: string | null;
+  priorityKey?: string | null;
+}
+
+export interface BdConvertResponse {
+  opportunityId: string;
+  targetAccount: BdTargetAccountDetail;
+}
+
+export interface BdHandoffRequestBody {
+  salesOwnerId: string;
+  recommendedApproach: string;
+  painPoints?: string | null;
+  nextMeetingAt?: string | null;
+  requireApproval?: boolean;
+  // Manager who approves the reassignment when requireApproval is true.
+  approverUserId?: string | null;
+}
+
+export interface BdHandoffResponse {
+  targetAccount: BdTargetAccountDetail;
+  notificationId: string | null;
+  approvalId: string | null;
+}
+
+// ---- Persona 11 (Business Development Manager) -------------------------------------------------
+
+export const bdTerritoryPlanReviewStatuses = ["draft", "in_review", "reviewed"] as const;
+export type BdTerritoryPlanReviewStatus = (typeof bdTerritoryPlanReviewStatuses)[number];
+
+export interface BdTerritoryPlanSummary {
+  id: string;
+  name: string;
+  owner: CrmLookupUserSummary | null;
+  geography: string | null;
+  targetSegments: string | null;
+  namedAccounts: string | null;
+  partnerCoverage: string | null;
+  campaigns: string | null;
+  pipelineTarget: number | null;
+  revenueTarget: number | null;
+  reviewStatus: BdTerritoryPlanReviewStatus;
+  reviewer: CrmLookupUserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBdTerritoryPlanRequestBody {
+  name: string;
+  ownerId?: string | null;
+  geography?: string | null;
+  targetSegments?: string | null;
+  namedAccounts?: string | null;
+  partnerCoverage?: string | null;
+  campaigns?: string | null;
+  pipelineTarget?: number | null;
+  revenueTarget?: number | null;
+}
+
+export interface SubmitBdTerritoryPlanReviewRequestBody {
+  reviewerUserId: string;
+  note?: string | null;
+}
+
+export interface BdTerritoryPlanResponse {
+  territoryPlan: BdTerritoryPlanSummary;
+}
+
+export interface BdTerritoryPlansResponse {
+  territoryPlans: BdTerritoryPlanSummary[];
+}
+
+export const bdMarketSignalLinkTypes = ["account", "opportunity", "campaign"] as const;
+export type BdMarketSignalLinkType = (typeof bdMarketSignalLinkTypes)[number];
+
+export interface BdMarketSignalSummary {
+  id: string;
+  signalType: CrmOptionValueSummary | null;
+  content: string;
+  linkedEntityType: BdMarketSignalLinkType | null;
+  linkedEntityId: string | null;
+  owner: CrmLookupUserSummary | null;
+  createdAt: string;
+}
+
+export interface CreateBdMarketSignalRequestBody {
+  signalTypeKey: string;
+  content: string;
+  linkedEntityType?: BdMarketSignalLinkType | null;
+  linkedEntityId?: string | null;
+}
+
+export interface BdMarketSignalResponse {
+  marketSignal: BdMarketSignalSummary;
+}
+
+export interface BdMarketSignalsResponse {
+  marketSignals: BdMarketSignalSummary[];
+}
+
+export interface BdPartnerReferralSummary {
+  id: string;
+  partnerAccount: AccountLookupSummary | null;
+  referralSource: string | null;
+  customerName: string;
+  opportunity: OpportunityLookupSummary | null;
+  referredValue: number | null;
+  converted: boolean;
+  commissionEligible: boolean;
+  notes: string | null;
+  owner: CrmLookupUserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBdPartnerReferralRequestBody {
+  customerName: string;
+  partnerAccountId?: string | null;
+  referralSource?: string | null;
+  referredValue?: number | null;
+  notes?: string | null;
+}
+
+export interface UpdateBdPartnerReferralRequestBody {
+  converted?: boolean;
+  commissionEligible?: boolean;
+  referredValue?: number | null;
+  opportunityId?: string | null;
+  notes?: string | null;
+}
+
+export interface BdPartnerReferralResponse {
+  referral: BdPartnerReferralSummary;
+}
+
+export interface BdPartnerReferralsResponse {
+  referrals: BdPartnerReferralSummary[];
 }
 
 export const presalesPipelineScopes = ["mine", "team", "all"] as const;
@@ -1393,6 +2700,11 @@ export interface PresalesRequirementSummary {
   complianceStatus: PresalesComplianceStatus;
   priority: PresalesPriority;
   sortOrder: number;
+  // PS-004 solution fitment detail (stored in requirement metadata).
+  customization: string | null;
+  integration: string | null;
+  dependency: string | null;
+  risk: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1406,6 +2718,10 @@ export interface PresalesRequirementInput {
   complianceStatus?: PresalesComplianceStatus;
   priority?: PresalesPriority;
   sortOrder?: number;
+  customization?: string | null;
+  integration?: string | null;
+  dependency?: string | null;
+  risk?: string | null;
 }
 
 export interface PresalesRequestSummary {
@@ -1420,6 +2736,8 @@ export interface PresalesRequestSummary {
   assignee: CrmLookupUserSummary | null;
   dueDate: string | null;
   summary: string | null;
+  product: string | null;
+  triageStatus: PresalesTriageStatus | null;
   requirementCount: number;
   metRequirementCount: number;
   gapRequirementCount: number;
@@ -1428,9 +2746,131 @@ export interface PresalesRequestSummary {
   updatedAt: string;
 }
 
+// ---- Persona 14 (Presales Consultant) delivery state -------------------------------------------
+
+export const presalesTriageStatuses = ["accepted", "rejected", "info_requested"] as const;
+export type PresalesTriageStatus = (typeof presalesTriageStatuses)[number];
+
+export interface PresalesTriageState {
+  status: PresalesTriageStatus;
+  note: string | null;
+  decidedBy: CrmLookupUserSummary | null;
+  decidedAt: string;
+}
+
+export interface PresalesDemoWorkspace {
+  painPoints: string | null;
+  useCases: string | null;
+  audience: string | null;
+  modules: string | null;
+  competitors: string | null;
+  objections: string | null;
+  expectedOutcome: string | null;
+  demoFlowNotes: string | null;
+  checklist: string[];
+  updatedAt: string | null;
+}
+
+export interface PresalesDemoFeedback {
+  attendees: string | null;
+  modulesShown: string | null;
+  questions: string | null;
+  objections: string | null;
+  positiveSignals: string | null;
+  gaps: string | null;
+  nextSteps: string | null;
+  capturedBy: CrmLookupUserSummary | null;
+  capturedAt: string | null;
+}
+
+export interface PresalesFitmentReview {
+  reviewer: CrmLookupUserSummary | null;
+  note: string | null;
+  requestedBy: CrmLookupUserSummary | null;
+  requestedAt: string;
+}
+
+export interface PresalesPocSignOff {
+  outcome: "success" | "fail";
+  customerFeedback: string | null;
+  signedOffBy: CrmLookupUserSummary | null;
+  signedOffAt: string;
+}
+
+export interface PresalesPocPlan {
+  objective: string | null;
+  scope: string | null;
+  successCriteria: string | null;
+  timeline: string | null;
+  responsibilities: string | null;
+  demoData: string | null;
+  signOff: PresalesPocSignOff | null;
+  updatedAt: string | null;
+}
+
+export interface PresalesTriageRequestBody {
+  action: PresalesTriageStatus;
+  note?: string | null;
+}
+
+export interface PresalesDemoWorkspaceRequestBody {
+  painPoints?: string | null;
+  useCases?: string | null;
+  audience?: string | null;
+  modules?: string | null;
+  competitors?: string | null;
+  objections?: string | null;
+  expectedOutcome?: string | null;
+  demoFlowNotes?: string | null;
+  checklist?: string[];
+}
+
+export interface PresalesDemoFeedbackRequestBody {
+  attendees?: string | null;
+  modulesShown?: string | null;
+  questions?: string | null;
+  objections?: string | null;
+  positiveSignals?: string | null;
+  gaps?: string | null;
+  nextSteps?: string | null;
+  opportunityStageKey?: string | null;
+}
+
+export interface PresalesGapTaskRequestBody {
+  requirementId: string;
+  assigneeId?: string | null;
+  dueAt?: string | null;
+  asChangeRequest?: boolean;
+}
+
+export interface PresalesFitmentReviewRequestBody {
+  reviewerId: string;
+  note?: string | null;
+}
+
+export interface PresalesPocPlanRequestBody {
+  objective?: string | null;
+  scope?: string | null;
+  successCriteria?: string | null;
+  timeline?: string | null;
+  responsibilities?: string | null;
+  demoData?: string | null;
+}
+
+export interface PresalesPocSignOffRequestBody {
+  outcome: "success" | "fail";
+  customerFeedback?: string | null;
+  probability?: number | null;
+}
+
 export interface PresalesRequestDetail extends PresalesRequestSummary {
   technicalRequirements: string | null;
   proposalContent: string | null;
+  triage: PresalesTriageState | null;
+  demoWorkspace: PresalesDemoWorkspace | null;
+  demoFeedback: PresalesDemoFeedback | null;
+  fitmentReview: PresalesFitmentReview | null;
+  poc: PresalesPocPlan | null;
   requirements: PresalesRequirementSummary[];
   demoCalendarPlaceholder: PresalesPlaceholderSurface;
   solutionRepositoryPlaceholder: PresalesPlaceholderSurface;
@@ -1487,6 +2927,7 @@ export interface PresalesRequestOptionsResponse {
   requestTypes: CrmOptionValueSummary[];
   statuses: CrmOptionValueSummary[];
   priorities: PresalesPriority[];
+  demoChecklistItems: CrmOptionValueSummary[];
   availableScopes: PresalesPipelineScope[];
 }
 
@@ -1659,6 +3100,7 @@ export interface PartnerSummary {
 }
 
 export interface PartnerDetail extends PartnerSummary {
+  customFields: Record<string, unknown>;
   contacts: PartnerContactSummary[];
   onboardingTasks: PartnerOnboardingTaskSummary[];
   deals: PartnerDealRegistrationSummary[];
@@ -1686,6 +3128,7 @@ export interface CreatePartnerRequestBody {
   contacts?: PartnerContactInput[];
   onboardingTasks?: PartnerOnboardingTaskInput[];
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdatePartnerRequestBody {
@@ -1705,6 +3148,7 @@ export interface UpdatePartnerRequestBody {
   contacts?: PartnerContactInput[];
   onboardingTasks?: PartnerOnboardingTaskInput[];
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface PartnerResponse {
@@ -1727,6 +3171,8 @@ export interface PartnerOptionsResponse {
   onboardingStatuses: CrmOptionValueSummary[];
   dealStages: CrmOptionValueSummary[];
   availableScopes: PartnerPipelineScope[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
 }
 
 export interface PartnerDealRegistrationResponse {
@@ -2184,6 +3630,7 @@ export interface SupportTicketSummary {
 }
 
 export interface SupportTicketDetail extends SupportTicketSummary {
+  customFields: Record<string, unknown>;
   description: string | null;
   rootCause: string | null;
   resolutionNotes: string | null;
@@ -2211,7 +3658,12 @@ export interface CreateSupportTicketRequestBody {
   escalationStatus?: SupportEscalationStatus;
   rootCause?: string | null;
   resolutionNotes?: string | null;
+  // L1-001: send an auto-acknowledgement customer reply on intake.
+  autoAcknowledge?: boolean;
+  // L1-001: attachment references captured at intake (stored in ticket metadata).
+  attachments?: string[];
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface UpdateSupportTicketRequestBody {
@@ -2231,6 +3683,7 @@ export interface UpdateSupportTicketRequestBody {
   rootCause?: string | null;
   resolutionNotes?: string | null;
   metadata?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface SupportTicketResponse {
@@ -2251,8 +3704,13 @@ export interface SupportTicketOptionsResponse {
   categories: CrmOptionValueSummary[];
   sources: CrmOptionValueSummary[];
   knowledgeCategories: CrmOptionValueSummary[];
+  rootCauses: CrmOptionValueSummary[];
+  // Persona 23 (Support Manager) SPM-003: configurable SLA-breach reasons.
+  breachReasons: CrmOptionValueSummary[];
   slaPolicies: SupportSlaPolicySummary[];
   availableScopes: SupportTicketScope[];
+  fieldDefinitions: CrmFieldDefinition[];
+  customFieldOptions: Record<string, CrmOptionValueSummary[]>;
 }
 
 export interface SupportDashboardResponse {
@@ -2267,6 +3725,14 @@ export interface SupportDashboardResponse {
   priorityDistribution: Array<{ priority: CrmOptionValueSummary | null; ticketCount: number }>;
   knowledgeArticleCount: number;
   csatPlaceholder: SupportPlaceholderSurface;
+  // Persona 23 (Support Manager) SPM-005: real CSAT aggregate once surveys are captured.
+  csat?: {
+    responseCount: number;
+    averageScore: number | null;
+    detractors: number;
+    passives: number;
+    promoters: number;
+  };
 }
 
 // ============================================================================

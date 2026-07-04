@@ -10,7 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatusPill } from "@/components/ui/status-pill";
+import { Avatar } from "@/components/ui/avatar";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { AlertTriangle, CalendarClock, CircleDollarSign, Filter, Target, Users } from "lucide-react";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import {
@@ -23,6 +26,8 @@ import {
 } from "@/lib/crm";
 import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
+import { SalesManagerDashboard } from "@/components/sales/sales-manager-dashboard";
+import { SalesLeadershipDashboard } from "@/components/sales/sales-leadership-dashboard";
 import { Link } from "react-router-dom";
 
 type PipelineViewMode = "list" | "kanban";
@@ -74,6 +79,9 @@ export function OpportunitiesPage() {
   const [draggingOpportunityId, setDraggingOpportunityId] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
+  const canViewManager = hasAnyPermission(["opportunities.view_dashboard", "opportunities.manage_workflow", "opportunities.configure"]);
+  const canViewLeadership = hasAnyPermission(["opportunities.view_dashboard", "opportunities.configure", "dashboards.view_dashboard"]);
+  const canManageLeadership = hasAnyPermission(["opportunities.configure", "opportunities.manage_workflow", "opportunities.approve"]);
   const canCreate = hasAnyPermission(["opportunities.create", "opportunities.configure"]);
   const canEdit = hasAnyPermission(["opportunities.edit", "opportunities.assign", "opportunities.configure"]);
   const canDelete = hasAnyPermission(["opportunities.delete", "opportunities.configure"]);
@@ -327,11 +335,15 @@ export function OpportunitiesPage() {
               label="Visible opportunities"
               value={String(dashboardData?.visibleCount ?? 0)}
               description={`Tenant-scoped ${opportunitiesLabel.toLowerCase()} currently visible under ${getScopeLabel(query.scope ?? "mine").toLowerCase()}.`}
+              icon={Target}
+              tone="primary"
             />
             <CrmMetricCard
               label="Applied filters"
               value={String(activeFilterCount)}
               description="Search, scope, account, contact, source, stage, and owner filters all flow through the live API."
+              icon={Filter}
+              tone={activeFilterCount > 0 ? "info" : "neutral"}
             />
           </div>
         }
@@ -342,23 +354,35 @@ export function OpportunitiesPage() {
           label="Pipeline value"
           value={formatCurrencyAmount(dashboardData?.pipelineValue ?? 0)}
           description="Sum of open opportunity value across the current filtered scope."
+          icon={CircleDollarSign}
+          tone="success"
         />
         <CrmMetricCard
           label="Closing this month"
           value={`${dashboardData?.closingThisMonthCount ?? 0} deals`}
           description={formatCurrencyAmount(dashboardData?.closingThisMonthValue ?? 0)}
+          icon={CalendarClock}
+          tone="info"
         />
         <CrmMetricCard
           label="Stalled deals"
           value={`${dashboardData?.stalledDealsCount ?? 0} deals`}
           description={`No stage movement within the last ${query.stalledDays ?? 30} days.`}
+          icon={AlertTriangle}
+          tone={(dashboardData?.stalledDealsCount ?? 0) > 0 ? "warning" : "neutral"}
         />
         <CrmMetricCard
           label="Current scope"
           value={getScopeLabel(dashboardData?.scope ?? query.scope ?? "mine")}
           description="Switch between personal, team, and tenant-wide pipeline views when your role allows it."
+          icon={Users}
+          tone="info"
         />
       </section>
+
+      {canViewManager ? <SalesManagerDashboard accessToken={accessToken} canManage={canEdit} /> : null}
+
+      {canViewLeadership ? <SalesLeadershipDashboard accessToken={accessToken} canManage={canManageLeadership} /> : null}
 
       <section className="grid gap-6 xl:grid-cols-[1fr_1.15fr]">
         <Card>
@@ -571,7 +595,7 @@ export function OpportunitiesPage() {
                 <div key={distribution.stage?.id ?? distribution.stage?.key ?? "missing-stage"} className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <div className="flex items-center gap-2">
-                      {distribution.stage ? <Badge>{distribution.stage.label}</Badge> : <Badge variant="muted">Missing stage</Badge>}
+                      {distribution.stage ? <StatusPill value={distribution.stage.key ?? distribution.stage.label}>{distribution.stage.label}</StatusPill> : <Badge variant="muted">Missing stage</Badge>}
                       <span>{distribution.opportunityCount} deals</span>
                     </div>
                     <span className="text-muted-foreground">{formatCurrencyAmount(distribution.totalAmount)}</span>
@@ -630,12 +654,12 @@ export function OpportunitiesPage() {
               />
             ) : (
               visibleOpportunities.map((opportunity) => (
-                <div key={opportunity.id} className="rounded-[1.5rem] border border-border/70 bg-background/85 p-5 shadow-sm">
+                <div key={opportunity.id} className="interactive-card rounded-[1.5rem] border border-white/50 bg-background/85 p-5 shadow-sm backdrop-blur dark:border-white/10">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        {opportunity.stage ? <Badge>{opportunity.stage.label}</Badge> : null}
-                        {opportunity.outcomeStatus ? <Badge variant="muted">{opportunity.outcomeStatus.label}</Badge> : null}
+                        {opportunity.stage ? <StatusPill value={opportunity.stage.key ?? opportunity.stage.label}>{opportunity.stage.label}</StatusPill> : null}
+                        {opportunity.outcomeStatus ? <StatusPill value={opportunity.outcomeStatus.key ?? opportunity.outcomeStatus.label}>{opportunity.outcomeStatus.label}</StatusPill> : null}
                         <p className="font-display text-xl font-semibold">{opportunity.name}</p>
                       </div>
                       <p className="text-sm text-muted-foreground">
@@ -660,7 +684,10 @@ export function OpportunitiesPage() {
                     </div>
                     <div className="rounded-[1.25rem] bg-secondary/50 p-4">
                       <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Owner</p>
-                      <p className="mt-2 font-semibold">{opportunity.owner?.displayName ?? "Unassigned"}</p>
+                      <p className="mt-2 flex items-center gap-2 font-semibold">
+                        <Avatar name={opportunity.owner?.displayName} size="sm" />
+                        {opportunity.owner?.displayName ?? "Unassigned"}
+                      </p>
                     </div>
                     <div className="rounded-[1.25rem] bg-secondary/50 p-4">
                       <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Last stage move</p>
@@ -784,7 +811,7 @@ export function OpportunitiesPage() {
                     >
                       <div className="mb-4 space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <Badge>{stage.label}</Badge>
+                          <StatusPill value={stage.key ?? stage.label}>{stage.label}</StatusPill>
                           <span className="text-sm text-muted-foreground">{stageOpportunities.length} deals</span>
                         </div>
                         <p className="text-sm text-muted-foreground">{formatCurrencyAmount(stageAmount)}</p>
@@ -806,7 +833,7 @@ export function OpportunitiesPage() {
                             >
                               <div className="space-y-2">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  {opportunity.outcomeStatus ? <Badge variant="muted">{opportunity.outcomeStatus.label}</Badge> : null}
+                                  {opportunity.outcomeStatus ? <StatusPill size="sm" value={opportunity.outcomeStatus.key ?? opportunity.outcomeStatus.label}>{opportunity.outcomeStatus.label}</StatusPill> : null}
                                   <Link to={`/opportunities/${opportunity.id}`} className="font-semibold hover:underline">
                                     {opportunity.name}
                                   </Link>

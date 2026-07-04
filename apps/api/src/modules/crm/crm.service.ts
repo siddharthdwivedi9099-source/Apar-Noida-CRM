@@ -1,15 +1,37 @@
+import {
+  buildLeadRuntimeRecord,
+  crmFieldDataTypes,
+  defaultCoreCrmObjectDefinitions,
+  evaluateLeadConversionReadiness,
+  evaluateLeadRuntime,
+  evaluateMql,
+  evaluateMqlReadiness,
+  mapLeadSourceToOpportunitySource,
+  normalizeCustomFieldSettings
+} from "@crm/types";
 import type {
+  AssignmentRulePayload,
   AccountDetail,
+  AccountEnterpriseResponse,
+  AccountEnterpriseView,
   AccountListQuery,
   AccountLookupSummary,
   AccountOptionsResponse,
   AccountResponse,
   AccountSummary,
+  AddExecutiveMeetingRequestBody,
+  ExecutiveEngagementView,
+  ExecutiveMeeting,
+  StrategicAccountPlanState,
+  SubmitAccountPlanReviewRequestBody,
+  UpsertStrategicAccountPlanRequestBody,
   ContactDetail,
   ContactListQuery,
   ContactOptionsResponse,
+  ContactRelationshipSummary,
   ContactResponse,
   ContactSummary,
+  ConvertLeadRequestBody,
   CreateAccountRequestBody,
   CreateContactRequestBody,
   CreateCrmActivityRequestBody,
@@ -20,6 +42,8 @@ import type {
   CrmActivityResponse,
   CrmActivitySummary,
   CrmEntityType,
+  CrmFieldDataType,
+  CrmFieldDefinition,
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
   CrmNotesResponse,
@@ -35,21 +59,32 @@ import type {
   CrmTimelineResponse,
   CrmTasksResponse,
   LeadDetail,
+  LeadDuplicateMatchReason,
+  LeadDuplicateMatchSummary,
   LeadListQuery,
+  LeadConversionResponse,
   LeadOptionsResponse,
   LeadResponse,
+  LeadRuntimeConfiguration,
+  LeadRuntimeResponse,
   LeadSummary,
+  MqlRulePayload,
+  OpportunityLookupSummary,
   RoleSummary,
+  ScoringModelPayload,
+  SlaPolicyPayload,
   UpdateAccountRequestBody,
   UpdateContactRequestBody,
   UpdateCrmNoteRequestBody,
   UpdateCrmTaskRequestBody,
   UpdateLeadRequestBody
 } from "@crm/types";
+import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { getPositiveNumber } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -200,8 +235,34 @@ interface LeadStateRow {
   status_option_id: string;
   source_option_id: string;
   score: number | null;
+  status_key: string | null;
+  source_key: string | null;
   owner_id: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
+}
+
+interface LeadDuplicateAccountRow {
+  id: string;
+  name: string;
+  website: string | null;
+}
+
+interface LeadDuplicateContactRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  account_id: string | null;
+  account_name: string | null;
+  role_id: string | null;
+  role_key: string | null;
+  role_label: string | null;
+  role_description: string | null;
+  role_color: string | null;
+  role_is_default: boolean | null;
+  role_is_active: boolean | null;
 }
 
 interface AccountStateRow {
@@ -212,6 +273,7 @@ interface AccountStateRow {
   account_type_option_id: string | null;
   health_status_option_id: string | null;
   owner_id: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -225,6 +287,7 @@ interface ContactStateRow {
   role_option_id: string | null;
   owner_id: string | null;
   account_id: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -236,6 +299,7 @@ interface LeadRecordRow {
   email: string | null;
   phone: string | null;
   score: number | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
@@ -263,11 +327,53 @@ interface LeadRecordRow {
   source_is_active: boolean | null;
 }
 
+interface LeadRuntimeDefinitionRow {
+  definition_type: string;
+  definition_key: string;
+  name: string;
+  definition: Record<string, unknown>;
+}
+
+interface ObjectDefinitionRow {
+  definition: Record<string, unknown>;
+}
+
+interface CustomFieldDefinitionRow {
+  field_key: string;
+  label: string;
+  description: string | null;
+  data_type: string;
+  placeholder: string | null;
+  option_set_key: string | null;
+  is_required: boolean;
+  is_active: boolean;
+  is_system_field: boolean;
+  sort_order: number;
+  settings: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+}
+
+interface ConfiguredObjectFieldInput {
+  key: string;
+  label: string;
+  type: CrmFieldDataType;
+  required?: boolean;
+  optionSetKey?: string | null;
+  targetObject?: string | null;
+  searchable?: boolean;
+  filterable?: boolean;
+  reportable?: boolean;
+  aiUsable?: boolean;
+  sensitive?: boolean;
+  masking?: "none" | "partial" | "full" | "email";
+}
+
 interface AccountRecordRow {
   id: string;
   name: string;
   website: string | null;
   industry: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
@@ -302,6 +408,7 @@ interface ContactRecordRow {
   email: string | null;
   phone: string | null;
   linkedin_url: string | null;
+  custom_fields: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
@@ -359,6 +466,131 @@ function getTrimmedNullableString(value: string | null | undefined) {
 
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
+}
+
+function normalizeEmailDomain(email: string | null | undefined) {
+  const normalizedEmail = getTrimmedNullableString(email)?.toLowerCase();
+
+  if (!normalizedEmail || !normalizedEmail.includes("@")) {
+    return null;
+  }
+
+  return normalizedEmail.split("@").pop() ?? null;
+}
+
+function normalizeWebsiteDomain(website: string | null | undefined) {
+  const normalizedWebsite = getTrimmedNullableString(website);
+
+  if (!normalizedWebsite) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(normalizedWebsite.includes("://") ? normalizedWebsite : `https://${normalizedWebsite}`);
+    return parsed.hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return normalizedWebsite.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]?.toLowerCase() ?? null;
+  }
+}
+
+function getSalesWorkspaceRoot(metadata: Record<string, unknown> | null | undefined) {
+  const root = getMetadata(metadata).salesWorkspace;
+  return root && typeof root === "object" && !Array.isArray(root) ? (root as Record<string, unknown>) : {};
+}
+
+function getBantChecklist(input: unknown) {
+  const source =
+    input && typeof input === "object" && !Array.isArray(input)
+      ? (input as Partial<Record<"budget" | "authority" | "need" | "timeline", unknown>>)
+      : {};
+
+  return {
+    budget: Boolean(source.budget),
+    authority: Boolean(source.authority),
+    need: Boolean(source.need),
+    timeline: Boolean(source.timeline)
+  };
+}
+
+function getLeadConversionRoot(metadata: Record<string, unknown> | null | undefined) {
+  const root = getMetadata(metadata).conversion;
+  return root && typeof root === "object" && !Array.isArray(root) ? (root as Record<string, unknown>) : {};
+}
+
+function getLeadConversionSummary(metadata: Record<string, unknown> | null | undefined): LeadDetail["conversion"] {
+  const root = getLeadConversionRoot(metadata);
+  return Object.keys(root).length > 0 ? (root as unknown as LeadDetail["conversion"]) : null;
+}
+
+function firstArray(...values: unknown[]) {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+const defaultObjectDefinitionByKey = new Map(
+  defaultCoreCrmObjectDefinitions.map((definition) => [definition.definitionKey, definition.definition] as const)
+);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCrmFieldDataType(value: unknown): value is CrmFieldDataType {
+  return typeof value === "string" && (crmFieldDataTypes as readonly string[]).includes(value);
+}
+
+function isConfiguredObjectFieldInput(value: unknown): value is ConfiguredObjectFieldInput {
+  return isRecord(value) && typeof value.key === "string" && typeof value.label === "string" && isCrmFieldDataType(value.type);
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isValidDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
+}
+
+function isValidDateTime(value: string) {
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && value.includes("T");
+}
+
+function mapConfiguredObjectField(field: ConfiguredObjectFieldInput, sortOrder: number): CrmFieldDefinition {
+  return {
+    fieldKey: field.key,
+    label: field.label,
+    description: null,
+    dataType: field.type,
+    placeholder: null,
+    optionSetKey: field.optionSetKey ?? null,
+    targetObject: field.targetObject ?? null,
+    isRequired: Boolean(field.required),
+    isActive: true,
+    isSystemField: true,
+    sortOrder,
+    settings: {
+      ...normalizeCustomFieldSettings({
+        isSearchable: Boolean(field.searchable),
+        isFilterable: Boolean(field.filterable),
+        isReportable: field.reportable ?? true,
+        isAiUsable: Boolean(field.aiUsable),
+        isSensitive: Boolean(field.sensitive),
+        maskingRule: field.masking ?? "none"
+      })
+    },
+    metadata: {}
+  };
 }
 
 function getPagination(total: number, page: number, pageSize: number): CrmPagination {
@@ -611,6 +843,311 @@ export class CrmService {
     }));
   }
 
+  private getDefaultFieldDefinitions(objectKey: string): CrmFieldDefinition[] {
+    const defaultObjectDefinition = defaultObjectDefinitionByKey.get(objectKey) ?? null;
+    const keyFields = Array.isArray(defaultObjectDefinition?.keyFields) ? defaultObjectDefinition.keyFields : [];
+    return keyFields.filter(isConfiguredObjectFieldInput).map((field, index) => mapConfiguredObjectField(field, index));
+  }
+
+  private async loadSystemFieldDefinitions(client: PoolClient, tenantId: string, objectKey: string): Promise<CrmFieldDefinition[]> {
+    const result = await client.query<ObjectDefinitionRow>(
+      `
+        SELECT definition
+        FROM configuration_definitions
+        WHERE tenant_id = $1
+          AND deleted_at IS NULL
+          AND is_active = true
+          AND definition_type = 'object'
+          AND (definition_key = $2 OR definition->>'objectCode' = $2)
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `,
+      [tenantId, objectKey]
+    );
+
+    const definition = result.rows[0]?.definition;
+    const keyFields = Array.isArray(definition?.keyFields) ? definition.keyFields : [];
+    const mappedFields = keyFields.filter(isConfiguredObjectFieldInput).map((field, index) => mapConfiguredObjectField(field, index));
+    return mappedFields.length > 0 ? mappedFields : this.getDefaultFieldDefinitions(objectKey);
+  }
+
+  private async loadCustomFieldDefinitions(client: PoolClient, tenantId: string, entityKey: string): Promise<CrmFieldDefinition[]> {
+    const result = await client.query<CustomFieldDefinitionRow>(
+      `
+        SELECT
+          custom_field_definitions.field_key,
+          custom_field_definitions.label,
+          custom_field_definitions.description,
+          custom_field_definitions.data_type,
+          custom_field_definitions.placeholder,
+          tenant_option_sets.set_key AS option_set_key,
+          custom_field_definitions.is_required,
+          custom_field_definitions.is_active,
+          custom_field_definitions.is_system_field,
+          custom_field_definitions.sort_order,
+          custom_field_definitions.settings,
+          custom_field_definitions.metadata
+        FROM custom_field_definitions
+        LEFT JOIN tenant_option_sets
+          ON tenant_option_sets.id = custom_field_definitions.option_set_id
+         AND tenant_option_sets.deleted_at IS NULL
+        WHERE custom_field_definitions.tenant_id = $1
+          AND custom_field_definitions.entity_key = $2
+          AND custom_field_definitions.deleted_at IS NULL
+          AND custom_field_definitions.is_active = true
+        ORDER BY custom_field_definitions.sort_order ASC, custom_field_definitions.label ASC
+      `,
+      [tenantId, entityKey]
+    );
+
+    return result.rows
+      .filter((row) => isCrmFieldDataType(row.data_type))
+      .map((row) => ({
+        fieldKey: row.field_key,
+        label: row.label,
+        description: row.description,
+        dataType: row.data_type as CrmFieldDataType,
+        placeholder: row.placeholder,
+        optionSetKey: row.option_set_key,
+        targetObject: null,
+        isRequired: row.is_required,
+        isActive: row.is_active,
+        isSystemField: row.is_system_field,
+        sortOrder: row.sort_order,
+        settings: row.settings ?? {},
+        metadata: row.metadata ?? {}
+      }));
+  }
+
+  async loadFieldDefinitions(client: PoolClient, tenantId: string, objectKey: string): Promise<CrmFieldDefinition[]> {
+    const [systemFields, customFields] = await Promise.all([
+      this.loadSystemFieldDefinitions(client, tenantId, objectKey),
+      this.loadCustomFieldDefinitions(client, tenantId, objectKey)
+    ]);
+
+    return [...systemFields, ...customFields].sort((left, right) => {
+      if (left.isSystemField !== right.isSystemField) {
+        return left.isSystemField ? -1 : 1;
+      }
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
+      }
+      return left.label.localeCompare(right.label);
+    });
+  }
+
+  async loadCustomFieldOptions(
+    client: PoolClient,
+    tenantId: string,
+    fieldDefinitions: CrmFieldDefinition[]
+  ): Promise<Record<string, CrmOptionValueSummary[]>> {
+    const optionSetKeys = [...new Set(
+      fieldDefinitions
+        .filter(
+          (field) =>
+            !field.isSystemField &&
+            (field.dataType === "select" || field.dataType === "multiselect") &&
+            typeof field.optionSetKey === "string" &&
+            field.optionSetKey.length > 0
+        )
+        .map((field) => field.optionSetKey as string)
+    )];
+
+    if (optionSetKeys.length === 0) {
+      return {};
+    }
+
+    const entries = await Promise.all(
+      optionSetKeys.map(async (setKey) => [setKey, await this.loadOptionSetValues(client, tenantId, setKey)] as const)
+    );
+
+    return Object.fromEntries(entries);
+  }
+
+  private async loadAllowedOptionKeys(
+    client: PoolClient,
+    tenantId: string,
+    setKey: string,
+    cache: Map<string, Set<string>>
+  ): Promise<Set<string>> {
+    const cached = cache.get(setKey);
+    if (cached) {
+      return cached;
+    }
+
+    const keys = new Set((await this.loadOptionSetValues(client, tenantId, setKey)).filter((value) => value.isActive).map((value) => value.key));
+    cache.set(setKey, keys);
+    return keys;
+  }
+
+  private async sanitizeCustomFieldValue(
+    client: PoolClient,
+    tenantId: string,
+    field: CrmFieldDefinition,
+    rawValue: unknown,
+    optionSetCache: Map<string, Set<string>>
+  ): Promise<{ action: "set"; value: unknown } | { action: "clear" }> {
+    if (rawValue === null || rawValue === undefined) {
+      return { action: "clear" };
+    }
+
+    switch (field.dataType) {
+      case "text":
+      case "textarea":
+      case "phone": {
+        if (typeof rawValue !== "string") {
+          throw new AppError(400, `${field.label} must be a string.`, undefined, "VALIDATION_ERROR");
+        }
+        const value = getTrimmedNullableString(rawValue);
+        return value === null ? { action: "clear" } : { action: "set", value };
+      }
+      case "email": {
+        if (typeof rawValue !== "string") {
+          throw new AppError(400, `${field.label} must be a valid email address.`, undefined, "VALIDATION_ERROR");
+        }
+        const value = getTrimmedNullableString(rawValue);
+        if (value === null) {
+          return { action: "clear" };
+        }
+        if (!isValidEmail(value)) {
+          throw new AppError(400, `${field.label} must be a valid email address.`, undefined, "VALIDATION_ERROR");
+        }
+        return { action: "set", value };
+      }
+      case "url": {
+        if (typeof rawValue !== "string") {
+          throw new AppError(400, `${field.label} must be a valid URL.`, undefined, "VALIDATION_ERROR");
+        }
+        const value = getTrimmedNullableString(rawValue);
+        if (value === null) {
+          return { action: "clear" };
+        }
+        try {
+          new URL(value);
+        } catch {
+          throw new AppError(400, `${field.label} must be a valid URL.`, undefined, "VALIDATION_ERROR");
+        }
+        return { action: "set", value };
+      }
+      case "date": {
+        if (typeof rawValue !== "string") {
+          throw new AppError(400, `${field.label} must be a valid date.`, undefined, "VALIDATION_ERROR");
+        }
+        const value = getTrimmedNullableString(rawValue);
+        if (value === null) {
+          return { action: "clear" };
+        }
+        if (!isValidDate(value)) {
+          throw new AppError(400, `${field.label} must be a valid date.`, undefined, "VALIDATION_ERROR");
+        }
+        return { action: "set", value };
+      }
+      case "datetime": {
+        if (typeof rawValue !== "string") {
+          throw new AppError(400, `${field.label} must be a valid datetime.`, undefined, "VALIDATION_ERROR");
+        }
+        const value = getTrimmedNullableString(rawValue);
+        if (value === null) {
+          return { action: "clear" };
+        }
+        if (!isValidDateTime(value)) {
+          throw new AppError(400, `${field.label} must be a valid datetime.`, undefined, "VALIDATION_ERROR");
+        }
+        return { action: "set", value };
+      }
+      case "number": {
+        const value =
+          typeof rawValue === "number"
+            ? rawValue
+            : typeof rawValue === "string" && rawValue.trim().length > 0
+              ? Number(rawValue)
+              : null;
+        if (value === null) {
+          return { action: "clear" };
+        }
+        if (!Number.isFinite(value)) {
+          throw new AppError(400, `${field.label} must be a valid number.`, undefined, "VALIDATION_ERROR");
+        }
+        return { action: "set", value };
+      }
+      case "boolean": {
+        if (typeof rawValue !== "boolean") {
+          throw new AppError(400, `${field.label} must be true or false.`, undefined, "VALIDATION_ERROR");
+        }
+        return { action: "set", value: rawValue };
+      }
+      case "select": {
+        if (typeof rawValue !== "string") {
+          throw new AppError(400, `${field.label} must be a valid option key.`, undefined, "VALIDATION_ERROR");
+        }
+        const value = getTrimmedNullableString(rawValue);
+        if (value === null) {
+          return { action: "clear" };
+        }
+        if (!field.optionSetKey) {
+          throw new AppError(500, `${field.label} is misconfigured.`, undefined, "INVALID_CONFIG");
+        }
+        const allowedKeys = await this.loadAllowedOptionKeys(client, tenantId, field.optionSetKey, optionSetCache);
+        if (!allowedKeys.has(value)) {
+          throw new AppError(400, `${field.label} must reference an active option.`, undefined, "VALIDATION_ERROR");
+        }
+        return { action: "set", value };
+      }
+      case "multiselect": {
+        if (!Array.isArray(rawValue)) {
+          throw new AppError(400, `${field.label} must be an array of option keys.`, undefined, "VALIDATION_ERROR");
+        }
+        if (!field.optionSetKey) {
+          throw new AppError(500, `${field.label} is misconfigured.`, undefined, "INVALID_CONFIG");
+        }
+        const values = [...new Set(rawValue.map((value) => (typeof value === "string" ? value.trim() : "")).filter(Boolean))];
+        if (values.length === 0) {
+          return { action: "clear" };
+        }
+        const allowedKeys = await this.loadAllowedOptionKeys(client, tenantId, field.optionSetKey, optionSetCache);
+        if (values.some((value) => !allowedKeys.has(value))) {
+          throw new AppError(400, `${field.label} must reference active options only.`, undefined, "VALIDATION_ERROR");
+        }
+        return { action: "set", value: values };
+      }
+      default:
+        throw new AppError(400, `${field.label} uses an unsupported custom-field type.`, undefined, "VALIDATION_ERROR");
+    }
+  }
+
+  async sanitizeCustomFields(
+    client: PoolClient,
+    tenantId: string,
+    entityKey: string,
+    input: Record<string, unknown> | undefined,
+    currentCustomFields: Record<string, unknown> = {}
+  ): Promise<Record<string, unknown>> {
+    if (!input) {
+      return currentCustomFields;
+    }
+
+    const fieldDefinitions = await this.loadCustomFieldDefinitions(client, tenantId, entityKey);
+    const fieldByKey = new Map(fieldDefinitions.map((field) => [field.fieldKey, field]));
+    const optionSetCache = new Map<string, Set<string>>();
+    const nextCustomFields = { ...currentCustomFields };
+
+    for (const [fieldKey, rawValue] of Object.entries(input)) {
+      const fieldDefinition = fieldByKey.get(fieldKey);
+      if (!fieldDefinition) {
+        continue;
+      }
+
+      const result = await this.sanitizeCustomFieldValue(client, tenantId, fieldDefinition, rawValue, optionSetCache);
+      if (result.action === "clear") {
+        delete nextCustomFields[fieldKey];
+      } else {
+        nextCustomFields[fieldKey] = result.value;
+      }
+    }
+
+    return nextCustomFields;
+  }
+
   private async resolveOptionValueId(
     client: PoolClient,
     tenantId: string,
@@ -717,25 +1254,364 @@ export class CrmService {
     return resolvedAccountId;
   }
 
+  private async ensureContactId(client: PoolClient, tenantId: string, contactId: string | null | undefined, accountId: string | null) {
+    if (!contactId) {
+      return null;
+    }
+
+    const result = await client.query<{ id: string; account_id: string | null }>(
+      `
+        SELECT id, account_id
+        FROM contacts
+        WHERE id = $1
+          AND tenant_id = $2
+          AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [contactId, tenantId]
+    );
+
+    const row = result.rows[0] ?? null;
+
+    if (!row?.id) {
+      throw new AppError(400, "The selected contact is invalid for this tenant.", undefined, "INVALID_CONTACT");
+    }
+
+    if (accountId && row.account_id && row.account_id !== accountId) {
+      throw new AppError(
+        400,
+        "The selected contact does not belong to the chosen account.",
+        undefined,
+        "INVALID_CONTACT_ACCOUNT_RELATION"
+      );
+    }
+
+    return row.id;
+  }
+
+  private async loadAccountLookupById(client: PoolClient, tenantId: string, accountId: string): Promise<AccountLookupSummary> {
+    const result = await client.query<AccountLookupRow>(
+      `
+        SELECT id, name, website
+        FROM accounts
+        WHERE tenant_id = $1
+          AND id = $2
+          AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [tenantId, accountId]
+    );
+
+    const row = result.rows[0] ?? null;
+
+    if (!row) {
+      throw new AppError(404, "Account not found.", undefined, "ACCOUNT_NOT_FOUND");
+    }
+
+    return {
+      id: row.id,
+      name: row.name,
+      website: row.website
+    };
+  }
+
+  private async loadContactRelationshipById(client: PoolClient, tenantId: string, contactId: string): Promise<ContactRelationshipSummary> {
+    const result = await client.query<LeadDuplicateContactRow>(
+      `
+        SELECT
+          contacts.id,
+          contacts.first_name,
+          contacts.last_name,
+          contacts.email,
+          contacts.phone,
+          contacts.account_id,
+          accounts.name AS account_name,
+          role_values.id AS role_id,
+          role_values.value_key AS role_key,
+          role_values.label AS role_label,
+          role_values.description AS role_description,
+          role_values.color AS role_color,
+          role_values.is_default AS role_is_default,
+          role_values.is_active AS role_is_active
+        FROM contacts
+        LEFT JOIN accounts
+          ON accounts.id = contacts.account_id
+         AND accounts.tenant_id = contacts.tenant_id
+         AND accounts.deleted_at IS NULL
+        LEFT JOIN tenant_option_values AS role_values
+          ON role_values.id = contacts.role_option_id
+         AND role_values.tenant_id = contacts.tenant_id
+        WHERE contacts.tenant_id = $1
+          AND contacts.id = $2
+          AND contacts.deleted_at IS NULL
+        LIMIT 1
+      `,
+      [tenantId, contactId]
+    );
+
+    const row = result.rows[0] ?? null;
+
+    if (!row) {
+      throw new AppError(404, "Contact not found.", undefined, "CONTACT_NOT_FOUND");
+    }
+
+    return {
+      id: row.id,
+      fullName: `${row.first_name} ${row.last_name}`.trim(),
+      email: row.email,
+      role: mapOptionValue({
+        id: row.role_id,
+        key: row.role_key,
+        label: row.role_label,
+        description: row.role_description,
+        color: row.role_color,
+        isDefault: row.role_is_default,
+        isActive: row.role_is_active
+      })
+    };
+  }
+
+  private async loadOpportunityLookupById(client: PoolClient, tenantId: string, opportunityId: string): Promise<OpportunityLookupSummary> {
+    const result = await client.query<{
+      id: string;
+      name: string;
+      stage_id: string | null;
+      stage_key: string | null;
+      stage_label: string | null;
+      stage_description: string | null;
+      stage_color: string | null;
+      stage_is_default: boolean | null;
+      stage_is_active: boolean | null;
+    }>(
+      `
+        SELECT
+          opportunities.id,
+          opportunities.name,
+          stage_values.id AS stage_id,
+          stage_values.value_key AS stage_key,
+          stage_values.label AS stage_label,
+          stage_values.description AS stage_description,
+          stage_values.color AS stage_color,
+          stage_values.is_default AS stage_is_default,
+          stage_values.is_active AS stage_is_active
+        FROM opportunities
+        LEFT JOIN tenant_option_values AS stage_values
+          ON stage_values.id = opportunities.stage_option_id
+         AND stage_values.tenant_id = opportunities.tenant_id
+        WHERE opportunities.tenant_id = $1
+          AND opportunities.id = $2
+          AND opportunities.deleted_at IS NULL
+        LIMIT 1
+      `,
+      [tenantId, opportunityId]
+    );
+
+    const row = result.rows[0] ?? null;
+
+    if (!row) {
+      throw new AppError(404, "Opportunity not found.", undefined, "OPPORTUNITY_NOT_FOUND");
+    }
+
+    return {
+      id: row.id,
+      name: row.name,
+      stage: mapOptionValue({
+        id: row.stage_id,
+        key: row.stage_key,
+        label: row.stage_label,
+        description: row.stage_description,
+        color: row.stage_color,
+        isDefault: row.stage_is_default,
+        isActive: row.stage_is_active
+      })
+    };
+  }
+
+  private buildLeadDuplicateAccountMatch(
+    row: LeadDuplicateAccountRow,
+    companyName: string,
+    emailDomain: string | null
+  ): LeadDuplicateMatchSummary | null {
+    const reasons: LeadDuplicateMatchReason[] = [];
+
+    if (row.name.trim().toLowerCase() === companyName.trim().toLowerCase()) {
+      reasons.push("company_name");
+    }
+
+    const websiteDomain = normalizeWebsiteDomain(row.website);
+    if (emailDomain && websiteDomain && websiteDomain === emailDomain) {
+      reasons.push("email_domain");
+    }
+
+    if (reasons.length === 0) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      label: row.name,
+      secondaryLabel: row.website,
+      reasons
+    };
+  }
+
+  private buildLeadDuplicateContactMatch(
+    row: LeadDuplicateContactRow,
+    lead: { firstName: string; lastName: string; email: string | null; phone: string | null }
+  ): LeadDuplicateMatchSummary | null {
+    const reasons: LeadDuplicateMatchReason[] = [];
+    const fullName = `${row.first_name} ${row.last_name}`.trim();
+
+    if (lead.email && row.email && lead.email.trim().toLowerCase() === row.email.trim().toLowerCase()) {
+      reasons.push("email");
+    }
+    if (lead.phone && row.phone && lead.phone.trim() === row.phone.trim()) {
+      reasons.push("phone");
+    }
+    if (
+      fullName.length > 0 &&
+      fullName.toLowerCase() === `${lead.firstName} ${lead.lastName}`.trim().toLowerCase()
+    ) {
+      reasons.push("full_name");
+    }
+
+    if (reasons.length === 0) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      label: fullName,
+      secondaryLabel: row.account_name ?? row.email ?? row.phone,
+      reasons
+    };
+  }
+
+  private async loadLeadDuplicateAccounts(
+    client: PoolClient,
+    tenantId: string,
+    lead: { companyName: string; email: string | null }
+  ): Promise<LeadDuplicateMatchSummary[]> {
+    const emailDomain = normalizeEmailDomain(lead.email);
+    const result = await client.query<LeadDuplicateAccountRow>(
+      `
+        SELECT id, name, website
+        FROM accounts
+        WHERE tenant_id = $1
+          AND deleted_at IS NULL
+          AND (
+            lower(name) = lower($2)
+            OR ($3::text IS NOT NULL AND lower(COALESCE(website, '')) LIKE '%' || lower($3::text) || '%')
+          )
+        ORDER BY name ASC
+      `,
+      [tenantId, lead.companyName.trim(), emailDomain]
+    );
+
+    return result.rows
+      .map((row) => this.buildLeadDuplicateAccountMatch(row, lead.companyName, emailDomain))
+      .filter((match): match is LeadDuplicateMatchSummary => match !== null);
+  }
+
+  private async loadLeadDuplicateContacts(
+    client: PoolClient,
+    tenantId: string,
+    lead: { firstName: string; lastName: string; email: string | null; phone: string | null }
+  ): Promise<LeadDuplicateMatchSummary[]> {
+    const result = await client.query<LeadDuplicateContactRow>(
+      `
+        SELECT
+          contacts.id,
+          contacts.first_name,
+          contacts.last_name,
+          contacts.email,
+          contacts.phone,
+          contacts.account_id,
+          accounts.name AS account_name,
+          role_values.id AS role_id,
+          role_values.value_key AS role_key,
+          role_values.label AS role_label,
+          role_values.description AS role_description,
+          role_values.color AS role_color,
+          role_values.is_default AS role_is_default,
+          role_values.is_active AS role_is_active
+        FROM contacts
+        LEFT JOIN accounts
+          ON accounts.id = contacts.account_id
+         AND accounts.tenant_id = contacts.tenant_id
+         AND accounts.deleted_at IS NULL
+        LEFT JOIN tenant_option_values AS role_values
+          ON role_values.id = contacts.role_option_id
+         AND role_values.tenant_id = contacts.tenant_id
+        WHERE contacts.tenant_id = $1
+          AND contacts.deleted_at IS NULL
+          AND (
+            ($2::text IS NOT NULL AND lower(COALESCE(contacts.email, '')) = lower($2::text))
+            OR ($3::text IS NOT NULL AND COALESCE(contacts.phone, '') = $3::text)
+            OR (lower(contacts.first_name) = lower($4) AND lower(contacts.last_name) = lower($5))
+          )
+        ORDER BY contacts.updated_at DESC
+      `,
+      [tenantId, getTrimmedNullableString(lead.email), getTrimmedNullableString(lead.phone), lead.firstName.trim(), lead.lastName.trim()]
+    );
+
+    return result.rows
+      .map((row) => this.buildLeadDuplicateContactMatch(row, lead))
+      .filter((match): match is LeadDuplicateMatchSummary => match !== null);
+  }
+
+  private assertLeadConversionPermissions(actor: ActorContext, needsAccountCreate: boolean, needsContactCreate: boolean) {
+    const canCreateOpportunity =
+      actor.permissionCodes.includes("opportunities.create") || actor.permissionCodes.includes("opportunities.configure");
+    if (!canCreateOpportunity) {
+      throw new AppError(403, "You do not have permission to create opportunities.", undefined, "AUTHORIZATION_ERROR");
+    }
+
+    if (needsAccountCreate) {
+      const canCreateAccount =
+        actor.permissionCodes.includes("accounts.create") || actor.permissionCodes.includes("accounts.configure");
+      if (!canCreateAccount) {
+        throw new AppError(403, "You do not have permission to create accounts during lead conversion.", undefined, "AUTHORIZATION_ERROR");
+      }
+    }
+
+    if (needsContactCreate) {
+      const canCreateContact =
+        actor.permissionCodes.includes("contacts.create") || actor.permissionCodes.includes("contacts.configure");
+      if (!canCreateContact) {
+        throw new AppError(403, "You do not have permission to create contacts during lead conversion.", undefined, "AUTHORIZATION_ERROR");
+      }
+    }
+  }
+
   private async getLeadState(client: PoolClient, tenantId: string, leadId: string) {
     const result = await client.query<LeadStateRow>(
       `
         SELECT
-          id,
-          first_name,
-          last_name,
-          company_name,
-          email,
-          phone,
-          status_option_id,
-          source_option_id,
-          score,
-          owner_id,
-          metadata
+          leads.id,
+          leads.first_name,
+          leads.last_name,
+          leads.company_name,
+          leads.email,
+          leads.phone,
+          leads.status_option_id,
+          leads.source_option_id,
+          leads.score,
+          status_values.value_key AS status_key,
+          source_values.value_key AS source_key,
+          leads.owner_id,
+          leads.custom_fields,
+          leads.metadata
         FROM leads
-        WHERE id = $1
-          AND tenant_id = $2
-          AND deleted_at IS NULL
+        INNER JOIN tenant_option_values AS status_values
+          ON status_values.id = leads.status_option_id
+         AND status_values.tenant_id = leads.tenant_id
+        INNER JOIN tenant_option_values AS source_values
+          ON source_values.id = leads.source_option_id
+         AND source_values.tenant_id = leads.tenant_id
+        WHERE leads.id = $1
+          AND leads.tenant_id = $2
+          AND leads.deleted_at IS NULL
         LIMIT 1
       `,
       [leadId, tenantId]
@@ -761,6 +1637,7 @@ export class CrmService {
           account_type_option_id,
           health_status_option_id,
           owner_id,
+          custom_fields,
           metadata
         FROM accounts
         WHERE id = $1
@@ -793,6 +1670,7 @@ export class CrmService {
           role_option_id,
           owner_id,
           account_id,
+          custom_fields,
           metadata
         FROM contacts
         WHERE id = $1
@@ -1707,6 +2585,7 @@ export class CrmService {
             leads.email,
             leads.phone,
             leads.score,
+            leads.custom_fields,
             leads.metadata,
             leads.created_at,
             leads.updated_at,
@@ -1792,6 +2671,135 @@ export class CrmService {
     }));
   }
 
+  async getLeadRuntime(actor: ActorContext, leadId: string): Promise<LeadRuntimeResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withClient(async (client) => {
+      const lead = await this.loadLeadDetail(client, actor.tenantId, leadId);
+      const firstActivityAt = await this.loadLeadFirstActivityAt(client, actor.tenantId, leadId);
+      const config = await this.loadLeadRuntimeConfiguration(client, actor.tenantId);
+      const record = buildLeadRuntimeRecord({
+        id: lead.id,
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        fullName: lead.fullName,
+        companyName: lead.companyName,
+        email: lead.email,
+        phone: lead.phone,
+        statusKey: lead.status?.key ?? null,
+        sourceKey: lead.source?.key ?? null,
+        score: lead.score,
+        ownerId: lead.owner?.id ?? null,
+        customFields: lead.customFields,
+        activityCount: lead.activityCount,
+        firstActivityAt,
+        lastActivityAt: lead.lastActivityAt,
+        createdAt: lead.createdAt,
+        updatedAt: lead.updatedAt,
+        metadata: lead.metadata
+      });
+
+      return evaluateLeadRuntime({
+        leadId,
+        record,
+        config,
+        nowIso: new Date().toISOString()
+      });
+    });
+  }
+
+  private async loadLeadFirstActivityAt(client: PoolClient, tenantId: string, leadId: string): Promise<string | null> {
+    const result = await client.query<{ first_activity_at: Date | null }>(
+      `
+        SELECT MIN(occurred_at) AS first_activity_at
+        FROM crm_activities
+        WHERE tenant_id = $1
+          AND entity_type = 'lead'
+          AND entity_id = $2
+          AND deleted_at IS NULL
+      `,
+      [tenantId, leadId]
+    );
+    return toIsoString(result.rows[0]?.first_activity_at ?? null);
+  }
+
+  private async loadLeadRuntimeConfiguration(client: PoolClient, tenantId: string): Promise<LeadRuntimeConfiguration> {
+    const result = await client.query<LeadRuntimeDefinitionRow>(
+      `
+        SELECT definition_type, definition_key, name, definition
+        FROM configuration_definitions
+        WHERE tenant_id = $1
+          AND deleted_at IS NULL
+          AND is_active = true
+          AND definition_type IN ('scoring_model', 'mql_rule', 'assignment_rule', 'sla_policy')
+          AND definition->>'object' = 'lead'
+        ORDER BY definition_type ASC, updated_at DESC
+      `,
+      [tenantId]
+    );
+
+    const config: LeadRuntimeConfiguration = {};
+    for (const row of result.rows) {
+      if (row.definition_type === "scoring_model" && !config.scoringModel) {
+        config.scoringModel = {
+          definitionKey: row.definition_key,
+          name: row.name,
+          payload: row.definition as unknown as ScoringModelPayload
+        };
+      }
+      if (row.definition_type === "mql_rule" && !config.mqlRule) {
+        config.mqlRule = {
+          definitionKey: row.definition_key,
+          name: row.name,
+          payload: row.definition as unknown as MqlRulePayload
+        };
+      }
+      if (row.definition_type === "assignment_rule" && !config.assignmentRule) {
+        config.assignmentRule = {
+          definitionKey: row.definition_key,
+          name: row.name,
+          payload: row.definition as unknown as AssignmentRulePayload
+        };
+      }
+      if (row.definition_type === "sla_policy" && !config.slaPolicy) {
+        config.slaPolicy = {
+          definitionKey: row.definition_key,
+          name: row.name,
+          payload: row.definition as unknown as SlaPolicyPayload
+        };
+      }
+    }
+    return config;
+  }
+
+  // R1 (Section 13): MQL is a governed computed classification. A lead can only
+  // be flagged MQL when it has a score AND a consent status (readiness), and then
+  // only when the configurable mql_rule (score threshold + required fields +
+  // criteria) passes. This makes "cannot become MQL without score and consent"
+  // true by construction — the flag cannot be set manually bypassing the rule.
+  private async buildLeadMqlState(
+    client: PoolClient,
+    tenantId: string,
+    lead: { score: number | null; sourceKey: string | null; metadata: Record<string, unknown>; customFields: Record<string, unknown> }
+  ): Promise<{ isMql: boolean; reasons: string[]; evaluatedAt: string }> {
+    const record: Record<string, unknown> = { leadSource: lead.sourceKey, ...lead.metadata, ...lead.customFields };
+    const evaluatedAt = new Date().toISOString();
+    const readiness = evaluateMqlReadiness({ score: lead.score, consentStatus: record.consentStatus });
+    if (!readiness.valid) {
+      return { isMql: false, reasons: readiness.violations.map((violation) => violation.message), evaluatedAt };
+    }
+    const config = await this.loadLeadRuntimeConfiguration(client, tenantId);
+    if (!config.mqlRule) {
+      return { isMql: false, reasons: ["No MQL rule is configured for this tenant."], evaluatedAt };
+    }
+    const evaluation = evaluateMql(
+      config.mqlRule.payload,
+      { finalScore: Number(lead.score ?? 0), dimensionScores: {}, grade: null, breakdown: [] },
+      record
+    );
+    return { isMql: evaluation.isMql, reasons: evaluation.reasons, evaluatedAt };
+  }
+
   private async loadLeadDetail(client: PoolClient, tenantId: string, leadId: string): Promise<LeadDetail> {
     const result = await client.query<LeadRecordRow>(
       `
@@ -1803,6 +2811,7 @@ export class CrmService {
           leads.email,
           leads.phone,
           leads.score,
+          leads.custom_fields,
           leads.metadata,
           leads.created_at,
           leads.updated_at,
@@ -1879,15 +2888,19 @@ export class CrmService {
       throw new AppError(404, "Lead not found.", undefined, "LEAD_NOT_FOUND");
     }
 
+    const conversion = getLeadConversionSummary(row.metadata);
+
     return {
       ...this.mapLead(row),
+      customFields: getMetadata(row.custom_fields),
       notes: await this.loadEntityNotes(client, tenantId, "lead", leadId),
       activities: await this.loadEntityActivities(client, tenantId, "lead", leadId),
       tasks: await this.loadEntityTasks(client, tenantId, "lead", leadId),
       timeline: await this.loadEntityTimeline(client, tenantId, "lead", leadId),
+      conversion,
       conversionPlaceholder: {
         available: false,
-        message: "Lead conversion is reserved for a later opportunity-management phase."
+        message: conversion ? "Lead conversion has been completed for this record." : "Lead conversion is reserved for a later opportunity-management phase."
       }
     };
   }
@@ -1899,6 +2912,15 @@ export class CrmService {
       const ownerId = await this.ensureOwnerId(client, actor.tenantId, input.ownerId ?? null);
       const statusOptionId = await this.resolveOptionValueId(client, actor.tenantId, "lead-status", input.statusKey, "Lead status");
       const sourceOptionId = await this.resolveOptionValueId(client, actor.tenantId, "lead-source", input.sourceKey, "Lead source");
+      const customFields = await this.sanitizeCustomFields(client, actor.tenantId, "lead", input.customFields);
+      const baseMetadata = getMetadata(input.metadata ?? {});
+      const mql = await this.buildLeadMqlState(client, actor.tenantId, {
+        score: input.score ?? null,
+        sourceKey: input.sourceKey,
+        metadata: baseMetadata,
+        customFields
+      });
+      const leadMetadata = { ...baseMetadata, mql };
       const result = await client.query<{ id: string }>(
         `
           INSERT INTO leads (
@@ -1912,11 +2934,12 @@ export class CrmService {
             status_option_id,
             source_option_id,
             score,
+            custom_fields,
             metadata,
             created_by,
             updated_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $12)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $13)
           RETURNING id
         `,
         [
@@ -1930,7 +2953,8 @@ export class CrmService {
           statusOptionId,
           sourceOptionId,
           input.score ?? null,
-          JSON.stringify(input.metadata ?? {}),
+          JSON.stringify(customFields),
+          JSON.stringify(leadMetadata),
           actor.userId
         ]
       );
@@ -1959,6 +2983,388 @@ export class CrmService {
     });
   }
 
+  async convertLead(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    leadId: string,
+    input: ConvertLeadRequestBody
+  ): Promise<LeadConversionResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withTransaction(async (client) => {
+      const currentLead = await this.getLeadState(client, actor.tenantId, leadId);
+      const existingConversion = getLeadConversionSummary(currentLead.metadata);
+
+      if (existingConversion?.opportunity?.id) {
+        throw new AppError(409, "This lead has already been converted.", existingConversion, "LEAD_ALREADY_CONVERTED");
+      }
+
+      const nowIso = new Date().toISOString();
+      const workspace = getSalesWorkspaceRoot(currentLead.metadata);
+      const qualificationChecklist = getBantChecklist(workspace.qualificationChecklist);
+      const qualificationSummary =
+        getTrimmedNullableString(input.handoverNotes) ||
+        (typeof workspace.qualificationNotes === "string" ? getTrimmedNullableString(workspace.qualificationNotes) : null);
+      const productContext =
+        firstArray(
+          getMetadata(currentLead.metadata).productInterest,
+          getMetadata(currentLead.metadata).products,
+          getMetadata(currentLead.metadata).technologies,
+          getMetadata(currentLead.custom_fields).productInterest
+        ) ?? [];
+      const duplicateMatches = {
+        accountMatches: await this.loadLeadDuplicateAccounts(client, actor.tenantId, {
+          companyName: currentLead.company_name,
+          email: currentLead.email
+        }),
+        contactMatches: await this.loadLeadDuplicateContacts(client, actor.tenantId, {
+          firstName: currentLead.first_name,
+          lastName: currentLead.last_name,
+          email: currentLead.email,
+          phone: currentLead.phone
+        })
+      };
+
+      const ownerId = await this.ensureOwnerId(client, actor.tenantId, input.ownerId ?? currentLead.owner_id);
+      const readiness = evaluateLeadConversionReadiness({
+        qualificationChecklist,
+        duplicateCheckCompleted: true,
+        hasOwner: Boolean(ownerId),
+        hasNextStep: Boolean(getTrimmedNullableString(input.nextStep)),
+        hasExpectedCloseDate: Boolean(getTrimmedNullableString(input.expectedCloseDate)),
+        hasAmount: Number.isFinite(input.amount),
+        hasProductContext: productContext.length > 0
+      });
+
+      if (!readiness.ready) {
+        throw new AppError(400, "Lead conversion requirements are not met.", { blockers: readiness.blockers }, "LEAD_CONVERSION_BLOCKED");
+      }
+
+      const strongAccountMatches = duplicateMatches.accountMatches.filter((match) => match.reasons.includes("company_name"));
+      const strongContactMatches = duplicateMatches.contactMatches.filter(
+        (match) => match.reasons.includes("email") || match.reasons.includes("phone")
+      );
+
+      let accountId = await this.ensureAccountId(client, actor.tenantId, input.accountId ?? null);
+      let accountLinkMode: "created" | "existing" = "existing";
+
+      if (!accountId) {
+        if (strongAccountMatches.length > 1) {
+          throw new AppError(
+            409,
+            "Multiple matching accounts were found. Choose the account explicitly before converting this lead.",
+            { accountMatches: duplicateMatches.accountMatches },
+            "LEAD_CONVERSION_DUPLICATE_ACCOUNT"
+          );
+        }
+
+        if (strongAccountMatches.length === 1) {
+          accountId = strongAccountMatches[0].id;
+        }
+      }
+
+      let contactId = await this.ensureContactId(client, actor.tenantId, input.contactId ?? null, accountId);
+      let contactLinkMode: "created" | "existing" = "existing";
+
+      if (!contactId) {
+        if (strongContactMatches.length > 1) {
+          throw new AppError(
+            409,
+            "Multiple matching contacts were found. Choose the contact explicitly before converting this lead.",
+            { contactMatches: duplicateMatches.contactMatches },
+            "LEAD_CONVERSION_DUPLICATE_CONTACT"
+          );
+        }
+
+        if (strongContactMatches.length === 1) {
+          contactId = await this.ensureContactId(client, actor.tenantId, strongContactMatches[0].id, accountId);
+        }
+      }
+
+      this.assertLeadConversionPermissions(actor, !accountId, !contactId);
+
+      if (!accountId) {
+        accountLinkMode = "created";
+        const defaultAccountTypeId = await this.resolveOptionValueId(client, actor.tenantId, "account-type", "prospect", "Account type");
+        const accountResult = await client.query<{ id: string }>(
+          `
+            INSERT INTO accounts (
+              tenant_id,
+              owner_id,
+              name,
+              website,
+              industry,
+              account_type_option_id,
+              health_status_option_id,
+              custom_fields,
+              metadata,
+              created_by,
+              updated_by
+            )
+            VALUES ($1, $2, $3, NULL, $4, $5, NULL, '{}'::jsonb, $6::jsonb, $7, $7)
+            RETURNING id
+          `,
+          [
+            actor.tenantId,
+            ownerId,
+            currentLead.company_name.trim(),
+            getTrimmedNullableString(String(getMetadata(currentLead.metadata).industry ?? "")),
+            defaultAccountTypeId,
+            JSON.stringify({
+              createdFromLeadId: leadId,
+              createdFromLeadEmail: currentLead.email,
+              conversionSource: "lead.convert"
+            }),
+            actor.userId
+          ]
+        );
+        accountId = accountResult.rows[0]?.id ?? null;
+
+        if (!accountId) {
+          throw new AppError(500, "Account creation during lead conversion failed.", undefined, "ACCOUNT_CREATE_FAILED");
+        }
+      }
+
+      if (!contactId) {
+        contactLinkMode = "created";
+        const contactResult = await client.query<{ id: string }>(
+          `
+            INSERT INTO contacts (
+              tenant_id,
+              owner_id,
+              account_id,
+              first_name,
+              last_name,
+              email,
+              phone,
+              linkedin_url,
+              role_option_id,
+              metadata,
+              created_by,
+              updated_by
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL, $8::jsonb, $9, $9)
+            RETURNING id
+          `,
+          [
+            actor.tenantId,
+            ownerId,
+            accountId,
+            currentLead.first_name.trim(),
+            currentLead.last_name.trim(),
+            getTrimmedNullableString(currentLead.email),
+            getTrimmedNullableString(currentLead.phone),
+            JSON.stringify({
+              createdFromLeadId: leadId,
+              conversionSource: "lead.convert"
+            }),
+            actor.userId
+          ]
+        );
+        contactId = contactResult.rows[0]?.id ?? null;
+
+        if (!contactId) {
+          throw new AppError(500, "Contact creation during lead conversion failed.", undefined, "CONTACT_CREATE_FAILED");
+        }
+      } else if (accountId) {
+        await client.query(
+          `
+            UPDATE contacts
+            SET
+              account_id = COALESCE(account_id, $3),
+              updated_by = $4
+            WHERE tenant_id = $1
+              AND id = $2
+              AND deleted_at IS NULL
+          `,
+          [actor.tenantId, contactId, accountId, actor.userId]
+        );
+      }
+
+      const stageOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-pipeline", input.stageKey, "Opportunity stage");
+      const opportunitySourceKey = getTrimmedNullableString(input.sourceKey) ?? mapLeadSourceToOpportunitySource(currentLead.source_key);
+      const sourceOptionId = await this.resolveOptionValueId(
+        client,
+        actor.tenantId,
+        "opportunity-source",
+        opportunitySourceKey,
+        "Opportunity source"
+      );
+      const outcomeStatusOptionId = await this.resolveOptionValueId(
+        client,
+        actor.tenantId,
+        "opportunity-outcome-status",
+        "open",
+        "Opportunity outcome status"
+      );
+
+      const opportunityResult = await client.query<{ id: string }>(
+        `
+          INSERT INTO opportunities (
+            tenant_id,
+            account_id,
+            primary_contact_id,
+            owner_id,
+            name,
+            stage_option_id,
+            source_option_id,
+            outcome_status_option_id,
+            amount,
+            probability,
+            expected_close_date,
+            competitor,
+            next_step,
+            win_loss_reason,
+            custom_fields,
+            metadata,
+            created_by,
+            updated_by
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::date, $12, $13, NULL, '{}'::jsonb, $14::jsonb, $15, $15)
+          RETURNING id
+        `,
+        [
+          actor.tenantId,
+          accountId,
+          contactId,
+          ownerId,
+          getTrimmedNullableString(input.opportunityName) ?? `${currentLead.company_name.trim()} Opportunity`,
+          stageOptionId,
+          sourceOptionId,
+          outcomeStatusOptionId,
+          input.amount,
+          input.probability ?? null,
+          input.expectedCloseDate,
+          getTrimmedNullableString(input.competitor),
+          getTrimmedNullableString(input.nextStep),
+          JSON.stringify({
+            convertedFromLeadId: leadId,
+            leadSourceKey: currentLead.source_key,
+            qualificationSummary,
+            productContext,
+            duplicateMatches
+          }),
+          actor.userId
+        ]
+      );
+
+      const opportunityId = opportunityResult.rows[0]?.id;
+
+      if (!opportunityId) {
+        throw new AppError(500, "Opportunity creation during lead conversion failed.", undefined, "OPPORTUNITY_CREATE_FAILED");
+      }
+
+      const taskResult = await client.query<{ id: string }>(
+        `
+          INSERT INTO crm_tasks (
+            tenant_id,
+            entity_type,
+            entity_id,
+            owner_user_id,
+            assignee_user_id,
+            title,
+            description,
+            due_at,
+            priority,
+            status,
+            reminder_at,
+            metadata,
+            created_by,
+            updated_by
+          )
+          VALUES ($1, 'opportunity', $2, $3, $3, $4, $5, $6, 'medium', 'open', NULL, $7::jsonb, $8, $8)
+          RETURNING id
+        `,
+        [
+          actor.tenantId,
+          opportunityId,
+          ownerId,
+          `Review lead handoff for ${currentLead.company_name.trim()}`,
+          qualificationSummary ??
+            `${currentLead.first_name} ${currentLead.last_name}`.trim() +
+              " was converted from lead to opportunity. Review qualification context and next-step commitments.",
+          input.taskDueAt ? new Date(input.taskDueAt) : new Date(Date.now() + 24 * 60 * 60 * 1000),
+          JSON.stringify({
+            convertedFromLeadId: leadId,
+            handoffTask: true
+          }),
+          actor.userId
+        ]
+      );
+
+      const taskId = taskResult.rows[0]?.id;
+
+      if (!taskId) {
+        throw new AppError(500, "Handoff task creation failed during lead conversion.", undefined, "TASK_CREATE_FAILED");
+      }
+
+      const account = await this.loadAccountLookupById(client, actor.tenantId, accountId);
+      const contact = await this.loadContactRelationshipById(client, actor.tenantId, contactId);
+      const opportunity = await this.loadOpportunityLookupById(client, actor.tenantId, opportunityId);
+      const handoffTask = await this.loadTaskById(client, actor.tenantId, taskId);
+      const convertedStatusOptionId = await this.resolveOptionValueId(client, actor.tenantId, "lead-status", "converted", "Lead status");
+      const metadata = {
+        ...getMetadata(currentLead.metadata),
+        salesWorkspace: {
+          ...workspace,
+          handoffStatusKey: "handed_to_sales",
+          handoffUpdatedAt: nowIso
+        },
+        conversion: {
+          convertedAt: nowIso,
+          convertedByUserId: actor.userId,
+          account,
+          accountLinkMode,
+          contact,
+          contactLinkMode,
+          opportunity,
+          handoffTask,
+          duplicateCheckCompletedAt: nowIso,
+          duplicateMatches,
+          qualificationSummary
+        }
+      };
+
+      await client.query(
+        `
+          UPDATE leads
+          SET
+            owner_id = $3,
+            status_option_id = $4,
+            metadata = $5::jsonb,
+            updated_by = $6
+          WHERE id = $1
+            AND tenant_id = $2
+            AND deleted_at IS NULL
+        `,
+        [leadId, actor.tenantId, ownerId, convertedStatusOptionId, JSON.stringify(metadata), actor.userId]
+      );
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "lead.convert",
+        resourceType: "lead",
+        resourceId: leadId,
+        status: "success",
+        metadata: {
+          accountId,
+          contactId,
+          opportunityId,
+          handoffTaskId: taskId,
+          duplicateMatches
+        }
+      });
+
+      return {
+        lead: await this.loadLeadDetail(client, actor.tenantId, leadId),
+        account,
+        contact,
+        opportunity,
+        handoffTask,
+        duplicateMatches
+      };
+    });
+  }
+
   async updateLead(
     actor: ActorContext,
     audit: AuditMetadata,
@@ -1982,6 +3388,17 @@ export class CrmService {
         ? await this.resolveOptionValueId(client, actor.tenantId, "lead-source", input.sourceKey, "Lead source")
         : currentLead.source_option_id;
       const metadata = input.metadata ? { ...getMetadata(currentLead.metadata), ...input.metadata } : getMetadata(currentLead.metadata);
+      const customFields =
+        input.customFields !== undefined
+          ? await this.sanitizeCustomFields(client, actor.tenantId, "lead", input.customFields, getMetadata(currentLead.custom_fields))
+          : getMetadata(currentLead.custom_fields);
+      const resolvedScore = input.score !== undefined ? input.score : currentLead.score;
+      metadata.mql = await this.buildLeadMqlState(client, actor.tenantId, {
+        score: resolvedScore ?? null,
+        sourceKey: input.sourceKey ?? currentLead.source_key,
+        metadata,
+        customFields
+      });
 
       await client.query(
         `
@@ -1996,8 +3413,9 @@ export class CrmService {
             status_option_id = $9,
             source_option_id = $10,
             score = $11,
-            metadata = $12::jsonb,
-            updated_by = $13
+            custom_fields = $12::jsonb,
+            metadata = $13::jsonb,
+            updated_by = $14
           WHERE id = $1
             AND tenant_id = $2
             AND deleted_at IS NULL
@@ -2014,6 +3432,7 @@ export class CrmService {
           statusOptionId,
           sourceOptionId,
           input.score !== undefined ? input.score : currentLead.score,
+          JSON.stringify(customFields),
           JSON.stringify(metadata),
           actor.userId
         ]
@@ -2067,14 +3486,30 @@ export class CrmService {
   async getLeadOptions(actor: ActorContext): Promise<LeadOptionsResponse> {
     this.assertEnabled();
 
-    return this.databaseService.withClient(async (client) => ({
-      owners: await this.loadOwners(client, actor.tenantId),
-      statuses: await this.loadOptionSetValues(client, actor.tenantId, "lead-status"),
-      sources: await this.loadOptionSetValues(client, actor.tenantId, "lead-source"),
-      leadForOptions: await this.loadOptionSetValues(client, actor.tenantId, "lead-for"),
-      technologyOptions: await this.loadOptionSetValues(client, actor.tenantId, "service-technology"),
-      productOptions: await this.loadOptionSetValues(client, actor.tenantId, "education-product")
-    }));
+    return this.databaseService.withClient(async (client) => {
+      const fieldDefinitions = await this.loadFieldDefinitions(client, actor.tenantId, "lead");
+      const customFieldOptionsPromise = this.loadCustomFieldOptions(client, actor.tenantId, fieldDefinitions);
+      const [owners, statuses, sources, customFieldOptions, leadForOptions, technologyOptions, productOptions] = await Promise.all([
+        this.loadOwners(client, actor.tenantId),
+        this.loadOptionSetValues(client, actor.tenantId, "lead-status"),
+        this.loadOptionSetValues(client, actor.tenantId, "lead-source"),
+        customFieldOptionsPromise,
+        this.loadOptionSetValues(client, actor.tenantId, "lead-for"),
+        this.loadOptionSetValues(client, actor.tenantId, "service-technology"),
+        this.loadOptionSetValues(client, actor.tenantId, "education-product")
+      ]);
+
+      return {
+        owners,
+        statuses,
+        sources,
+        fieldDefinitions,
+        customFieldOptions,
+        leadForOptions,
+        technologyOptions,
+        productOptions
+      };
+    });
   }
 
   private async createNote(
@@ -2767,6 +4202,7 @@ export class CrmService {
           accounts.name,
           accounts.website,
           accounts.industry,
+          accounts.custom_fields,
           accounts.metadata,
           accounts.created_at,
           accounts.updated_at,
@@ -2880,6 +4316,7 @@ export class CrmService {
 
     return {
       ...this.mapAccount(row),
+      customFields: getMetadata(row.custom_fields),
       notes: await this.loadEntityNotes(client, tenantId, "account", accountId),
       activities: await this.loadEntityActivities(client, tenantId, "account", accountId),
       tasks: await this.loadEntityTasks(client, tenantId, "account", accountId),
@@ -2920,6 +4357,7 @@ export class CrmService {
       const healthStatusOptionId = input.healthStatusKey
         ? await this.resolveOptionValueId(client, actor.tenantId, "account-health", input.healthStatusKey, "Account health")
         : null;
+      const customFields = await this.sanitizeCustomFields(client, actor.tenantId, "account", input.customFields);
       const result = await client.query<{ id: string }>(
         `
           INSERT INTO accounts (
@@ -2930,11 +4368,12 @@ export class CrmService {
             industry,
             account_type_option_id,
             health_status_option_id,
+            custom_fields,
             metadata,
             created_by,
             updated_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $9)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $10)
           RETURNING id
         `,
         [
@@ -2945,6 +4384,7 @@ export class CrmService {
           getTrimmedNullableString(input.industry),
           accountTypeOptionId,
           healthStatusOptionId,
+          JSON.stringify(customFields),
           JSON.stringify(input.metadata ?? {}),
           actor.userId
         ]
@@ -3001,6 +4441,10 @@ export class CrmService {
             : null)
         : currentAccount.health_status_option_id;
       const metadata = input.metadata ? { ...getMetadata(currentAccount.metadata), ...input.metadata } : getMetadata(currentAccount.metadata);
+      const customFields =
+        input.customFields !== undefined
+          ? await this.sanitizeCustomFields(client, actor.tenantId, "account", input.customFields, getMetadata(currentAccount.custom_fields))
+          : getMetadata(currentAccount.custom_fields);
 
       await client.query(
         `
@@ -3012,8 +4456,9 @@ export class CrmService {
             industry = $6,
             account_type_option_id = $7,
             health_status_option_id = $8,
-            metadata = $9::jsonb,
-            updated_by = $10
+            custom_fields = $9::jsonb,
+            metadata = $10::jsonb,
+            updated_by = $11
           WHERE id = $1
             AND tenant_id = $2
             AND deleted_at IS NULL
@@ -3027,6 +4472,7 @@ export class CrmService {
           input.industry !== undefined ? getTrimmedNullableString(input.industry) : currentAccount.industry,
           accountTypeOptionId,
           healthStatusOptionId,
+          JSON.stringify(customFields),
           JSON.stringify(metadata),
           actor.userId
         ]
@@ -3084,11 +4530,183 @@ export class CrmService {
   async getAccountOptions(actor: ActorContext): Promise<AccountOptionsResponse> {
     this.assertEnabled();
 
-    return this.databaseService.withClient(async (client) => ({
-      owners: await this.loadOwners(client, actor.tenantId),
-      accountTypes: await this.loadOptionSetValues(client, actor.tenantId, "account-type"),
-      healthStatuses: await this.loadOptionSetValues(client, actor.tenantId, "account-health")
-    }));
+    return this.databaseService.withClient(async (client) => {
+      const fieldDefinitions = await this.loadFieldDefinitions(client, actor.tenantId, "account");
+      const customFieldOptionsPromise = this.loadCustomFieldOptions(client, actor.tenantId, fieldDefinitions);
+      const [owners, accountTypes, healthStatuses, customFieldOptions] = await Promise.all([
+        this.loadOwners(client, actor.tenantId),
+        this.loadOptionSetValues(client, actor.tenantId, "account-type"),
+        this.loadOptionSetValues(client, actor.tenantId, "account-health"),
+        customFieldOptionsPromise
+      ]);
+
+      return {
+        owners,
+        accountTypes,
+        healthStatuses,
+        fieldDefinitions,
+        customFieldOptions
+      };
+    });
+  }
+
+  // ---- Persona 10 (Enterprise Sales) — account plan + executive engagement ---------------------
+
+  private buildAccountEnterpriseView(metadata: Record<string, unknown> | null | undefined): AccountEnterpriseView {
+    const root = getMetadata(metadata);
+    const planRaw = root.strategicPlan && typeof root.strategicPlan === "object" ? (root.strategicPlan as Record<string, unknown>) : {};
+    const ms = (key: string): string | null => {
+      const value = planRaw[key];
+      return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+    };
+    const revenuePotential = typeof planRaw.revenuePotential === "number" && Number.isFinite(planRaw.revenuePotential) ? planRaw.revenuePotential : null;
+    const reviewStatus = planRaw.reviewStatus === "in_review" ? "in_review" : planRaw.reviewStatus === "reviewed" ? "reviewed" : "draft";
+    const strategicPlan: StrategicAccountPlanState = {
+      accountOverview: ms("accountOverview"),
+      businessUnits: ms("businessUnits"),
+      stakeholders: ms("stakeholders"),
+      systems: ms("systems"),
+      painPoints: ms("painPoints"),
+      opportunities: ms("opportunities"),
+      competitors: ms("competitors"),
+      revenuePotential,
+      risks: ms("risks"),
+      actionPlan: ms("actionPlan"),
+      reviewStatus,
+      reviewerUserId: ms("reviewerUserId"),
+      reviewRequestedAt: ms("reviewRequestedAt"),
+      updatedAt: ms("updatedAt")
+    };
+
+    const engagementRaw = root.executiveEngagement && typeof root.executiveEngagement === "object" ? (root.executiveEngagement as Record<string, unknown>) : {};
+    const meetingsRaw = Array.isArray(engagementRaw.meetings) ? engagementRaw.meetings : [];
+    const meetings: ExecutiveMeeting[] = meetingsRaw
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry))
+      .map((entry) => {
+        const get = (key: string): string | null => (typeof entry[key] === "string" && (entry[key] as string).trim().length > 0 ? (entry[key] as string).trim() : null);
+        return {
+          id: get("id") ?? randomUUID(),
+          contactId: get("contactId"),
+          contactName: get("contactName"),
+          notes: get("notes"),
+          commitments: get("commitments"),
+          followUps: get("followUps"),
+          meetingDate: get("meetingDate"),
+          createdAt: get("createdAt") ?? new Date().toISOString()
+        };
+      });
+    const commitmentCount = meetings.filter((meeting) => meeting.commitments).length;
+    const followUpCount = meetings.filter((meeting) => meeting.followUps).length;
+    // Engagement score: weighted by meetings + commitments + follow-ups, saturating at 100.
+    const score = Math.min(100, meetings.length * 15 + commitmentCount * 10 + followUpCount * 5);
+    const band = score >= 60 ? "high" : score >= 25 ? "medium" : "low";
+
+    return {
+      strategicPlan,
+      executiveEngagement: { score, band, meetingCount: meetings.length, commitmentCount, followUpCount, meetings },
+      whitespacePlaceholder: {
+        available: false,
+        message: "AI whitespace analysis will connect once the AI Gateway and product-coverage data are introduced."
+      }
+    };
+  }
+
+  async getAccountEnterprise(actor: ActorContext, accountId: string): Promise<AccountEnterpriseResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const account = await this.getAccountState(client, actor.tenantId, accountId);
+      return { accountId, enterprise: this.buildAccountEnterpriseView(account.metadata) };
+    });
+  }
+
+  async upsertStrategicAccountPlan(actor: ActorContext, audit: AuditMetadata, accountId: string, input: UpsertStrategicAccountPlanRequestBody): Promise<AccountEnterpriseResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.getAccountState(client, actor.tenantId, accountId);
+      const metadata = getMetadata(account.metadata);
+      const plan = (metadata.strategicPlan && typeof metadata.strategicPlan === "object" ? metadata.strategicPlan : {}) as Record<string, unknown>;
+      const merge = (key: keyof UpsertStrategicAccountPlanRequestBody) =>
+        input[key] !== undefined ? getTrimmedNullableString(input[key] as string | null) : (plan[key] ?? null);
+      const nextPlan = {
+        ...plan,
+        accountOverview: merge("accountOverview"),
+        businessUnits: merge("businessUnits"),
+        stakeholders: merge("stakeholders"),
+        systems: merge("systems"),
+        painPoints: merge("painPoints"),
+        opportunities: merge("opportunities"),
+        competitors: merge("competitors"),
+        revenuePotential: input.revenuePotential !== undefined ? input.revenuePotential : (plan.revenuePotential ?? null),
+        risks: merge("risks"),
+        actionPlan: merge("actionPlan"),
+        reviewStatus: plan.reviewStatus ?? "draft",
+        updatedAt: new Date().toISOString()
+      };
+      await client.query(
+        `UPDATE accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [accountId, actor.tenantId, JSON.stringify({ ...metadata, strategicPlan: nextPlan }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "account.strategic_plan.upsert", resourceType: "account", resourceId: accountId, status: "success" });
+    });
+    return this.getAccountEnterprise(actor, accountId);
+  }
+
+  async submitAccountPlanReview(actor: ActorContext, audit: AuditMetadata, accountId: string, input: SubmitAccountPlanReviewRequestBody): Promise<AccountEnterpriseResponse> {
+    this.assertEnabled();
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.getAccountState(client, actor.tenantId, accountId);
+      const reviewerUserId = await this.ensureOwnerId(client, actor.tenantId, input.reviewerUserId);
+      if (!reviewerUserId) {
+        throw new AppError(400, "A reviewer is required.", undefined, "VALIDATION_ERROR");
+      }
+      const metadata = getMetadata(account.metadata);
+      const plan = (metadata.strategicPlan && typeof metadata.strategicPlan === "object" ? metadata.strategicPlan : {}) as Record<string, unknown>;
+      const nextPlan = { ...plan, reviewStatus: "in_review", reviewerUserId, reviewRequestedAt: new Date().toISOString() };
+      await client.query(
+        `UPDATE accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [accountId, actor.tenantId, JSON.stringify({ ...metadata, strategicPlan: nextPlan }), actor.userId]
+      );
+      const notificationService = new NotificationService(this.databaseService, this.config);
+      await notificationService.createNotificationWithClient(client, actor, audit, {
+        notificationType: "record_assignment",
+        recipientUserId: reviewerUserId,
+        title: `Strategic account plan review: ${account.name}`,
+        message: getTrimmedNullableString(input.note) ?? "Strategic account plan submitted for your review.",
+        linkedRecord: { entityType: "account", entityId: accountId }
+      });
+      await this.recordAuditLog(client, actor, audit, { action: "account.strategic_plan.review", resourceType: "account", resourceId: accountId, status: "success", metadata: { reviewerUserId } });
+    });
+    return this.getAccountEnterprise(actor, accountId);
+  }
+
+  async addExecutiveMeeting(actor: ActorContext, audit: AuditMetadata, accountId: string, input: AddExecutiveMeetingRequestBody): Promise<AccountEnterpriseResponse> {
+    this.assertEnabled();
+    const contactName = getTrimmedNullableString(input.contactName);
+    if (!contactName) {
+      throw new AppError(400, "A contact name is required for the executive meeting.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.getAccountState(client, actor.tenantId, accountId);
+      const metadata = getMetadata(account.metadata);
+      const engagement = (metadata.executiveEngagement && typeof metadata.executiveEngagement === "object" ? metadata.executiveEngagement : {}) as Record<string, unknown>;
+      const meetings = Array.isArray(engagement.meetings) ? engagement.meetings : [];
+      const meeting = {
+        id: randomUUID(),
+        contactId: getTrimmedNullableString(input.contactId),
+        contactName,
+        notes: getTrimmedNullableString(input.notes),
+        commitments: getTrimmedNullableString(input.commitments),
+        followUps: getTrimmedNullableString(input.followUps),
+        meetingDate: getTrimmedNullableString(input.meetingDate),
+        createdAt: new Date().toISOString()
+      };
+      await client.query(
+        `UPDATE accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [accountId, actor.tenantId, JSON.stringify({ ...metadata, executiveEngagement: { ...engagement, meetings: [...meetings, meeting] } }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "account.executive_meeting.add", resourceType: "account", resourceId: accountId, status: "success" });
+    });
+    return this.getAccountEnterprise(actor, accountId);
   }
 
   async addAccountNote(
@@ -3277,6 +4895,7 @@ export class CrmService {
           contacts.email,
           contacts.phone,
           contacts.linkedin_url,
+          contacts.custom_fields,
           contacts.metadata,
           contacts.created_at,
           contacts.updated_at,
@@ -3351,6 +4970,7 @@ export class CrmService {
 
     return {
       ...this.mapContact(row),
+      customFields: getMetadata(row.custom_fields),
       notes: await this.loadEntityNotes(client, tenantId, "contact", contactId),
       activities: await this.loadEntityActivities(client, tenantId, "contact", contactId),
       tasks: await this.loadEntityTasks(client, tenantId, "contact", contactId),
@@ -3371,6 +4991,7 @@ export class CrmService {
       const roleOptionId = input.roleKey
         ? await this.resolveOptionValueId(client, actor.tenantId, "contact-role", input.roleKey, "Contact role")
         : null;
+      const customFields = await this.sanitizeCustomFields(client, actor.tenantId, "contact", input.customFields);
       const result = await client.query<{ id: string }>(
         `
           INSERT INTO contacts (
@@ -3383,11 +5004,12 @@ export class CrmService {
             phone,
             linkedin_url,
             role_option_id,
+            custom_fields,
             metadata,
             created_by,
             updated_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $11)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $12)
           RETURNING id
         `,
         [
@@ -3400,6 +5022,7 @@ export class CrmService {
           getTrimmedNullableString(input.phone),
           getTrimmedNullableString(input.linkedinUrl),
           roleOptionId,
+          JSON.stringify(customFields),
           JSON.stringify(input.metadata ?? {}),
           actor.userId
         ]
@@ -3454,6 +5077,10 @@ export class CrmService {
             : null)
         : currentContact.role_option_id;
       const metadata = input.metadata ? { ...getMetadata(currentContact.metadata), ...input.metadata } : getMetadata(currentContact.metadata);
+      const customFields =
+        input.customFields !== undefined
+          ? await this.sanitizeCustomFields(client, actor.tenantId, "contact", input.customFields, getMetadata(currentContact.custom_fields))
+          : getMetadata(currentContact.custom_fields);
 
       await client.query(
         `
@@ -3467,8 +5094,9 @@ export class CrmService {
             phone = $8,
             linkedin_url = $9,
             role_option_id = $10,
-            metadata = $11::jsonb,
-            updated_by = $12
+            custom_fields = $11::jsonb,
+            metadata = $12::jsonb,
+            updated_by = $13
           WHERE id = $1
             AND tenant_id = $2
             AND deleted_at IS NULL
@@ -3484,6 +5112,7 @@ export class CrmService {
           input.phone !== undefined ? getTrimmedNullableString(input.phone) : currentContact.phone,
           input.linkedinUrl !== undefined ? getTrimmedNullableString(input.linkedinUrl) : currentContact.linkedin_url,
           roleOptionId,
+          JSON.stringify(customFields),
           JSON.stringify(metadata),
           actor.userId
         ]
@@ -3541,11 +5170,24 @@ export class CrmService {
   async getContactOptions(actor: ActorContext): Promise<ContactOptionsResponse> {
     this.assertEnabled();
 
-    return this.databaseService.withClient(async (client) => ({
-      owners: await this.loadOwners(client, actor.tenantId),
-      roles: await this.loadOptionSetValues(client, actor.tenantId, "contact-role"),
-      accounts: await this.loadAccountsLookup(client, actor.tenantId)
-    }));
+    return this.databaseService.withClient(async (client) => {
+      const fieldDefinitions = await this.loadFieldDefinitions(client, actor.tenantId, "contact");
+      const customFieldOptionsPromise = this.loadCustomFieldOptions(client, actor.tenantId, fieldDefinitions);
+      const [owners, roles, accounts, customFieldOptions] = await Promise.all([
+        this.loadOwners(client, actor.tenantId),
+        this.loadOptionSetValues(client, actor.tenantId, "contact-role"),
+        this.loadAccountsLookup(client, actor.tenantId),
+        customFieldOptionsPromise
+      ]);
+
+      return {
+        owners,
+        roles,
+        accounts,
+        fieldDefinitions,
+        customFieldOptions
+      };
+    });
   }
 
   async addContactNote(

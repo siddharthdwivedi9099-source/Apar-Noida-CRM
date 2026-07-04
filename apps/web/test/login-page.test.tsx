@@ -30,7 +30,7 @@ describe("Login page", () => {
     expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/tenant slug/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
   });
 
   it("submits the entered credentials to the auth provider", async () => {
@@ -39,7 +39,7 @@ describe("Login page", () => {
     renderLogin();
 
     await user.type(screen.getByLabelText(/email/i), "sales.manager@sample-tenant.local");
-    await user.type(screen.getByLabelText(/password/i), "Demo@1234");
+    await user.type(screen.getByLabelText(/^password$/i), "Demo@1234");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => expect(loginMock).toHaveBeenCalledTimes(1));
@@ -58,7 +58,7 @@ describe("Login page", () => {
     renderLogin();
 
     await user.type(screen.getByLabelText(/email/i), "sales.manager@sample-tenant.local");
-    await user.type(screen.getByLabelText(/password/i), "wrong-password");
+    await user.type(screen.getByLabelText(/^password$/i), "wrong-password");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     expect(await screen.findByText(/invalid credentials/i)).toBeInTheDocument();

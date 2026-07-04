@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { platformMetadata } from "@crm/config";
+import { Eye, EyeOff } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ApiClientError } from "@/lib/api-client";
 import { useAuth } from "@/providers/auth-provider";
@@ -15,6 +16,7 @@ export function LoginPage() {
   const [tenantSlug, setTenantSlug] = useState(import.meta.env.VITE_DEFAULT_TENANT_SLUG ?? "sample-tenant");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   // Default to the workspace root so the post-login landing page is resolved
@@ -51,18 +53,17 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-hero-glow px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl gap-6 lg:grid-cols-[1.3fr_0.9fr]">
-        <section className="glass-panel flex flex-col justify-between rounded-[2rem] p-8 lg:p-12">
+        <section className="hero-surface glass-panel flex flex-col justify-between rounded-[2rem] p-8 lg:p-12">
           <div className="space-y-6">
             <Badge variant="success">Secure access</Badge>
             <div className="space-y-4">
               <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">{platformMetadata.shortName}</p>
-              <h1 className="max-w-3xl font-display text-5xl font-semibold leading-tight">
-                Tenant-aware access, shared CRM productivity, and audit-friendly platform entry.
+              <h1 className="max-w-3xl font-display text-5xl font-semibold leading-tight tracking-tight">
+                Your <span className="gradient-text">AI-native revenue</span> operating system.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
-                PostgreSQL-backed identity scaffolding now sits under tenant-aware RBAC, role templates, protected
-                routes, permission-aware navigation, tenant configuration, and shared timeline-ready CRM workflows so
-                the shell can move from secure access into governed daily use.
+                One governed workspace for marketing, sales, presales, partners, support, and customer success —
+                with configurable journeys, human-reviewed AI, and audit-ready everything.
               </p>
             </div>
           </div>
@@ -131,15 +132,26 @@ export function LoginPage() {
                 <label className="text-sm font-medium" htmlFor="password">
                   Password
                 </label>
-                <Input
-                  id="password"
-                  autoComplete="current-password"
-                  type="password"
-                  required
-                  placeholder="Your password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    autoComplete="current-password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="Your password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted-foreground transition hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               {errorMessage ? (

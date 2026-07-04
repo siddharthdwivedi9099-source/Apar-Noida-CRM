@@ -14,12 +14,27 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatusPill } from "@/components/ui/status-pill";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
+import { CustomFieldInput } from "@/components/crm/custom-field-input";
+import { AlertTriangle, CheckCircle2, Inbox, TicketCheck, TrendingUp, UserX } from "lucide-react";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateTime, selectClassName, textareaClassName } from "@/lib/crm";
+import {
+  getActiveCustomFieldDefinitions,
+  getCustomFieldOptionLabels,
+  hasCustomFieldValue,
+  serializeCustomFieldFormValue,
+  type CrmCustomFieldFormValue
+} from "@/lib/crm-custom-fields";
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { SupportL1Panel } from "@/components/support/support-l1-panel";
+import { SupportL2Panel } from "@/components/support/support-l2-panel";
+import { SupportQueuePanel } from "@/components/support/support-queue-panel";
+import { SupportManagementPanel } from "@/components/support/support-management-panel";
 
 interface TicketFormState {
   subject: string;
@@ -31,6 +46,8 @@ interface TicketFormState {
   contactId: string;
   assigneeId: string;
   slaPolicyId: string;
+  attachments: string;
+  customFields: Record<string, CrmCustomFieldFormValue>;
 }
 
 interface ArticleFormState {
@@ -49,7 +66,9 @@ function buildTicketFormState(options: SupportTicketOptionsResponse | null): Tic
     accountId: "",
     contactId: "",
     assigneeId: "",
-    slaPolicyId: ""
+    slaPolicyId: "",
+    attachments: "",
+    customFields: {}
   };
 }
 
@@ -74,8 +93,10 @@ export function SupportPage() {
   const canCreate = hasAnyPermission(["support.create", "support.configure"]);
   const canEdit = hasAnyPermission(["support.edit", "support.assign", "support.configure", "support.manage_workflow"]);
   const canMessage = hasAnyPermission(["support.edit", "support.create", "support.configure", "support.manage_workflow"]);
+  const canManage = hasAnyPermission(["support.assign", "support.configure", "support.view_dashboard", "support.manage_workflow", "dashboards.view_dashboard"]);
 
   const tickets = useMemo(() => data?.tickets ?? [], [data?.tickets]);
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(options);
 
   // Client-side search / filter / sort over the loaded ticket list.
   const [search, setSearch] = useState("");
@@ -167,6 +188,24 @@ export function SupportPage() {
     void loadDetail(selectedId);
   }, [accessToken, selectedId]);
 
+  function getTicketCustomFieldValue(fieldKey: string, dataType: string): CrmCustomFieldFormValue {
+    const value = ticketForm.customFields[fieldKey];
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    return dataType === "multiselect" ? [] : "";
+  }
+
+  function updateTicketCustomFieldValue(fieldKey: string, value: CrmCustomFieldFormValue) {
+    setTicketForm((current) => ({
+      ...current,
+      customFields: { ...current.customFields, [fieldKey]: value }
+    }));
+  }
+
   async function handleCreateTicket(event: React.FormEvent) {
     event.preventDefault();
 
@@ -175,6 +214,16 @@ export function SupportPage() {
     }
 
     setFormError(null);
+
+    const customFields =
+      customFieldDefinitions.length > 0
+        ? Object.fromEntries(
+            customFieldDefinitions.map((field) => [
+              field.fieldKey,
+              serializeCustomFieldFormValue(field, getTicketCustomFieldValue(field.fieldKey, field.dataType))
+            ])
+          )
+        : undefined;
 
     const payload: CreateSupportTicketRequestBody = {
       subject: ticketForm.subject.trim(),
@@ -185,7 +234,10 @@ export function SupportPage() {
       accountId: ticketForm.accountId || null,
       contactId: ticketForm.contactId || null,
       assigneeId: ticketForm.assigneeId || null,
-      slaPolicyId: ticketForm.slaPolicyId || null
+      slaPolicyId: ticketForm.slaPolicyId || null,
+      autoAcknowledge: true,
+      attachments: ticketForm.attachments.split(",").map((ref) => ref.trim()).filter((ref) => ref.length > 0),
+      customFields
     };
 
     try {
@@ -309,9 +361,9 @@ export function SupportPage() {
         }
         aside={
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <CrmMetricCard label="Open tickets" value={String(dashboard.openTickets)} description="Tickets not yet resolved or closed." />
-            <CrmMetricCard label="SLA breached" value={String(dashboard.slaBreachedTickets)} description="Tickets past a first-response or resolution SLA." />
-            <CrmMetricCard label="Unassigned" value={String(dashboard.unassignedTickets)} description="Tickets without an assignee." />
+            <CrmMetricCard label="Open tickets" value={String(dashboard.openTickets)} description="Tickets not yet resolved or closed." icon={Inbox} tone="info" />
+            <CrmMetricCard label="SLA breached" value={String(dashboard.slaBreachedTickets)} description="Tickets past a first-response or resolution SLA." icon={AlertTriangle} tone={dashboard.slaBreachedTickets > 0 ? "danger" : "success"} />
+            <CrmMetricCard label="Unassigned" value={String(dashboard.unassignedTickets)} description="Tickets without an assignee." icon={UserX} tone={dashboard.unassignedTickets > 0 ? "warning" : "neutral"} />
           </div>
         }
       />
@@ -319,10 +371,10 @@ export function SupportPage() {
       {errorMessage ? <p className="text-sm text-rose-600">{errorMessage}</p> : null}
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <CrmMetricCard label="Total tickets" value={String(dashboard.totalTickets)} description="Tickets in scope." />
-        <CrmMetricCard label="Escalated" value={String(dashboard.escalatedTickets)} description="Tickets in escalated status." />
-        <CrmMetricCard label="Resolved" value={String(dashboard.resolvedTickets)} description="Resolved or closed tickets." />
-        <CrmMetricCard label="KB articles" value={String(dashboard.knowledgeArticleCount)} description="Knowledge base articles." />
+        <CrmMetricCard label="Total tickets" value={String(dashboard.totalTickets)} description="Tickets in scope." icon={TicketCheck} tone="primary" />
+        <CrmMetricCard label="Escalated" value={String(dashboard.escalatedTickets)} description="Tickets in escalated status." icon={TrendingUp} tone={dashboard.escalatedTickets > 0 ? "danger" : "neutral"} />
+        <CrmMetricCard label="Resolved" value={String(dashboard.resolvedTickets)} description="Resolved or closed tickets." icon={CheckCircle2} tone="success" />
+        <CrmMetricCard label="KB articles" value={String(dashboard.knowledgeArticleCount)} description="Knowledge base articles." icon={Inbox} tone="info" />
       </section>
 
       {isCreating && canCreate ? (
@@ -380,6 +432,29 @@ export function SupportPage() {
                 <span className="text-sm font-medium">Description</span>
                 <textarea className={textareaClassName} rows={3} value={ticketForm.description} onChange={(event) => setTicketForm((current) => ({ ...current, description: event.target.value }))} />
               </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-sm font-medium">Attachments (comma-separated references / URLs)</span>
+                <input className={selectClassName} value={ticketForm.attachments} onChange={(event) => setTicketForm((current) => ({ ...current, attachments: event.target.value }))} />
+              </label>
+
+              {customFieldDefinitions.length > 0 ? (
+                <div className="md:col-span-2">
+                  <p className="text-sm font-medium">Tenant-defined fields</p>
+                  <p className="text-sm text-muted-foreground">
+                    These extra fields come from your workspace configuration and are saved with the ticket.
+                  </p>
+                </div>
+              ) : null}
+              {customFieldDefinitions.map((field) => (
+                <CustomFieldInput
+                  key={field.fieldKey}
+                  field={field}
+                  value={getTicketCustomFieldValue(field.fieldKey, field.dataType)}
+                  options={options}
+                  onChange={(value) => updateTicketCustomFieldValue(field.fieldKey, value)}
+                />
+              ))}
+
               {formError ? <p className="text-sm text-rose-600 md:col-span-2">{formError}</p> : null}
               <div className="flex gap-3 md:col-span-2">
                 <Button type="submit">Create ticket</Button>
@@ -428,13 +503,15 @@ export function SupportPage() {
                 </select>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">{visibleTickets.length} of {tickets.length} tickets</p>
             {visibleTickets.length === 0 ? (
               <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
                 {tickets.length === 0 ? "No tickets are currently visible for this role." : "No tickets match the current filters."}
               </div>
             ) : (
-              visibleTickets.map((ticket) => (
+              <ScrollableList
+                items={visibleTickets}
+                label="tickets"
+                renderItem={(ticket) => (
                 <button
                   key={ticket.id}
                   type="button"
@@ -445,10 +522,10 @@ export function SupportPage() {
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{ticket.status?.label ?? "Status missing"}</Badge>
-                    <Badge variant="muted">{ticket.priority?.label ?? "Priority missing"}</Badge>
-                    {ticket.sla.resolutionBreached || ticket.sla.firstResponseBreached ? <Badge variant="muted">SLA breached</Badge> : null}
-                    {ticket.escalationStatus === "escalated" ? <Badge variant="muted">Escalated</Badge> : null}
+                    <StatusPill value={ticket.status?.key ?? ticket.status?.label}>{ticket.status?.label ?? "No status"}</StatusPill>
+                    <StatusPill value={ticket.priority?.key ?? ticket.priority?.label}>{ticket.priority?.label ?? "No priority"}</StatusPill>
+                    {ticket.sla.resolutionBreached || ticket.sla.firstResponseBreached ? <StatusPill tone="danger">SLA breached</StatusPill> : null}
+                    {ticket.escalationStatus === "escalated" ? <StatusPill tone="danger">Escalated</StatusPill> : null}
                   </div>
                   <p className="mt-3 font-semibold">{ticket.subject}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{ticket.account?.name ?? "No account"} • {ticket.category?.label ?? "No category"}</p>
@@ -456,7 +533,8 @@ export function SupportPage() {
                     Assignee {ticket.assignee?.displayName ?? "Unassigned"} • {ticket.messageCount} messages • {ticket.articleCount} articles
                   </p>
                 </button>
-              ))
+                )}
+              />
             )}
           </CardContent>
         </Card>
@@ -543,6 +621,32 @@ export function SupportPage() {
           </CardContent>
         </Card>
       </section>
+
+      <SupportQueuePanel accessToken={accessToken} onSelect={setSelectedId} />
+
+      {options ? (
+        <SupportManagementPanel
+          accessToken={accessToken}
+          options={options}
+          canManage={canManage}
+          selectedId={selectedId}
+          onReload={() => { if (selectedId) void loadDetail(selectedId); }}
+        />
+      ) : null}
+
+      {selectedId && options ? (
+        <SupportL1Panel
+          ticketId={selectedId}
+          options={options}
+          accessToken={accessToken}
+          canManage={canEdit}
+          onReload={() => { if (selectedId) void loadDetail(selectedId); }}
+        />
+      ) : null}
+
+      {selectedId && options ? (
+        <SupportL2Panel ticketId={selectedId} options={options} accessToken={accessToken} canManage={canEdit} />
+      ) : null}
     </div>
   );
 }
@@ -592,6 +696,34 @@ function TicketDetailCard({
         </CardContent>
       </Card>
     );
+  }
+
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(options);
+  const customFieldDefinitionKeys = new Set(customFieldDefinitions.map((field) => field.fieldKey));
+  const configuredCustomFields = customFieldDefinitions.filter((field) => hasCustomFieldValue(detail.customFields[field.fieldKey]));
+  const orphanCustomFields = Object.entries(detail.customFields).filter(
+    ([fieldKey, value]) => !customFieldDefinitionKeys.has(fieldKey) && hasCustomFieldValue(value)
+  );
+
+  function renderTicketCustomFieldValue(fieldKey: string, rawValue: unknown, dataType?: string) {
+    if (dataType === "select" || dataType === "multiselect") {
+      const labels = getCustomFieldOptionLabels(
+        options,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: dataType ?? "select", optionSetKey: null },
+        rawValue
+      );
+      return labels.length > 0 ? labels.join(", ") : "—";
+    }
+    if (typeof rawValue === "boolean") {
+      return rawValue ? "Yes" : "No";
+    }
+    if (typeof rawValue === "number") {
+      return String(rawValue);
+    }
+    if (typeof rawValue === "string" && rawValue.trim().length > 0) {
+      return rawValue;
+    }
+    return "—";
   }
 
   return (
@@ -680,6 +812,26 @@ function TicketDetailCard({
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Resolution notes</p>
             <p className="mt-1 leading-6 text-muted-foreground">{detail.resolutionNotes}</p>
+          </div>
+        ) : null}
+
+        {configuredCustomFields.length > 0 || orphanCustomFields.length > 0 ? (
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Tenant-defined fields</p>
+            <dl className="mt-2 grid gap-3 sm:grid-cols-2">
+              {configuredCustomFields.map((field) => (
+                <div key={field.fieldKey}>
+                  <dt className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{field.label}</dt>
+                  <dd className="font-medium">{renderTicketCustomFieldValue(field.fieldKey, detail.customFields[field.fieldKey], field.dataType)}</dd>
+                </div>
+              ))}
+              {orphanCustomFields.map(([fieldKey, value]) => (
+                <div key={fieldKey}>
+                  <dt className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{fieldKey}</dt>
+                  <dd className="font-medium">{renderTicketCustomFieldValue(fieldKey, value)}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         ) : null}
 

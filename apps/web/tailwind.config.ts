@@ -46,8 +46,8 @@ const config: Config = {
         md: "calc(var(--radius) - 6px)"
       },
       fontFamily: {
-        sans: ["\"Avenir Next\"", "\"Segoe UI\"", "system-ui", "sans-serif"],
-        display: ["\"Space Grotesk\"", "\"Avenir Next\"", "system-ui", "sans-serif"]
+        sans: ["\"Inter Variable\"", "\"Avenir Next\"", "\"Segoe UI\"", "system-ui", "sans-serif"],
+        display: ["\"Space Grotesk Variable\"", "\"Space Grotesk\"", "\"Inter Variable\"", "system-ui", "sans-serif"]
       },
       boxShadow: {
         panel: "0 24px 70px -34px rgb(15 23 42 / 0.35)"

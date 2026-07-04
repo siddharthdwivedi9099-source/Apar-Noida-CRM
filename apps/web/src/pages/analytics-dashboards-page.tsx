@@ -83,10 +83,36 @@ function Widget({ widget, dashboardKey, onDrilldown }: { widget: DashboardWidget
   );
 }
 
+// Per-user, per-browser preferred default dashboard (configurable on each login).
+function defaultDashboardStorageKey(userId: string | undefined) {
+  return `crm:default-dashboard:${userId ?? "anon"}`;
+}
+
+function resolveDashboardSelection(dashboards: DashboardSummary[], currentKey: string | null, savedDefault: string | null) {
+  const currentIsPermitted = currentKey
+    ? dashboards.some((dashboard) => dashboard.key === currentKey && dashboard.permitted)
+    : false;
+
+  if (currentIsPermitted) {
+    return currentKey;
+  }
+
+  const savedIsPermitted = savedDefault
+    ? dashboards.some((dashboard) => dashboard.key === savedDefault && dashboard.permitted)
+    : false;
+
+  if (savedIsPermitted) {
+    return savedDefault;
+  }
+
+  return dashboards.find((dashboard) => dashboard.permitted)?.key ?? null;
+}
+
 export function AnalyticsDashboardsPage() {
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const [catalog, setCatalog] = useState<DashboardCatalogResponse | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [defaultKey, setDefaultKey] = useState<string | null>(null);
   const [data, setData] = useState<DashboardDataResponse | null>(null);
   const [views, setViews] = useState<DashboardSavedViewListResponse["views"]>([]);
   const [drilldown, setDrilldown] = useState<DashboardDrilldownResponse | null>(null);
@@ -105,10 +131,9 @@ export function AnalyticsDashboardsPage() {
     try {
       const res = await apiRequest<DashboardCatalogResponse>("/dashboards", { method: "GET", accessToken });
       setCatalog(res);
-      const firstPermitted = res.dashboards.find((d) => d.permitted);
-      if (firstPermitted && !selectedKey) {
-        setSelectedKey(firstPermitted.key);
-      }
+      const savedDefault = typeof window !== "undefined" ? window.localStorage.getItem(defaultDashboardStorageKey(user?.id)) : null;
+      setDefaultKey(savedDefault);
+      setSelectedKey((currentKey) => resolveDashboardSelection(res.dashboards, currentKey, savedDefault));
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -139,13 +164,25 @@ export function AnalyticsDashboardsPage() {
   }
 
   useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+    setCatalog(null);
+    setSelectedKey(null);
+    setData(null);
+    setViews([]);
+    setDrilldown(null);
     void loadCatalog();
-  }, [accessToken]);
+  }, [accessToken, user?.id]);
 
   useEffect(() => {
     if (selectedKey) {
       void loadDashboard(selectedKey);
+      return;
     }
+    setData(null);
+    setViews([]);
+    setDrilldown(null);
   }, [selectedKey]);
 
   async function openDrilldown(widget: DashboardWidgetData) {
@@ -218,14 +255,21 @@ export function AnalyticsDashboardsPage() {
 
       <section className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <Card>
-          <CardHeader><CardTitle>Dashboards</CardTitle><CardDescription>{permitted.length} available to your role.</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Dashboards</CardTitle><CardDescription>{permitted.length} relevant to your role.</CardDescription></CardHeader>
           <CardContent className="space-y-1">
-            {catalog.dashboards.map((dashboard: DashboardSummary) => (
-              <button key={dashboard.key} type="button" disabled={!dashboard.permitted} onClick={() => setSelectedKey(dashboard.key)} className={`w-full rounded-[0.85rem] border p-2.5 text-left text-sm ${selectedKey === dashboard.key ? "border-primary bg-primary/5" : "border-border/60 bg-background/75"} ${dashboard.permitted ? "" : "opacity-50"}`}>
-                <div className="flex items-center justify-between gap-2"><span className="font-medium">{dashboard.name}</span><Badge variant="muted">{dashboard.widgetCount}</Badge></div>
-                <p className="text-xs text-muted-foreground">{dashboard.category}</p>
-              </button>
-            ))}
+            {permitted.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No dashboards are available for your role.</p>
+            ) : (
+              permitted.map((dashboard: DashboardSummary) => (
+                <button key={dashboard.key} type="button" onClick={() => setSelectedKey(dashboard.key)} className={`w-full rounded-[0.85rem] border p-2.5 text-left text-sm ${selectedKey === dashboard.key ? "border-primary bg-primary/5" : "border-border/60 bg-background/75"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{dashboard.key === defaultKey ? "★ " : ""}{dashboard.name}</span>
+                    <Badge variant="muted">{dashboard.widgetCount}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{dashboard.category}</p>
+                </button>
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -237,6 +281,20 @@ export function AnalyticsDashboardsPage() {
               <Button size="sm" onClick={() => selectedKey && void loadDashboard(selectedKey)}>Apply</Button>
               <Button size="sm" variant="outline" onClick={() => { setFrom(""); setTo(""); }}>Clear</Button>
               <Button size="sm" variant="outline" onClick={() => void exportDashboard()}>Export</Button>
+              <Button
+                size="sm"
+                variant={selectedKey && selectedKey === defaultKey ? "default" : "outline"}
+                disabled={!selectedKey}
+                onClick={() => {
+                  if (!selectedKey) return;
+                  if (typeof window !== "undefined") {
+                    window.localStorage.setItem(defaultDashboardStorageKey(user?.id), selectedKey);
+                  }
+                  setDefaultKey(selectedKey);
+                }}
+              >
+                {selectedKey && selectedKey === defaultKey ? "★ Default" : "Set as default"}
+              </Button>
               <div className="ml-auto flex items-end gap-2">
                 <label className="space-y-1"><span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Save view</span><input className={inputClassName} placeholder="View name" value={viewName} onChange={(e) => setViewName(e.target.value)} /></label>
                 <Button size="sm" variant="outline" onClick={() => void saveView()}>Save</Button>

@@ -13,13 +13,27 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BpfStageProgress } from "@/components/crm/bpf-stage-progress";
 import { CrmActivityPanel } from "@/components/crm/crm-activity-panel";
 import { CrmNotesPanel } from "@/components/crm/crm-notes-panel";
 import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
 import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
+import { OpportunityExecActions } from "@/components/opportunities/opportunity-exec-actions";
+import { OpportunityEnterpriseActions } from "@/components/opportunities/opportunity-enterprise-actions";
+import { OpportunityManagerCard } from "@/components/opportunities/opportunity-manager-card";
+import { SolutionArchitecturePanel } from "@/components/opportunities/solution-architecture-panel";
+import { ProposalBidPanel } from "@/components/opportunities/proposal-bid-panel";
+import { CommercialFinancePanel } from "@/components/opportunities/commercial-finance-panel";
+import { LegalReviewPanel } from "@/components/opportunities/legal-review-panel";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
+import {
+  formatFallbackCustomFieldLabel,
+  getActiveCustomFieldDefinitions,
+  getCustomFieldOptionLabels,
+  hasCustomFieldValue
+} from "@/lib/crm-custom-fields";
 import { formatCurrencyAmount, formatDateOnly, formatDateTime, formatShortDate } from "@/lib/crm";
 import { useAuth } from "@/providers/auth-provider";
 import { useTenantConfig } from "@/providers/tenant-config-provider";
@@ -45,6 +59,7 @@ export function OpportunityDetailPage() {
     "opportunities.manage_workflow"
   ]);
   const canDelete = hasAnyPermission(["opportunities.delete", "opportunities.configure"]);
+  const canManage = hasAnyPermission(["opportunities.manage_workflow", "opportunities.view_dashboard", "opportunities.configure"]);
   const canManageProductivity = hasAnyPermission([
     "opportunities.create",
     "opportunities.edit",
@@ -80,6 +95,9 @@ export function OpportunityDetailPage() {
       setOptionsResponse(options);
       setLeadOptions(leadOptionsResponse);
     } catch (error) {
+      setDetailResponse(null);
+      setOptionsResponse(null);
+      setLeadOptions(null);
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsLoading(false);
@@ -180,6 +198,67 @@ export function OpportunityDetailPage() {
     );
   }
 
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(optionsResponse);
+  const customFieldDefinitionKeys = new Set(customFieldDefinitions.map((field) => field.fieldKey));
+  const configuredCustomFields = customFieldDefinitions.filter((field) => hasCustomFieldValue(opportunity.customFields[field.fieldKey]));
+  const orphanCustomFields = Object.entries(opportunity.customFields).filter(
+    ([fieldKey, value]) => !customFieldDefinitionKeys.has(fieldKey) && hasCustomFieldValue(value)
+  );
+
+  function renderCustomFieldValue(fieldKey: string, rawValue: unknown, dataType?: string) {
+    if (dataType === "multiselect") {
+      const labels = getCustomFieldOptionLabels(
+        optionsResponse,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: "multiselect", optionSetKey: null },
+        rawValue
+      );
+
+      return labels.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {labels.map((label) => (
+            <Badge key={label} variant="muted">
+              {label}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 font-semibold">Not provided</p>
+      );
+    }
+
+    if (dataType === "select") {
+      const label = getCustomFieldOptionLabels(
+        optionsResponse,
+        customFieldDefinitions.find((field) => field.fieldKey === fieldKey) ?? { dataType: "select", optionSetKey: null },
+        rawValue
+      )[0];
+      return <p className="mt-2 font-semibold">{label ?? "Not provided"}</p>;
+    }
+
+    if (typeof rawValue === "boolean") {
+      return <p className="mt-2 font-semibold">{rawValue ? "Yes" : "No"}</p>;
+    }
+
+    if (typeof rawValue === "number") {
+      return <p className="mt-2 font-semibold">{rawValue}</p>;
+    }
+
+    if (typeof rawValue === "string") {
+      if (rawValue.trim().length === 0) {
+        return <p className="mt-2 font-semibold">Not provided</p>;
+      }
+      if (dataType === "date") {
+        return <p className="mt-2 font-semibold">{formatDateOnly(rawValue)}</p>;
+      }
+      if (dataType === "datetime") {
+        return <p className="mt-2 font-semibold">{formatDateTime(rawValue)}</p>;
+      }
+      return <p className="mt-2 font-semibold">{rawValue}</p>;
+    }
+
+    return <p className="mt-2 font-semibold">Not provided</p>;
+  }
+
   return (
     <div className="space-y-6">
       <CrmHero
@@ -214,6 +293,8 @@ export function OpportunityDetailPage() {
           </div>
         }
       />
+
+      <BpfStageProgress object="opportunity" recordId={opportunity.id} canEdit={canEdit} />
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
@@ -295,7 +376,80 @@ export function OpportunityDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {configuredCustomFields.length > 0 || orphanCustomFields.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tenant-defined fields</CardTitle>
+              <CardDescription>
+                Extra workspace-configured opportunity attributes are stored with the core deal record.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              {configuredCustomFields.map((field) => (
+                <div key={field.fieldKey} className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{field.label}</p>
+                  {renderCustomFieldValue(field.fieldKey, opportunity.customFields[field.fieldKey], field.dataType)}
+                </div>
+              ))}
+              {orphanCustomFields.map(([fieldKey, value]) => (
+                <div key={fieldKey} className="rounded-[1.25rem] bg-background/75 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{formatFallbackCustomFieldLabel(fieldKey)}</p>
+                  {renderCustomFieldValue(fieldKey, value)}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
       </section>
+
+      <OpportunityExecActions
+        detail={opportunity}
+        options={optionsResponse}
+        accessToken={accessToken}
+        canEdit={canEdit}
+        onReload={loadOpportunity}
+      />
+
+      <OpportunityEnterpriseActions
+        detail={opportunity}
+        options={optionsResponse}
+        accessToken={accessToken}
+        canEdit={canEdit}
+        onReload={loadOpportunity}
+      />
+
+      <OpportunityManagerCard
+        detail={opportunity}
+        options={optionsResponse}
+        accessToken={accessToken}
+        canManage={canManage}
+        onReload={loadOpportunity}
+      />
+
+      <SolutionArchitecturePanel
+        opportunityId={opportunity.id}
+        accessToken={accessToken}
+        canManage={canEdit}
+      />
+
+      <ProposalBidPanel
+        opportunityId={opportunity.id}
+        accessToken={accessToken}
+        canManage={canEdit}
+      />
+
+      <CommercialFinancePanel
+        opportunityId={opportunity.id}
+        accessToken={accessToken}
+        canManage={canEdit}
+      />
+
+      <LegalReviewPanel
+        opportunityId={opportunity.id}
+        accessToken={accessToken}
+        canManage={canEdit}
+      />
 
       {(() => {
         const classification = (opportunity.metadata ?? {}) as LeadClassificationMetadata;

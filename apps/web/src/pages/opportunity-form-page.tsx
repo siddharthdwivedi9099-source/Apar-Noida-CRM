@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
+  CrmFieldDefinition,
+  CrmOptionValueSummary,
   CreateOpportunityRequestBody,
   OpportunityOptionsResponse,
   OpportunityResponse,
@@ -10,6 +12,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { CrmHero, CrmLoadingState } from "@/components/crm/crm-shell";
 import { apiRequest } from "@/lib/api-client";
+import {
+  getActiveCustomFieldDefinitions,
+  getCustomFieldOptions,
+  normalizeCustomFieldFormValue,
+  serializeCustomFieldFormValue,
+  type CrmCustomFieldFormValue
+} from "@/lib/crm-custom-fields";
 import { getErrorMessage } from "@/lib/error-message";
 import { selectClassName, textareaClassName } from "@/lib/crm";
 import { useAuth } from "@/providers/auth-provider";
@@ -31,6 +40,7 @@ interface OpportunityFormState {
   nextStep: string;
   outcomeStatusKey: string;
   outcomeReason: string;
+  customFields: Record<string, CrmCustomFieldFormValue>;
 }
 
 const defaultFormState: OpportunityFormState = {
@@ -47,8 +57,51 @@ const defaultFormState: OpportunityFormState = {
   stakeholderContactIds: [],
   nextStep: "",
   outcomeStatusKey: "",
-  outcomeReason: ""
+  outcomeReason: "",
+  customFields: {}
 };
+
+function toggleValue(values: string[], value: string): string[] {
+  return values.includes(value) ? values.filter((entry) => entry !== value) : [...values, value];
+}
+
+function MultiSelect({
+  options,
+  selected,
+  onToggle
+}: {
+  options: CrmOptionValueSummary[];
+  selected: string[];
+  onToggle: (value: string) => void;
+}) {
+  if (options.length === 0) {
+    return <p className="text-sm text-muted-foreground">No options configured. Add them in Admin → Option Sets.</p>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((option) => {
+        const isChecked = selected.includes(option.key);
+        return (
+          <button
+            type="button"
+            key={option.id}
+            onClick={() => onToggle(option.key)}
+            aria-pressed={isChecked}
+            className={`rounded-full border px-3 py-1.5 text-sm transition ${
+              isChecked
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-background text-foreground hover:bg-muted"
+            }`}
+          >
+            {isChecked ? "✓ " : ""}
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function resolveOutcomeFromStage(stageKey: string, currentOutcomeStatusKey: string) {
   if (stageKey === "closed_won") {
@@ -78,6 +131,7 @@ export function OpportunityFormPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const customFieldDefinitions = getActiveCustomFieldDefinitions(options);
 
   const filteredContacts = useMemo(() => {
     return options?.contacts ?? [];
@@ -136,7 +190,13 @@ export function OpportunityFormPage() {
           stakeholderContactIds: opportunity.stakeholders.map((stakeholder) => stakeholder.id),
           nextStep: opportunity.nextStep ?? "",
           outcomeStatusKey: opportunity.outcomeStatus?.key ?? defaultOutcomeKey,
-          outcomeReason: opportunity.winLossReason ?? ""
+          outcomeReason: opportunity.winLossReason ?? "",
+          customFields: Object.fromEntries(
+            getActiveCustomFieldDefinitions(optionsResponse).map((field) => [
+              field.fieldKey,
+              normalizeCustomFieldFormValue(field, opportunity.customFields[field.fieldKey])
+            ])
+          )
         });
       } catch (error) {
         setErrorMessage(getErrorMessage(error));
@@ -156,6 +216,16 @@ export function OpportunityFormPage() {
     setIsSaving(true);
     setErrorMessage(null);
 
+    const customFields =
+      customFieldDefinitions.length > 0
+        ? Object.fromEntries(
+            customFieldDefinitions.map((field) => [
+              field.fieldKey,
+              serializeCustomFieldFormValue(field, getCustomFieldValue(field))
+            ])
+          )
+        : undefined;
+
     const payload = {
       name: formState.name,
       accountId: formState.accountId || null,
@@ -170,7 +240,8 @@ export function OpportunityFormPage() {
       stakeholderContactIds: formState.stakeholderContactIds,
       nextStep: formState.nextStep || null,
       outcomeStatusKey: formState.outcomeStatusKey || null,
-      outcomeReason: formState.outcomeReason || null
+      outcomeReason: formState.outcomeReason || null,
+      customFields
     } satisfies CreateOpportunityRequestBody & UpdateOpportunityRequestBody;
 
     try {
@@ -204,6 +275,137 @@ export function OpportunityFormPage() {
         }
         description="The page is loading tenant-backed owners, relationship candidates, and pipeline defaults."
       />
+    );
+  }
+
+  function getCustomFieldValue(field: CrmFieldDefinition): CrmCustomFieldFormValue {
+    const value = formState.customFields[field.fieldKey];
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    return field.dataType === "multiselect" ? [] : "";
+  }
+
+  function updateCustomFieldValue(fieldKey: string, value: CrmCustomFieldFormValue) {
+    setFormState((currentValue) => ({
+      ...currentValue,
+      customFields: {
+        ...currentValue.customFields,
+        [fieldKey]: value
+      }
+    }));
+  }
+
+  function renderCustomField(field: CrmFieldDefinition) {
+    const value = getCustomFieldValue(field);
+    const fieldOptions = getCustomFieldOptions(options, field);
+    const labelClassName = field.dataType === "textarea" || field.dataType === "multiselect" ? "space-y-2 md:col-span-2" : "space-y-2";
+    const placeholder = field.placeholder ?? "";
+
+    if (field.dataType === "textarea") {
+      return (
+        <label key={field.fieldKey} className={labelClassName}>
+          <span className="text-sm font-medium">{field.label}</span>
+          <textarea
+            className={textareaClassName}
+            rows={4}
+            required={field.isRequired}
+            value={typeof value === "string" ? value : ""}
+            onChange={(event) => updateCustomFieldValue(field.fieldKey, event.target.value)}
+            placeholder={placeholder || undefined}
+          />
+          {field.description ? <span className="text-xs text-muted-foreground">{field.description}</span> : null}
+        </label>
+      );
+    }
+
+    if (field.dataType === "select") {
+      return (
+        <label key={field.fieldKey} className={labelClassName}>
+          <span className="text-sm font-medium">{field.label}</span>
+          <select
+            className={selectClassName}
+            required={field.isRequired}
+            value={typeof value === "string" ? value : ""}
+            onChange={(event) => updateCustomFieldValue(field.fieldKey, event.target.value)}
+          >
+            <option value="">{placeholder || `Select ${field.label.toLowerCase()}`}</option>
+            {fieldOptions.map((option) => (
+              <option key={option.id} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {field.description ? <span className="text-xs text-muted-foreground">{field.description}</span> : null}
+        </label>
+      );
+    }
+
+    if (field.dataType === "multiselect") {
+      return (
+        <div key={field.fieldKey} className={labelClassName}>
+          <span className="text-sm font-medium">{field.label}</span>
+          <MultiSelect
+            options={fieldOptions}
+            selected={Array.isArray(value) ? value : []}
+            onToggle={(optionKey) =>
+              updateCustomFieldValue(field.fieldKey, toggleValue(Array.isArray(value) ? value : [], optionKey))
+            }
+          />
+          {field.description ? <p className="text-xs text-muted-foreground">{field.description}</p> : null}
+        </div>
+      );
+    }
+
+    if (field.dataType === "boolean") {
+      return (
+        <label key={field.fieldKey} className={labelClassName}>
+          <span className="text-sm font-medium">{field.label}</span>
+          <select
+            className={selectClassName}
+            required={field.isRequired}
+            value={typeof value === "string" ? value : ""}
+            onChange={(event) => updateCustomFieldValue(field.fieldKey, event.target.value)}
+          >
+            <option value="">{placeholder || "Not set"}</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+          {field.description ? <span className="text-xs text-muted-foreground">{field.description}</span> : null}
+        </label>
+      );
+    }
+
+    const inputType =
+      field.dataType === "email"
+        ? "email"
+        : field.dataType === "url"
+          ? "url"
+          : field.dataType === "phone"
+            ? "tel"
+            : field.dataType === "date"
+              ? "date"
+              : field.dataType === "datetime"
+                ? "datetime-local"
+                : field.dataType === "number"
+                  ? "number"
+                  : "text";
+
+    return (
+      <label key={field.fieldKey} className={labelClassName}>
+        <span className="text-sm font-medium">{field.label}</span>
+        <Input
+          type={inputType}
+          required={field.isRequired}
+          value={typeof value === "string" ? value : ""}
+          onChange={(event) => updateCustomFieldValue(field.fieldKey, event.target.value)}
+          placeholder={placeholder || undefined}
+        />
+        {field.description ? <span className="text-xs text-muted-foreground">{field.description}</span> : null}
+      </label>
     );
   }
 
@@ -417,6 +619,15 @@ export function OpportunityFormPage() {
                 placeholder="Capture the commercial reason for won/lost outcomes when relevant."
               />
             </label>
+
+            {customFieldDefinitions.length > 0 ? (
+              <fieldset className="space-y-3 md:col-span-2">
+                <legend className="text-sm font-medium">Tenant-defined fields</legend>
+                <div className="grid gap-4 rounded-[1.5rem] border border-border/70 bg-background/70 p-4 md:grid-cols-2">
+                  {customFieldDefinitions.map((field) => renderCustomField(field))}
+                </div>
+              </fieldset>
+            ) : null}
 
             <fieldset className="space-y-3 md:col-span-2">
               <legend className="text-sm font-medium">Stakeholders</legend>

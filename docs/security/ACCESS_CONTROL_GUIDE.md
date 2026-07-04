@@ -80,12 +80,19 @@ Implemented today:
 - permission-aware navigation
 - permission-aware route rendering
 - tenant-scoped user-role assignment
+- persona/access-policy metadata for object, field, record-scope, special-action, and role-layout rules
 
 Still future work:
-- record-level ownership checks
-- field-level redaction
-- domain-specific approval policies
+- runtime record-level ownership checks from persona access metadata
+- runtime field-level redaction/masking from persona access metadata
+- runtime domain-specific approval policies from persona access metadata
 - richer user lifecycle administration beyond seeded users
+
+## Persona Access Metadata
+
+The configuration engine now seeds 32 persona definitions plus matching access-policy definitions and role-based page-layout definitions. This metadata covers object actions, field visibility/editability/masking, record scopes, and special actions such as lead conversion, campaign publishing, discount/legal approval, configuration publishing, AI execution, AI-action approval, and sensitive-data export.
+
+The current phase intentionally keeps these as governed configuration rows rather than hard-coded component checks. Existing RBAC middleware remains the active runtime authorization layer until the richer persona metadata is consumed by service and UI enforcement layers.
 
 ## AI Access Control (Phase 18)
 

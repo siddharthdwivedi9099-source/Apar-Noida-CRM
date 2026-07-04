@@ -198,14 +198,181 @@ export class DashboardService {
         return this.customerRiskSummary(client, ctx);
       case "deal_risk_summary":
         return this.dealRiskSummary(client, ctx);
+      // ---- Required-dashboard metrics (Section 11) ----
+      case "mql_generation":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM leads WHERE tenant_id = $1 AND deleted_at IS NULL AND score >= 60`, ctx, "MQLs (score >= 60)");
+      case "mql_to_sql":
+        return this.mqlToSql(client, ctx);
+      case "stage_aging":
+        return this.stageAging(client, ctx);
+      case "rep_performance":
+        return this.repPerformance(client, ctx);
+      case "discount_approvals":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM opportunities WHERE tenant_id = $1 AND deleted_at IS NULL AND metadata->'salesExec'->'discount'->>'status' = 'pending_approval'`, ctx, "pending discount approvals");
+      case "dormant_opportunities":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM opportunities o LEFT JOIN tenant_option_values ov ON ov.id = o.outcome_status_option_id AND ov.tenant_id = o.tenant_id WHERE o.tenant_id = $1 AND o.deleted_at IS NULL AND (ov.value_key IS NULL OR ov.value_key NOT ILIKE '%won%' AND ov.value_key NOT ILIKE '%lost%') AND o.updated_at < NOW() - INTERVAL '30 days'`, ctx, "no activity in 30 days");
+      case "escalations":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM escalations WHERE tenant_id = $1 AND deleted_at IS NULL AND status IN ('open','in_progress')`, ctx, "open escalations");
+      case "rca_pending":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM support_tickets WHERE tenant_id = $1 AND deleted_at IS NULL AND (root_cause IS NULL OR root_cause = '') AND escalation_status = 'escalated'`, ctx, "escalated tickets without RCA");
+      case "reopen_rate":
+        return this.reopenRate(client, ctx);
+      case "ai_usage":
+        return this.aiUsage(client, ctx);
+      case "ai_override_rate":
+        return this.aiOverrideRate(client, ctx);
+      case "integration_health":
+        return this.integrationHealth(client, ctx);
+      case "partner_pipeline":
+        return this.scalarSum(client, `SELECT COALESCE(SUM(amount),0) AS total FROM partner_deal_registrations WHERE tenant_id = $1 AND deleted_at IS NULL`, ctx, "currency");
+      case "deal_registrations":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM partner_deal_registrations WHERE tenant_id = $1 AND deleted_at IS NULL`, ctx, "deal registrations");
+      case "expansion_signals":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM customer_success_accounts csa JOIN tenant_option_values ev ON ev.id = csa.expansion_potential_option_id AND ev.tenant_id = csa.tenant_id WHERE csa.tenant_id = $1 AND csa.deleted_at IS NULL AND ev.value_key IN ('medium','high')`, ctx, "accounts with expansion potential");
+      case "channel_roi":
+        return this.channelRoi(client, ctx);
+      case "audit_summary":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM audit_logs WHERE tenant_id = $1 AND created_at > NOW() - INTERVAL '30 days'`, ctx, "audit events (30d)");
+      case "approval_delays":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM approval_requests WHERE tenant_id = $1 AND status = 'pending' AND created_at < NOW() - INTERVAL '2 days'`, ctx, "approvals pending > 2 days").catch(() => ({ kind: "scalar", value: 0, note: "no approval data" }));
+      case "automation_performance":
+        return this.automationPerformance(client, ctx);
+      case "user_adoption":
+        return this.userAdoption(client, ctx);
+      case "demo_requests":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM leads WHERE tenant_id = $1 AND deleted_at IS NULL AND metadata->>'demoRequest' = 'true'`, ctx, "demo requests");
+      case "activity_tracking":
+        return this.countSql(client, `SELECT COUNT(*)::int AS c FROM crm_activities WHERE tenant_id = $1 AND deleted_at IS NULL AND occurred_at > NOW() - INTERVAL '30 days'`, ctx, "activities (30d)").catch(() => ({ kind: "scalar", value: 0, note: "no activity data" }));
+      case "pipeline_coverage":
+        return this.pipelineCoverage(client, ctx);
+      case "data_quality_summary":
+        return this.dataQualitySummary(client, ctx);
       default:
-        return { kind: "scalar", value: null, note: "Metric is not available." };
+        return { kind: "scalar", value: null, note: "Metric is not available yet." };
     }
+  }
+
+  private async countSql(client: PoolClient, sql: string, ctx: MetricContext, note: string): Promise<MetricResult> {
+    const result = await client.query<{ c: number }>(sql, [ctx.tenantId]);
+    return { kind: "scalar", value: Number(result.rows[0]?.c ?? 0), note };
+  }
+
+  private async scalarSum(client: PoolClient, sql: string, ctx: MetricContext, unit: string): Promise<MetricResult> {
+    const result = await client.query<{ total: string }>(sql, [ctx.tenantId]);
+    return { kind: "scalar", value: Math.round(Number(result.rows[0]?.total ?? 0)), unit };
+  }
+
+  private async mqlToSql(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const result = await client.query<{ mql: number; sql: number }>(
+      `SELECT COUNT(*) FILTER (WHERE score >= 60)::int AS mql, COUNT(*) FILTER (WHERE sv.value_key IN ('qualified','converted','meeting_scheduled'))::int AS sql
+       FROM leads l LEFT JOIN tenant_option_values sv ON sv.id = l.status_option_id AND sv.tenant_id = l.tenant_id WHERE l.tenant_id = $1 AND l.deleted_at IS NULL`,
+      [ctx.tenantId]
+    );
+    const mql = Number(result.rows[0]?.mql ?? 0);
+    const sql = Number(result.rows[0]?.sql ?? 0);
+    return { kind: "scalar", value: mql === 0 ? 0 : Math.round((sql / mql) * 100), unit: "%", note: `${sql} SQL / ${mql} MQL` };
+  }
+
+  private async stageAging(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const result = await client.query<{ label: string; value: number }>(
+      `SELECT sv.value_key AS label, ROUND(AVG(EXTRACT(EPOCH FROM (NOW() - o.last_stage_changed_at)) / 86400))::int AS value
+       FROM opportunities o JOIN tenant_option_values sv ON sv.id = o.stage_option_id AND sv.tenant_id = o.tenant_id
+       WHERE o.tenant_id = $1 AND o.deleted_at IS NULL AND sv.value_key NOT ILIKE 'closed%' GROUP BY sv.value_key ORDER BY value DESC`,
+      [ctx.tenantId]
+    );
+    return { kind: "breakdown", breakdown: result.rows.map((r) => ({ label: `${r.label} (avg days)`, value: Number(r.value) })) };
+  }
+
+  private async repPerformance(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const result = await client.query<{ rep: string | null; won: number; revenue: string }>(
+      `SELECT u.display_name AS rep, COUNT(*) FILTER (WHERE ov.value_key ILIKE '%won%')::int AS won,
+              COALESCE(SUM(o.amount) FILTER (WHERE ov.value_key ILIKE '%won%'),0) AS revenue
+       FROM opportunities o LEFT JOIN users u ON u.id = o.owner_id AND u.tenant_id = o.tenant_id
+       LEFT JOIN tenant_option_values ov ON ov.id = o.outcome_status_option_id AND ov.tenant_id = o.tenant_id
+       WHERE o.tenant_id = $1 AND o.deleted_at IS NULL GROUP BY u.display_name ORDER BY revenue DESC LIMIT 10`,
+      [ctx.tenantId]
+    );
+    return { kind: "table", rows: result.rows.map((r) => ({ rep: r.rep ?? "Unassigned", won: Number(r.won), revenue: Math.round(Number(r.revenue)) })) };
+  }
+
+  private async reopenRate(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const result = await client.query<{ total: number; reopened: number }>(
+      `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE resolved_at IS NOT NULL AND sv.value_key NOT IN ('resolved','closed'))::int AS reopened
+       FROM support_tickets t LEFT JOIN tenant_option_values sv ON sv.id = t.status_option_id AND sv.tenant_id = t.tenant_id
+       WHERE t.tenant_id = $1 AND t.deleted_at IS NULL`,
+      [ctx.tenantId]
+    );
+    const total = Number(result.rows[0]?.total ?? 0);
+    const reopened = Number(result.rows[0]?.reopened ?? 0);
+    return { kind: "scalar", value: total === 0 ? 0 : Math.round((reopened / total) * 100), unit: "%", note: `${reopened} reopened / ${total}` };
+  }
+
+  private async aiUsage(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const runs = await client.query<{ c: number }>(`SELECT COUNT(*)::int AS c FROM ai_agent_runs WHERE tenant_id = $1`, [ctx.tenantId]).catch(() => ({ rows: [{ c: 0 }] }));
+    const actions = await client.query<{ c: number }>(`SELECT COUNT(*)::int AS c FROM ai_action_runs WHERE tenant_id = $1`, [ctx.tenantId]).catch(() => ({ rows: [{ c: 0 }] }));
+    return { kind: "scalar", value: Number(runs.rows[0]?.c ?? 0) + Number(actions.rows[0]?.c ?? 0), note: "AI runs + actions" };
+  }
+
+  private async aiOverrideRate(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const result = await client.query<{ reviewed: number; rejected: number }>(
+      `SELECT COUNT(*) FILTER (WHERE review_status IN ('approved','rejected'))::int AS reviewed, COUNT(*) FILTER (WHERE review_status = 'rejected')::int AS rejected FROM ai_action_runs WHERE tenant_id = $1`,
+      [ctx.tenantId]
+    ).catch(() => ({ rows: [{ reviewed: 0, rejected: 0 }] }));
+    const reviewed = Number(result.rows[0]?.reviewed ?? 0);
+    const rejected = Number(result.rows[0]?.rejected ?? 0);
+    return { kind: "scalar", value: reviewed === 0 ? 0 : Math.round((rejected / reviewed) * 100), unit: "%", note: `${rejected} overridden / ${reviewed} reviewed` };
+  }
+
+  private async integrationHealth(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const result = await client.query<{ label: string; value: number }>(`SELECT status AS label, COUNT(*)::int AS value FROM integration_connections WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY status`, [ctx.tenantId]).catch(() => ({ rows: [] as Array<{ label: string; value: number }> }));
+    if (result.rows.length === 0) return { kind: "scalar", value: 0, note: "no integrations configured" };
+    return { kind: "breakdown", breakdown: result.rows.map((r) => ({ label: r.label, value: Number(r.value) })) };
+  }
+
+  private async channelRoi(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const budget = await client.query<{ total: string | null }>(`SELECT SUM(budget_amount) AS total FROM campaigns WHERE tenant_id = $1 AND deleted_at IS NULL`, [ctx.tenantId]).catch(() => ({ rows: [{ total: null }] }));
+    const revenue = await client.query<{ total: string }>(`SELECT COALESCE(SUM(o.amount),0) AS total FROM opportunities o JOIN tenant_option_values ov ON ov.id = o.outcome_status_option_id AND ov.tenant_id = o.tenant_id WHERE o.tenant_id = $1 AND o.deleted_at IS NULL AND ov.value_key ILIKE '%won%'`, [ctx.tenantId]);
+    const spend = Number(budget.rows[0]?.total ?? 0);
+    const rev = Number(revenue.rows[0]?.total ?? 0);
+    return { kind: "scalar", value: spend <= 0 ? null : Math.round(((rev - spend) / spend) * 100), unit: "%", note: `revenue ${Math.round(rev)} vs spend ${Math.round(spend)}` };
+  }
+
+  private async automationPerformance(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const result = await client.query<{ total: number; ok: number }>(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'succeeded')::int AS ok FROM workflow_runs WHERE tenant_id = $1`, [ctx.tenantId]).catch(() => ({ rows: [{ total: 0, ok: 0 }] }));
+    const total = Number(result.rows[0]?.total ?? 0);
+    const ok = Number(result.rows[0]?.ok ?? 0);
+    return { kind: "scalar", value: total === 0 ? 0 : Math.round((ok / total) * 100), unit: "%", note: `${ok}/${total} runs succeeded` };
+  }
+
+  private async userAdoption(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const result = await client.query<{ active: number; total: number }>(`SELECT COUNT(*) FILTER (WHERE status = 'active')::int AS active, COUNT(*)::int AS total FROM users WHERE tenant_id = $1 AND deleted_at IS NULL`, [ctx.tenantId]);
+    const total = Number(result.rows[0]?.total ?? 0);
+    const active = Number(result.rows[0]?.active ?? 0);
+    return { kind: "scalar", value: total === 0 ? 0 : Math.round((active / total) * 100), unit: "%", note: `${active}/${total} active users` };
+  }
+
+  private async pipelineCoverage(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const pipeline = await client.query<{ total: string }>(`SELECT COALESCE(SUM(o.amount),0) AS total FROM opportunities o LEFT JOIN tenant_option_values ov ON ov.id = o.outcome_status_option_id AND ov.tenant_id = o.tenant_id WHERE o.tenant_id = $1 AND o.deleted_at IS NULL AND (ov.value_key IS NULL OR ov.value_key NOT ILIKE '%won%' AND ov.value_key NOT ILIKE '%lost%')`, [ctx.tenantId]);
+    const target = await client.query<{ total: string }>(`SELECT COALESCE(SUM(r.forecast_value),0) AS total FROM renewals r WHERE r.tenant_id = $1 AND r.deleted_at IS NULL`, [ctx.tenantId]);
+    const pipe = Number(pipeline.rows[0]?.total ?? 0);
+    const tgt = Number(target.rows[0]?.total ?? 0);
+    return { kind: "scalar", value: tgt <= 0 ? null : Math.round((pipe / tgt) * 100) / 100, unit: "x", note: `pipeline ${Math.round(pipe)} vs target ${Math.round(tgt)}` };
+  }
+
+  private async dataQualitySummary(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
+    const result = await client.query<{ total: number; missing_owner: number; bad_email: number }>(
+      `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE owner_id IS NULL)::int AS missing_owner,
+              COUNT(*) FILTER (WHERE email IS NOT NULL AND email !~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')::int AS bad_email
+       FROM leads WHERE tenant_id = $1 AND deleted_at IS NULL`,
+      [ctx.tenantId]
+    );
+    const row = result.rows[0];
+    return { kind: "scalar", value: Number(row?.missing_owner ?? 0) + Number(row?.bad_email ?? 0), note: `${Number(row?.missing_owner ?? 0)} missing owner, ${Number(row?.bad_email ?? 0)} invalid email of ${Number(row?.total ?? 0)} leads` };
   }
 
   private async pipelineValue(client: PoolClient, ctx: MetricContext): Promise<MetricResult> {
     const result = await client.query<{ total: string; open_count: number }>(
-      `SELECT COALESCE(SUM(COALESCE(NULLIF(o.metadata->>'amount', '')::numeric, 0)), 0) AS total, COUNT(*)::int AS open_count
+      `SELECT COALESCE(SUM(COALESCE(o.amount, NULLIF(o.metadata->>'amount', '')::numeric, 0)), 0) AS total, COUNT(*)::int AS open_count
        FROM opportunities o
        LEFT JOIN tenant_option_values ov ON ov.id = o.outcome_status_option_id AND ov.tenant_id = o.tenant_id
        WHERE o.tenant_id = $1 AND o.deleted_at IS NULL AND (ov.value_key IS NULL OR (ov.value_key NOT ILIKE '%won%' AND ov.value_key NOT ILIKE '%lost%'))`,

@@ -109,11 +109,49 @@ const dashboardSeeds: DashboardSeed[] = [
   {
     key: "ai_insights", name: "AI insights dashboard", category: "ai", description: "AI-derived risk and recommendations.", modules: ["ai"],
     widgets: [W("risk_alerts", "Risk alerts", "chart", "risk_alerts"), W("recommended_actions", "Recommended actions", "chart", "recommended_actions"), W("underperforming_areas", "Underperforming areas", "chart", "underperforming_areas"), W("customer_risk_summary", "Customer risk", "table", "customer_risk_summary", true), W("deal_risk_summary", "Deal risk", "table", "deal_risk_summary", true)]
+  },
+  // ---- Required dashboards (Section 11): one comprehensive dashboard per function; each panel is a required view. ----
+  {
+    key: "marketing_overview", name: "Marketing overview", category: "marketing", description: "Campaign performance, ROI, attribution, MQL funnel, and program performance.", modules: ["marketing", "campaigns"],
+    widgets: [W("campaign_performance", "Campaign performance", "metric", "campaign_conversion"), W("channel_roi", "Channel ROI", "metric", "channel_roi"), W("lead_source_attribution", "Lead source attribution", "chart", "lead_source", true), W("mql_generation", "MQL generation", "metric", "mql_generation"), W("mql_to_sql", "MQL-to-SQL conversion", "metric", "mql_to_sql"), W("content_performance", "Content performance", "metric", "content_performance"), W("paid_campaign_roi", "Paid campaign ROI", "metric", "paid_campaign_roi"), W("webinar_performance", "Webinar performance", "metric", "webinar_performance"), W("nurture_performance", "Nurture performance", "metric", "nurture_performance")]
+  },
+  {
+    key: "sales_overview", name: "Sales overview", category: "sales", description: "Queue, pipeline, aging, forecast, win/loss, rep performance, strategic + dormant deals.", modules: ["sales", "leads", "opportunities"],
+    widgets: [W("lead_queue", "Lead queue", "chart", "leads_by_status", true), W("opportunity_pipeline", "Opportunity pipeline", "funnel", "opportunities_by_stage", true), W("stage_aging", "Stage aging", "chart", "stage_aging"), W("forecast", "Forecast", "metric", "forecast_value"), W("win_loss", "Win/loss", "metric", "win_rate"), W("rep_performance", "Rep performance", "table", "rep_performance"), W("activity_tracking", "Activity tracking", "metric", "activity_tracking"), W("strategic_deals", "Strategic deals", "table", "deal_risk_summary", true), W("discount_approvals", "Discount approvals", "metric", "discount_approvals"), W("dormant_opportunities", "Dormant opportunities", "metric", "dormant_opportunities")]
+  },
+  {
+    key: "presales_overview", name: "Presales overview", category: "presales", description: "Demo requests/outcomes, POC status, solution gaps, RFP workload, technical risk.", modules: ["presales", "opportunities"],
+    widgets: [W("demo_requests", "Demo requests", "metric", "demo_requests"), W("demo_outcomes", "Demo outcomes", "metric", "demo_outcomes"), W("poc_status", "POC status", "metric", "poc_status"), W("solution_gaps", "Solution gaps", "metric", "solution_gaps"), W("rfp_workload", "RFP workload", "metric", "rfp_workload"), W("technical_risk", "Technical risk", "table", "deal_risk_summary", true)]
+  },
+  {
+    key: "partner_overview", name: "Partner overview", category: "partners", description: "Partner pipeline, registrations, onboarding, performance, commissions, conflicts.", modules: ["partners"],
+    widgets: [W("partner_pipeline", "Partner pipeline", "metric", "partner_pipeline"), W("deal_registration", "Deal registration", "metric", "deal_registrations"), W("partner_onboarding", "Partner onboarding", "metric", "partner_onboarding"), W("partner_performance", "Partner performance", "chart", "partner_summary"), W("commission_status", "Commission status", "metric", "commission_status"), W("conflict_cases", "Conflict cases", "metric", "conflict_cases")]
+  },
+  {
+    key: "support_overview", name: "Support overview", category: "support", description: "Backlog, SLA, escalations, CSAT, reopen rate, RCA pending, recurring issues, agents.", modules: ["support"],
+    widgets: [W("ticket_backlog", "Ticket backlog", "metric", "open_tickets", true), W("sla_compliance", "SLA compliance", "metric", "sla_breaches"), W("escalations", "Escalations", "metric", "escalations"), W("csat", "CSAT", "metric", "csat"), W("reopen_rate", "Reopen rate", "metric", "reopen_rate"), W("rca_pending", "RCA pending", "metric", "rca_pending"), W("recurring_issues", "Recurring issues", "chart", "ticket_category"), W("agent_performance", "Agent performance", "table", "agent_performance")]
+  },
+  {
+    key: "customer_success_overview", name: "Customer success overview", category: "customer_success", description: "Health, onboarding, adoption, renewals, churn, expansion, QBR, advocacy.", modules: ["customer_success"],
+    widgets: [W("customer_health", "Customer health", "chart", "health_score_distribution"), W("onboarding_progress", "Onboarding progress", "chart", "onboarding_progress"), W("adoption", "Adoption", "metric", "adoption_score"), W("renewal_pipeline", "Renewal pipeline", "series", "renewal_timeline"), W("churn_risk", "Churn risk", "metric", "at_risk_customers", true), W("expansion_signals", "Expansion signals", "metric", "expansion_signals"), W("qbr_status", "QBR status", "metric", "qbr_status"), W("advocacy_readiness", "Advocacy readiness", "metric", "advocacy_readiness")]
+  },
+  {
+    key: "executive_overview", name: "Executive overview", category: "executive", description: "Revenue, forecast risk, coverage, marketing ROI, productivity, health, support, partner, AI.", modules: ["dashboards"],
+    widgets: [W("revenue_performance", "Revenue performance", "metric", "pipeline_value"), W("forecast_risk", "Forecast risk", "metric", "forecast_value"), W("pipeline_coverage", "Pipeline coverage", "metric", "pipeline_coverage"), W("marketing_roi", "Marketing ROI", "metric", "channel_roi"), W("sales_productivity", "Sales productivity", "table", "rep_performance"), W("customer_health", "Customer health", "chart", "health_score_distribution"), W("support_performance", "Support performance", "metric", "sla_breaches"), W("partner_contribution", "Partner contribution", "metric", "partner_pipeline"), W("ai_impact", "AI impact", "metric", "ai_usage")]
+  },
+  {
+    key: "admin_governance", name: "Admin & governance overview", category: "admin", description: "Adoption, data quality, automation, approvals, AI usage/override, audit, integrations, SLA.", modules: ["admin"],
+    widgets: [W("user_adoption", "User adoption", "metric", "user_adoption"), W("data_quality", "Data quality", "metric", "data_quality_summary"), W("automation_performance", "Automation performance", "metric", "automation_performance"), W("approval_delays", "Approval delays", "metric", "approval_delays"), W("ai_usage", "AI usage", "metric", "ai_usage"), W("ai_override_rate", "AI override rate", "metric", "ai_override_rate"), W("audit_logs", "Audit logs", "metric", "audit_summary"), W("integration_health", "Integration health", "metric", "integration_health"), W("sla_breaches", "SLA breaches", "metric", "sla_breaches")]
   }
 ];
 
+// A dashboard is relevant to a role only when the role can view at least one of
+// the dashboard's underlying modules. Cross-functional dashboards declare the
+// `dashboards` module, so they remain visible to any role with general dashboard
+// access; module-specific dashboards (sales, support, marketing, ...) are gated
+// to the roles that actually work in those modules.
 function dashboardPermissions(modules: string[]): string[] {
-  const codes = new Set<string>(["dashboards.view", "dashboards.view_dashboard", "dashboards.manage_workflow"]);
+  const codes = new Set<string>();
   for (const module of modules) {
     codes.add(`${module}.view`);
     codes.add(`${module}.view_dashboard`);

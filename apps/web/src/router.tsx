@@ -9,10 +9,14 @@ import { AccountFormPage } from "./pages/account-form-page";
 import { AccountsPage } from "./pages/accounts-page";
 import { AdminSettingsPage } from "./pages/admin-settings-page";
 import { AdminPage } from "./pages/admin-page";
+import { AdminConfigurationPage } from "./pages/admin-configuration-page";
+import { AdminSystemPage } from "./pages/admin-system-page";
 import { AiAssistantPage } from "./pages/ai-assistant-page";
 import { AgentRegistryPage } from "./pages/agent-registry-page";
 import { PromptRegistryPage } from "./pages/prompt-registry-page";
 import { AiActionsPage } from "./pages/ai-actions-page";
+import { AiGovernancePage } from "./pages/ai-governance-page";
+import { AiAgentsPage } from "./pages/ai-agents-page";
 import { KnowledgeManagerPage } from "./pages/knowledge-manager-page";
 import { DocumentUploadPage } from "./pages/document-upload-page";
 import { KnowledgeArticleEditorPage } from "./pages/knowledge-article-editor-page";
@@ -27,6 +31,7 @@ import { CustomerPortalKnowledgePage } from "./pages/customer-portal-knowledge-p
 import { CustomerPortalProfilePage } from "./pages/customer-portal-profile-page";
 import { CustomerPortalTicketsPage } from "./pages/customer-portal-tickets-page";
 import { CustomerPortalTrainingPage } from "./pages/customer-portal-training-page";
+import { CustomerPortalOnboardingPage } from "./pages/customer-portal-onboarding-page";
 import { CampaignDetailPage } from "./pages/campaign-detail-page";
 import { CampaignFormPage } from "./pages/campaign-form-page";
 import { CampaignsPage } from "./pages/campaigns-page";
@@ -38,6 +43,7 @@ import { CustomerSuccessPage } from "./pages/customer-success-page";
 import { TrainingPage } from "./pages/training-page";
 import { DashboardPage } from "./pages/dashboard-page";
 import { AnalyticsDashboardsPage } from "./pages/analytics-dashboards-page";
+import { ExecutivePage } from "./pages/executive-page";
 import { ApprovalsPage } from "./pages/approvals-page";
 import { NotificationsPage } from "./pages/notifications-page";
 import { WorkflowsPage } from "./pages/workflows-page";
@@ -49,6 +55,9 @@ import { ResellersPage } from "./pages/resellers-page";
 import { LeadDetailPage } from "./pages/lead-detail-page";
 import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
+import { DataQualityPage } from "./pages/data-quality-page";
+import { RecordToolsPage } from "./pages/record-tools-page";
+import { ExceptionsPage } from "./pages/exceptions-page";
 import { LoginPage } from "./pages/login-page";
 import { ModuleSettingsPage } from "./pages/module-settings-page";
 import { OpportunityDetailPage } from "./pages/opportunity-detail-page";
@@ -271,6 +280,19 @@ export const router = createBrowserRouter([
             )
           },
           {
+            path: "onboarding",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.customerPortal}
+                title="Customer onboarding access is limited by role."
+                description="Open onboarding tasks with a role that includes customer portal access."
+                moduleKey="customer_portal"
+              >
+                <CustomerPortalOnboardingPage />
+              </PermissionRoute>
+            )
+          },
+          {
             path: "profile",
             element: (
               <PermissionRoute
@@ -311,6 +333,19 @@ export const router = createBrowserRouter([
                 moduleKey="dashboards"
               >
                 <AnalyticsDashboardsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "executive",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.dashboard}
+                title="The executive command center is limited by role."
+                description="Your current role set does not include executive dashboard visibility for this tenant."
+                moduleKey="dashboards"
+              >
+                <ExecutivePage />
               </PermissionRoute>
             )
           },
@@ -445,6 +480,32 @@ export const router = createBrowserRouter([
             )
           },
           {
+            path: "admin/configuration",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.admin}
+                title="Configuration versioning requires administrative permissions."
+                description="Only authorized admins can draft, publish, and roll back tenant configuration."
+                moduleKey="admin"
+              >
+                <AdminConfigurationPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "admin/system",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.admin}
+                title="System administration requires administrative permissions."
+                description="Only authorized admins can manage integrations, environments, and backups."
+                moduleKey="admin"
+              >
+                <AdminSystemPage />
+              </PermissionRoute>
+            )
+          },
+          {
             path: "leads",
             element: (
               <PermissionRoute
@@ -454,6 +515,45 @@ export const router = createBrowserRouter([
                 moduleKey="leads"
               >
                 <LeadsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "data-quality",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.leads}
+                title="Data quality access is limited by role."
+                description="Open data quality with a role that includes Leads access."
+                moduleKey="leads"
+              >
+                <DataQualityPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "record-tools",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.leads}
+                title="Record tools are limited by role."
+                description="Open record tools with a role that includes Leads access."
+                moduleKey="leads"
+              >
+                <RecordToolsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "exceptions",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.leads}
+                title="Edge-case handling is limited by role."
+                description="Open exception handling with a role that includes Leads access."
+                moduleKey="leads"
+              >
+                <ExceptionsPage />
               </PermissionRoute>
             )
           },
@@ -906,7 +1006,10 @@ export const router = createBrowserRouter([
             )
           },
           {
-            path: "ai-agents",
+            // The governed agent registry lives at /ai-registry; /ai-agents is
+            // the AI agents workspace (previously both used the same path and
+            // the workspace route was unreachable).
+            path: "ai-registry",
             element: (
               <PermissionRoute
                 requiredPermissionCodes={routePermissionRequirements.aiAssistant}
@@ -928,6 +1031,32 @@ export const router = createBrowserRouter([
                 moduleKey="ai"
               >
                 <AiActionsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "ai-governance",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.aiAssistant}
+                title="AI governance access is limited by role."
+                description="Open AI governance with a role that includes AI access for the tenant."
+                moduleKey="ai"
+              >
+                <AiGovernancePage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "ai-agents",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={routePermissionRequirements.aiAssistant}
+                title="AI agents access is limited by role."
+                description="Open AI agents with a role that includes AI access for the tenant."
+                moduleKey="ai"
+              >
+                <AiAgentsPage />
               </PermissionRoute>
             )
           },

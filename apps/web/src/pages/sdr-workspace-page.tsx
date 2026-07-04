@@ -5,11 +5,14 @@ import type {
   SalesWorkspaceLeadSummary,
   SalesWorkspaceOptionsResponse,
   SalesWorkspaceTaskSummary,
+  ConvertLeadRequestBody,
+  ScheduleLeadMeetingRequestBody,
   UpdateLeadWorkspaceRequestBody
 } from "@crm/types";
 import { Link } from "react-router-dom";
 import { LeadWorkflowWorkbench } from "@/components/sales/lead-workflow-workbench";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
@@ -72,7 +75,7 @@ function LeadQueueCard({
               )}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>{lead.status?.label ?? "Status missing"}</Badge>
+                <StatusPill value={lead.status?.key ?? lead.status?.label}>{lead.status?.label ?? "No status"}</StatusPill>
                 <Badge variant="muted">{lead.workspace.outreachStatus?.label ?? "Outreach not started"}</Badge>
                 {lead.workspace.handoffStatus ? <Badge variant="muted">{lead.workspace.handoffStatus.label}</Badge> : null}
               </div>
@@ -118,8 +121,8 @@ function TaskQueueCard({ title, description, tasks, onSelectLead, emptyMessage }
               className="w-full rounded-[1.25rem] border border-border/70 bg-background/75 p-4 text-left shadow-sm transition hover:border-primary/50"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>{task.status}</Badge>
-                <Badge variant="muted">{task.priority}</Badge>
+                <StatusPill size="sm" value={task.status}>{task.status}</StatusPill>
+                <StatusPill size="sm" value={task.priority}>{task.priority}</StatusPill>
               </div>
               <p className="mt-3 font-semibold">{task.title}</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -225,6 +228,48 @@ export function SdrWorkspacePage() {
     }
 
     await apiRequest(`/records/lead/${leadId}/tasks`, {
+      method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
+  async function handleScheduleMeeting(leadId: string, payload: ScheduleLeadMeetingRequestBody) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/sales-workspaces/leads/${leadId}/meetings`, {
+      method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
+  async function handleMarkNoShow(leadId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/sales-workspaces/leads/${leadId}/no-show`, {
+      method: "POST",
+      accessToken,
+      body: {}
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
+  async function handleConvertLead(leadId: string, payload: ConvertLeadRequestBody) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/leads/${leadId}/convert`, {
       method: "POST",
       accessToken,
       body: payload
@@ -344,12 +389,60 @@ export function SdrWorkspacePage() {
           canUpdateWorkflow={canUpdateWorkflow}
           canAssignOwner={canAssignOwner}
           canCreateTask={canCreateTask}
+          canScheduleMeeting={canUpdateWorkflow}
+          canConvertLead={canUpdateWorkflow}
           allowedTaskTypes={["call"]}
           defaultTaskType="call"
           onSaveWorkflow={handleSaveWorkflow}
           onCreateTask={handleCreateTask}
+          onScheduleMeeting={handleScheduleMeeting}
+          onMarkNoShow={handleMarkNoShow}
+          onConvertLead={handleConvertLead}
         />
       )}
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>ICP fit distribution</CardTitle>
+            <CardDescription>How the visible pipeline scores against the configurable ICP criteria.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-3">
+              {(["high", "medium", "low"] as const).map((band) => (
+                <div key={band} className="rounded-[1.25rem] bg-background/75 p-4 text-center">
+                  <p className="text-2xl font-semibold">{data.icpFitDistribution[band]}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">{band} fit</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Objection trends</CardTitle>
+            <CardDescription>Most common objections captured across the visible pipeline.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {data.objectionTrends.length === 0 ? (
+              <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
+                No objections captured yet.
+              </div>
+            ) : (
+              data.objectionTrends.map((trend) => (
+                <div
+                  key={trend.typeKey}
+                  className="flex items-center justify-between rounded-[1rem] bg-background/75 px-4 py-2 text-sm"
+                >
+                  <span>{trend.label}</span>
+                  <Badge variant="muted">{trend.count}</Badge>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       <Card>
         <CardHeader>

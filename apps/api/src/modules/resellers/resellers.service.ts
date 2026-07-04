@@ -448,8 +448,7 @@ export class ResellersService {
       actor.permissionCodes.includes("resellers.configure") ||
       actor.permissionCodes.includes("resellers.view_dashboard") ||
       actor.permissionCodes.includes("resellers.manage_workflow") ||
-      actor.permissionCodes.includes("sales.view_dashboard") ||
-      actor.permissionCodes.includes("dashboards.view_dashboard")
+      actor.permissionCodes.includes("sales.view_dashboard")
     );
   }
 

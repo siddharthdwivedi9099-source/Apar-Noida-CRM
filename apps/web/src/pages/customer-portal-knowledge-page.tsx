@@ -19,6 +19,21 @@ export function CustomerPortalKnowledgePage() {
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [ratingBusy, setRatingBusy] = useState(false);
+  const [ratingMessage, setRatingMessage] = useState<string | null>(null);
+
+  async function rateArticle(articleId: string, helpful: boolean) {
+    setRatingBusy(true);
+    setRatingMessage(null);
+    try {
+      await apiRequest(`/customer-portal/knowledge/${articleId}/rate`, { method: "POST", accessToken, body: { helpful } });
+      setRatingMessage("Thanks for your feedback!");
+    } catch (error) {
+      setRatingMessage(error instanceof Error ? error.message : "Could not record rating.");
+    } finally {
+      setRatingBusy(false);
+    }
+  }
 
   async function loadArticles(nextSearch = search) {
     setIsLoading(true);
@@ -98,11 +113,19 @@ export function CustomerPortalKnowledgePage() {
             {selectedArticle ? <Badge variant="success">Customer-visible</Badge> : null}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {selectedArticle ? (
-            <article className="prose prose-slate max-w-none whitespace-pre-wrap text-sm leading-7 dark:prose-invert">
-              {selectedArticle.body ?? selectedArticle.summary ?? "No article body is available yet."}
-            </article>
+            <>
+              <article className="prose prose-slate max-w-none whitespace-pre-wrap text-sm leading-7 dark:prose-invert">
+                {selectedArticle.body ?? selectedArticle.summary ?? "No article body is available yet."}
+              </article>
+              <div className="flex items-center gap-2 border-t border-border/50 pt-3">
+                <span className="text-xs text-muted-foreground">Was this helpful?</span>
+                <Button variant="outline" size="sm" disabled={ratingBusy} onClick={() => void rateArticle(selectedArticle.id, true)}>Yes</Button>
+                <Button variant="outline" size="sm" disabled={ratingBusy} onClick={() => void rateArticle(selectedArticle.id, false)}>No</Button>
+                {ratingMessage ? <span className="text-xs text-emerald-600">{ratingMessage}</span> : null}
+              </div>
+            </>
           ) : (
             <p className="text-sm text-muted-foreground">No article selected.</p>
           )}

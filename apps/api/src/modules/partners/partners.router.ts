@@ -9,7 +9,11 @@ import {
   type CreatePartnerRequestBody,
   type PartnerListQuery,
   type UpdatePartnerDealRegistrationRequestBody,
-  type UpdatePartnerRequestBody
+  type UpdatePartnerRequestBody,
+  type DecidePartnerApplicationRequestBody,
+  type DecidePartnerDealRequestBody,
+  type ResolvePartnerConflictRequestBody,
+  type SubmitPartnerApplicationRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -77,7 +81,8 @@ const partnerCreateSchema = z.object({
   agreementNotes: z.string().max(4000).nullable().optional(),
   contacts: z.array(partnerContactSchema).max(100).optional(),
   onboardingTasks: z.array(onboardingTaskSchema).max(100).optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const partnerUpdateSchema = z.object({
@@ -96,7 +101,8 @@ const partnerUpdateSchema = z.object({
   agreementNotes: z.string().max(4000).nullable().optional(),
   contacts: z.array(partnerContactSchema).max(100).optional(),
   onboardingTasks: z.array(onboardingTaskSchema).max(100).optional(),
-  metadata: recordSchema.optional()
+  metadata: recordSchema.optional(),
+  customFields: recordSchema.optional()
 });
 
 const dealCreateSchema = z.object({
@@ -127,6 +133,25 @@ const dealUpdateSchema = z.object({
 
 const partnerIdSchema = z.object({ partnerId: uuidSchema });
 const partnerDealIdSchema = z.object({ partnerId: uuidSchema, dealId: uuidSchema });
+
+// ---- Persona 19 (Partner Manager) schemas ------------------------------------------------------
+const pmNullableText = (max: number) => z.string().max(max).nullable().optional();
+const applicationSchema = z.object({
+  companyDetails: pmNullableText(4000),
+  geography: pmNullableText(400),
+  industryFocus: pmNullableText(400),
+  salesCapacity: pmNullableText(2000),
+  salesCapacityRating: z.coerce.number().min(0).max(5).nullable().optional(),
+  technicalCapability: pmNullableText(2000),
+  technicalCapabilityRating: z.coerce.number().min(0).max(5).nullable().optional(),
+  customerBase: pmNullableText(2000),
+  customerBaseSize: z.coerce.number().min(0).max(10_000_000).nullable().optional(),
+  certifications: pmNullableText(2000),
+  references: pmNullableText(2000)
+});
+const applicationDecisionSchema = z.object({ decision: z.enum(["approved", "rejected", "under_review"]), note: pmNullableText(2000) });
+const dealDecisionSchema = z.object({ decision: z.enum(["approved", "rejected", "clarification"]), note: pmNullableText(2000), protectionDays: z.coerce.number().int().min(0).max(365).nullable().optional() });
+const conflictResolveSchema = z.object({ conflictKey: z.string().min(1).max(400), winningDealId: uuidSchema, resolution: z.string().min(1).max(4000) });
 
 const readPermissions: string[] = [
   "partners.view",
@@ -294,6 +319,37 @@ export function createPartnersRouter({ databaseService }: RouterDependencies) {
         );
     })
   );
+
+  // ---- Persona 19 (Partner Manager) routes -----------------------------------------------------
+  // PM-004 / PM-005 tenant-level (distinct segments — safe alongside /:partnerId).
+  router.get("/management/conflicts", requirePermissions({ oneOf: readPermissions }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getChannelConflicts(request.auth!));
+  }));
+  router.post("/management/conflicts/resolve", requirePermissions({ oneOf: updatePermissions }), validateRequest({ body: conflictResolveSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.resolveChannelConflict(request.auth!, getAuditMetadata(request), request.body as ResolvePartnerConflictRequestBody));
+  }));
+  router.get("/management/performance", requirePermissions({ oneOf: readPermissions }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getPartnerPerformance(request.auth!));
+  }));
+
+  // PM-001 / PM-002 per-partner.
+  router.get("/:partnerId/management", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: partnerIdSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getPartnerManagement(request.auth!, request.params.partnerId));
+  }));
+  router.put("/:partnerId/application", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: partnerIdSchema, body: applicationSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.submitPartnerApplication(request.auth!, getAuditMetadata(request), request.params.partnerId, request.body as SubmitPartnerApplicationRequestBody));
+  }));
+  router.post("/:partnerId/application/decision", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: partnerIdSchema, body: applicationDecisionSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.decidePartnerApplication(request.auth!, getAuditMetadata(request), request.params.partnerId, request.body as DecidePartnerApplicationRequestBody));
+  }));
+  router.post("/:partnerId/onboarding/generate", requirePermissions({ oneOf: updatePermissions }), validateRequest({ params: partnerIdSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.generateOnboardingChecklist(request.auth!, getAuditMetadata(request), request.params.partnerId));
+  }));
+
+  // PM-003 deal decision.
+  router.post("/:partnerId/deals/:dealId/decision", requirePermissions({ oneOf: dealUpdatePermissions }), validateRequest({ params: partnerDealIdSchema, body: dealDecisionSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.decidePartnerDeal(request.auth!, getAuditMetadata(request), request.params.partnerId, request.params.dealId, request.body as DecidePartnerDealRequestBody));
+  }));
 
   return router;
 }

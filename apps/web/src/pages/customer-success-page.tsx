@@ -13,12 +13,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatusPill } from "@/components/ui/status-pill";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
+import { CalendarClock, HeartPulse, Users } from "lucide-react";
 import { apiRequest } from "@/lib/api-client";
 import { formatCurrencyAmount, formatDateOnly, selectClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { CsOnboardingPanel } from "@/components/customer-success/cs-onboarding-panel";
+import { CsScaledPanel } from "@/components/customer-success/cs-scaled-panel";
+import { CsEnterprisePanel } from "@/components/customer-success/cs-enterprise-panel";
 
 type WorkspaceTab = "onboarding" | "scaled" | "enterprise";
 
@@ -204,9 +210,9 @@ export function CustomerSuccessPage() {
         actions={canCreate ? <Button onClick={() => setIsCreating((current) => !current)}>{isCreating ? "Close form" : "Add CS account"}</Button> : null}
         aside={
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <CrmMetricCard label="CS accounts" value={String(dashboard.totalAccounts)} description="Customer success accounts in scope." />
-            <CrmMetricCard label="At risk" value={String(dashboard.atRiskCount)} description="Accounts in at-risk or critical status." />
-            <CrmMetricCard label="Renewals due" value={String(dashboard.renewalsDueCount)} description="Accounts with a renewal within 90 days." />
+            <CrmMetricCard label="CS accounts" value={String(dashboard.totalAccounts)} description="Customer success accounts in scope." icon={Users} tone="primary" />
+            <CrmMetricCard label="At risk" value={String(dashboard.atRiskCount)} description="Accounts in at-risk or critical status." icon={HeartPulse} tone={dashboard.atRiskCount > 0 ? "danger" : "success"} />
+            <CrmMetricCard label="Renewals due" value={String(dashboard.renewalsDueCount)} description="Accounts with a renewal within 90 days." icon={CalendarClock} tone={dashboard.renewalsDueCount > 0 ? "warning" : "neutral"} />
           </div>
         }
       />
@@ -294,7 +300,10 @@ export function CustomerSuccessPage() {
             {accounts.length === 0 ? (
               <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">No accounts in this segment for your scope.</div>
             ) : (
-              accounts.map((account) => (
+              <ScrollableList
+                items={accounts}
+                label="accounts"
+                renderItem={(account) => (
                 <button
                   key={account.id}
                   type="button"
@@ -305,9 +314,9 @@ export function CustomerSuccessPage() {
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{account.segment?.label ?? "Segment missing"}</Badge>
-                    <Badge variant="muted">{account.lifecycleStage?.label ?? "Stage missing"}</Badge>
-                    <Badge variant="muted">{account.riskStatus?.label ?? "Risk missing"}</Badge>
+                    <Badge variant="muted">{account.segment?.label ?? "No segment"}</Badge>
+                    {account.lifecycleStage ? <StatusPill value={account.lifecycleStage.key ?? account.lifecycleStage.label}>{account.lifecycleStage.label}</StatusPill> : null}
+                    {account.riskStatus ? <StatusPill value={account.riskStatus.key ?? account.riskStatus.label}>{account.riskStatus.label}</StatusPill> : null}
                   </div>
                   <p className="mt-3 font-semibold">{account.account?.name ?? "Account"}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -317,7 +326,8 @@ export function CustomerSuccessPage() {
                     CSM {account.csmOwner?.displayName ?? "Unassigned"} • {account.openEscalationCount} open escalations • {account.qbrCount} QBRs
                   </p>
                 </button>
-              ))
+                )}
+              />
             )}
           </CardContent>
         </Card>
@@ -332,6 +342,36 @@ export function CustomerSuccessPage() {
           onRecordHealth={handleRecordHealth}
           onAddRenewal={handleAddRenewal}
         />
+
+        {detail && options && detail.onboardingPlans.length > 0 ? (
+          <CsOnboardingPanel
+            planId={detail.onboardingPlans[0].id}
+            owners={options.owners}
+            accessToken={accessToken}
+            canEdit={canEdit}
+            onReload={() => { if (selectedId) void loadDetail(selectedId); }}
+          />
+        ) : null}
+
+        {detail && options ? (
+          <CsScaledPanel
+            csAccountId={detail.id}
+            owners={options.owners}
+            accessToken={accessToken}
+            canEdit={canEdit}
+            onReload={() => { if (selectedId) void loadDetail(selectedId); }}
+          />
+        ) : null}
+
+        {detail && options ? (
+          <CsEnterprisePanel
+            csAccountId={detail.id}
+            owners={options.owners}
+            accessToken={accessToken}
+            canEdit={canEdit}
+            onReload={() => { if (selectedId) void loadDetail(selectedId); }}
+          />
+        ) : null}
       </section>
     </div>
   );

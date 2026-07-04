@@ -50,12 +50,64 @@ import type {
   UpdateQbrRequestBody,
   UpdateRenewalRequestBody,
   UpsertOnboardingPlanRequestBody,
-  UpsertSuccessPlanRequestBody
+  UpsertSuccessPlanRequestBody,
+  CompleteGoLiveRequestBody,
+  CompleteOnboardingRequestBody,
+  CsOnboardingProjectResponse,
+  CsOnboardingProjectView,
+  GoLiveChecklistKey,
+  GoLiveItemStatus,
+  HandoverInput,
+  OnboardingImplementationType,
+  ProvisionOnboardingRequestBody,
+  RecordHandoverRequestBody,
+  RecordKickoffRequestBody,
+  UpdateGoLiveChecklistRequestBody
 } from "@crm/types";
+import {
+  computeGoLiveReadiness,
+  generateKickoffAgenda,
+  goLiveChecklistItems,
+  goLiveItemStatuses,
+  handoverFields,
+  resolveOnboardingTemplate,
+  validateHandover
+} from "@crm/types";
+import type {
+  AdoptionCampaignsResponse,
+  AdoptionCampaignResponse,
+  AdoptionCampaignStatus,
+  AdoptionCampaignSummary,
+  ComputeHealthScoreRequestBody,
+  CreateAdoptionCampaignRequestBody,
+  CreateExpansionOpportunityRequestBody,
+  CsExpansionSignalsResponse,
+  CsHealthComputeResponse,
+  CsRenewalPlaybookResponse,
+  HealthBand,
+  LowUsageCheckRequestBody,
+  RenewalPlaybookRequestBody
+} from "@crm/types";
+import { adoptionCampaignStatuses, computeHealthScore, detectExpansionSignals, detectLowUsage, resolveHealthBand } from "@crm/types";
+import type {
+  AssessAdvocacyRequestBody,
+  CreateAdvocacyRequestBody,
+  CsRenewalStrategyResponse,
+  RecordQbrReviewRequestBody,
+  RecordStrategicRiskRequestBody,
+  RenewalStrategyRequestBody,
+  ReviewSection,
+  ScheduleQbrRequestBody,
+  StrategicRiskType,
+  UpsertSuccessPlanEnterpriseRequestBody
+} from "@crm/types";
+import { computeAdvocacyReadiness, predictRenewalProbability, requiresLeadershipEscalation, reviewSections, strategicRiskTypes, successPlanSections, validateSuccessPlan } from "@crm/types";
 import type { PoolClient } from "pg";
+import { randomUUID } from "node:crypto";
 import { AppError } from "../../common/errors/app-error.js";
 import { buildPagination } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -217,10 +269,14 @@ function normalizeStakeholders(value: unknown): CsStakeholder[] {
 }
 
 export class CustomerSuccessService {
+  private readonly notificationService: NotificationService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
-  ) {}
+  ) {
+    this.notificationService = new NotificationService(databaseService, config);
+  }
 
   private assertEnabled() {
     if (!this.databaseService.isEnabled()) {
@@ -363,8 +419,7 @@ export class CustomerSuccessService {
       actor.permissionCodes.includes("customer_success.assign") ||
       actor.permissionCodes.includes("customer_success.configure") ||
       actor.permissionCodes.includes("customer_success.view_dashboard") ||
-      actor.permissionCodes.includes("customer_success.manage_workflow") ||
-      actor.permissionCodes.includes("dashboards.view_dashboard")
+      actor.permissionCodes.includes("customer_success.manage_workflow")
     );
   }
 
@@ -1661,6 +1716,790 @@ export class CustomerSuccessService {
       };
     });
   }
+
+  // ---- Persona 24 (Customer Success Manager — Onboarding) --------------------------------------
+
+  private mapStoredUser(value: unknown): CrmLookupUserSummary | null {
+    const record = getMetadata(value as Record<string, unknown> | undefined);
+    const id = typeof record.id === "string" ? record.id : null;
+    if (!id) {
+      return null;
+    }
+    return { id, displayName: typeof record.displayName === "string" ? record.displayName : "", email: typeof record.email === "string" ? record.email : "", teamName: null, departmentName: null };
+  }
+
+  private async loadOnboardingPlanRow(client: PoolClient, tenantId: string, planId: string) {
+    const result = await client.query<{ id: string; cs_account_id: string; name: string; status: string; metadata: Record<string, unknown> | null }>(
+      `SELECT id, cs_account_id, name, status, metadata FROM onboarding_plans WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [planId, tenantId]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      throw new AppError(404, "Onboarding project not found.", undefined, "ONBOARDING_PLAN_NOT_FOUND");
+    }
+    return { ...row, metadata: getMetadata(row.metadata) };
+  }
+
+  private buildOnboardingProjectView(planId: string, csAccountId: string, name: string, status: string, metadata: Record<string, unknown>): CsOnboardingProjectView {
+    const csmo = getMetadata(metadata.csmo as Record<string, unknown> | undefined);
+    const handoverFieldsData = getMetadata(csmo.handover as Record<string, unknown> | undefined) as HandoverInput;
+    const validation = validateHandover(handoverFieldsData);
+    const implementationType = (typeof csmo.implementationType === "string" ? csmo.implementationType : null) as OnboardingImplementationType | null;
+
+    const kickoff = getMetadata(csmo.kickoff as Record<string, unknown> | undefined);
+    const goLive = getMetadata(csmo.goLive as Record<string, unknown> | undefined);
+    const goLiveStatuses = getMetadata(goLive.items as Record<string, unknown> | undefined) as Partial<Record<GoLiveChecklistKey, GoLiveItemStatus>>;
+    const completion = getMetadata(csmo.completion as Record<string, unknown> | undefined);
+
+    const str = (record: Record<string, unknown>, key: string) => (typeof record[key] === "string" && (record[key] as string).length > 0 ? (record[key] as string) : null);
+    const num = (record: Record<string, unknown>, key: string) => (typeof record[key] === "number" ? (record[key] as number) : null);
+
+    return {
+      planId,
+      csAccountId,
+      name,
+      status,
+      implementationType,
+      handover: {
+        fields: handoverFieldsData,
+        validation,
+        sourceOpportunityId: typeof csmo.sourceOpportunityId === "string" ? csmo.sourceOpportunityId : null,
+        updatedAt: str(getMetadata(csmo.handover as Record<string, unknown> | undefined), "updatedAt") ?? (typeof (handoverFieldsData as Record<string, unknown>).updatedAt === "string" ? (handoverFieldsData as Record<string, unknown>).updatedAt as string : null)
+      },
+      kickoff: {
+        scheduledAt: str(kickoff, "scheduledAt"),
+        agenda: generateKickoffAgenda(str(csmo, "customerName")),
+        attendees: Array.isArray(kickoff.attendees) ? kickoff.attendees.filter((entry): entry is string => typeof entry === "string") : [],
+        decisions: str(kickoff, "decisions"),
+        actionItems: Array.isArray(kickoff.actionItems)
+          ? kickoff.actionItems
+              .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+              .map((entry) => ({ id: typeof entry.id === "string" ? entry.id : randomUUID(), description: typeof entry.description === "string" ? entry.description : "", owner: this.mapStoredUser(entry.owner), dueDate: typeof entry.dueDate === "string" ? entry.dueDate : null }))
+          : [],
+        successCriteriaConfirmed: Boolean(kickoff.successCriteriaConfirmed),
+        aiSummary: { available: false, message: "AI kickoff summarization and action-item extraction will connect with the governed AI Gateway." },
+        completedAt: str(kickoff, "completedAt")
+      },
+      goLive: {
+        items: goLiveChecklistItems.map((item) => ({
+          key: item.key,
+          label: item.label,
+          critical: item.critical,
+          status: goLiveItemStatuses.includes(goLiveStatuses[item.key] as GoLiveItemStatus) ? (goLiveStatuses[item.key] as GoLiveItemStatus) : "pending"
+        })),
+        readiness: computeGoLiveReadiness(goLiveStatuses),
+        goLiveDate: str(goLive, "goLiveDate"),
+        completedAt: str(goLive, "completedAt")
+      },
+      completion: completion.completedAt
+        ? {
+            completedAt: str(completion, "completedAt"),
+            goLiveDate: str(completion, "goLiveDate"),
+            usersTrained: num(completion, "usersTrained"),
+            adoptionBaseline: num(completion, "adoptionBaseline"),
+            openRisks: str(completion, "openRisks"),
+            pendingItems: str(completion, "pendingItems"),
+            customerSignOff: Boolean(completion.customerSignOff),
+            ongoingCsm: this.mapStoredUser(completion.ongoingCsm),
+            initialHealthScore: num(completion, "initialHealthScore")
+          }
+        : null,
+      canStart: validation.complete
+    };
+  }
+
+  async getOnboardingProject(actor: ActorContext, planId: string): Promise<CsOnboardingProjectResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const plan = await this.loadOnboardingPlanRow(client, actor.tenantId, planId);
+      return { project: this.buildOnboardingProjectView(plan.id, plan.cs_account_id, plan.name, plan.status, plan.metadata) };
+    });
+  }
+
+  private async writePlanMetadata(client: PoolClient, actor: ActorContext, planId: string, metadata: Record<string, unknown>) {
+    await client.query(`UPDATE onboarding_plans SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [planId, actor.tenantId, JSON.stringify(metadata), actor.userId]);
+  }
+
+  /**
+   * CSMO-002: create an onboarding project from a won opportunity. Idempotent per opportunity.
+   * Permission-free so it can also run inside the sales-owned close-won transaction; the public
+   * endpoint gates access at the router.
+   */
+  async provisionOnboardingFromOpportunityWithClient(
+    client: PoolClient,
+    actor: ActorContext,
+    audit: AuditMetadata,
+    input: { opportunityId: string; implementationType?: OnboardingImplementationType | null }
+  ): Promise<{ planId: string; csAccountId: string }> {
+    const opp = await client.query<{ id: string; name: string; account_id: string | null; metadata: Record<string, unknown> | null }>(
+      `SELECT id, name, account_id, metadata FROM opportunities WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [input.opportunityId, actor.tenantId]
+    );
+    const oppRow = opp.rows[0];
+    if (!oppRow) {
+      throw new AppError(404, "Opportunity not found.", undefined, "OPPORTUNITY_NOT_FOUND");
+    }
+    if (!oppRow.account_id) {
+      throw new AppError(400, "The opportunity has no account to onboard.", undefined, "VALIDATION_ERROR");
+    }
+
+    // Idempotency: if an onboarding plan already references this opportunity, return it.
+    const existingPlan = await client.query<{ id: string; cs_account_id: string }>(
+      `SELECT id, cs_account_id FROM onboarding_plans WHERE tenant_id = $1 AND deleted_at IS NULL AND metadata->'csmo'->>'sourceOpportunityId' = $2 LIMIT 1`,
+      [actor.tenantId, input.opportunityId]
+    );
+    if (existingPlan.rows[0]) {
+      return { planId: existingPlan.rows[0].id, csAccountId: existingPlan.rows[0].cs_account_id };
+    }
+
+    const oppMeta = getMetadata(oppRow.metadata);
+    const salesExecRoot = getMetadata((oppMeta.salesExec as Record<string, unknown> | undefined) ?? oppMeta);
+    const closeWon = getMetadata(salesExecRoot.closeWon as Record<string, unknown> | undefined);
+    const onboardingOwnerId = typeof closeWon.onboardingOwnerId === "string" ? closeWon.onboardingOwnerId : actor.userId;
+
+    // Find or create the customer-success account for this opportunity's account.
+    const csAccountResult = await client.query<{ id: string }>(
+      `SELECT id FROM customer_success_accounts WHERE tenant_id = $1 AND account_id = $2 AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1`,
+      [actor.tenantId, oppRow.account_id]
+    );
+    let csAccountId = csAccountResult.rows[0]?.id ?? null;
+    if (!csAccountId) {
+      const segmentOptionId = await this.resolveOptionValueId(client, actor.tenantId, "cs-segment", "onboarding", "CS segment");
+      const lifecycleOptionId = await this.resolveOptionValueId(client, actor.tenantId, "customer-success-stage", "onboarding", "Lifecycle stage");
+      const riskOptionId = await this.resolveOptionValueId(client, actor.tenantId, "cs-risk-status", "healthy", "Risk status");
+      const expansionOptionId = await this.resolveOptionValueId(client, actor.tenantId, "cs-expansion-potential", "low", "Expansion potential");
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO customer_success_accounts (tenant_id, account_id, csm_owner_id, segment_option_id, lifecycle_stage_option_id, risk_status_option_id, expansion_potential_option_id, support_trend, training_status, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'stable', 'not_started', $8::jsonb, $9, $9) RETURNING id`,
+        [actor.tenantId, oppRow.account_id, onboardingOwnerId, segmentOptionId, lifecycleOptionId, riskOptionId, expansionOptionId, JSON.stringify({ sourceOpportunityId: input.opportunityId }), actor.userId]
+      );
+      csAccountId = inserted.rows[0].id;
+    }
+
+    // Seed handover from the opportunity's close-won data (CSMO-001 prefill).
+    const handover: HandoverInput = {
+      contract: typeof closeWon.contractStatus === "string" ? closeWon.contractStatus : null,
+      scope: typeof closeWon.implementationScope === "string" ? closeWon.implementationScope : null,
+      commitments: typeof closeWon.handoverNote === "string" ? closeWon.handoverNote : null,
+      timeline: typeof closeWon.startDate === "string" ? closeWon.startDate : null
+    };
+
+    const template = resolveOnboardingTemplate(input.implementationType ?? "standard", null, oppRow.name);
+    const csmo = {
+      sourceOpportunityId: input.opportunityId,
+      implementationType: template.implementationType,
+      customerName: oppRow.name,
+      handover: { ...handover, updatedAt: new Date().toISOString() },
+      kickoff: {},
+      goLive: { items: {} },
+      completion: {}
+    };
+
+    const planInsert = await client.query<{ id: string }>(
+      `INSERT INTO onboarding_plans (tenant_id, cs_account_id, name, status, start_date, handover_notes, metadata, created_by, updated_by)
+       VALUES ($1, $2, $3, 'not_started', $4::date, $5, $6::jsonb, $7, $7) RETURNING id`,
+      [actor.tenantId, csAccountId, `Onboarding — ${oppRow.name}`, typeof closeWon.startDate === "string" ? closeWon.startDate : null, typeof closeWon.handoverNote === "string" ? closeWon.handoverNote : null, JSON.stringify({ csmo }), actor.userId]
+    );
+    const planId = planInsert.rows[0].id;
+
+    // Milestones from the template.
+    await this.syncMilestones(client, actor, planId, template.milestones.map((label, index) => ({ label, sortOrder: index })));
+
+    if (onboardingOwnerId && onboardingOwnerId !== actor.userId) {
+      await this.notificationService.createNotificationWithClient(client, actor, audit, {
+        notificationType: "record_assignment",
+        recipientUserId: onboardingOwnerId,
+        title: `Onboarding project created: ${oppRow.name}`,
+        message: "A closed-won deal was handed over for onboarding.",
+        linkedRecord: { entityType: "opportunity", entityId: input.opportunityId }
+      });
+    }
+    await this.recordAuditLog(client, actor, audit, { action: "customer_success.onboarding.provision", resourceType: "onboarding_plan", resourceId: planId, status: "success", metadata: { opportunityId: input.opportunityId, csAccountId } });
+
+    return { planId, csAccountId };
+  }
+
+  async provisionOnboarding(actor: ActorContext, audit: AuditMetadata, input: ProvisionOnboardingRequestBody): Promise<CsOnboardingProjectResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const { planId } = await this.databaseService.withTransaction((client) =>
+      this.provisionOnboardingFromOpportunityWithClient(client, actor, audit, { opportunityId: input.opportunityId, implementationType: input.implementationType ?? null })
+    );
+    return this.getOnboardingProject(actor, planId);
+  }
+
+  // CSMO-001: capture/refresh the structured sales-to-CS handover.
+  async recordHandover(actor: ActorContext, audit: AuditMetadata, planId: string, input: RecordHandoverRequestBody): Promise<CsOnboardingProjectResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      const plan = await this.loadOnboardingPlanRow(client, actor.tenantId, planId);
+      const csmo = getMetadata(plan.metadata.csmo as Record<string, unknown> | undefined);
+      const existing = getMetadata(csmo.handover as Record<string, unknown> | undefined) as HandoverInput;
+      const next: HandoverInput & { updatedAt?: string } = { ...existing };
+      for (const field of handoverFields) {
+        if (field in input.fields) {
+          next[field] = getTrimmedNullableString(input.fields[field]);
+        }
+      }
+      next.updatedAt = new Date().toISOString();
+      await this.writePlanMetadata(client, actor, planId, { ...plan.metadata, csmo: { ...csmo, handover: next } });
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.onboarding.handover", resourceType: "onboarding_plan", resourceId: planId, status: "success" });
+    });
+    return this.getOnboardingProject(actor, planId);
+  }
+
+  // CSMO-003: kickoff management. Cannot start until mandatory handover fields are complete.
+  async recordKickoff(actor: ActorContext, audit: AuditMetadata, planId: string, input: RecordKickoffRequestBody): Promise<CsOnboardingProjectResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      const plan = await this.loadOnboardingPlanRow(client, actor.tenantId, planId);
+      const csmo = getMetadata(plan.metadata.csmo as Record<string, unknown> | undefined);
+      const handoverValidation = validateHandover(getMetadata(csmo.handover as Record<string, unknown> | undefined) as HandoverInput);
+      if (!handoverValidation.complete) {
+        throw new AppError(409, `Onboarding cannot start until mandatory handover fields are complete: ${handoverValidation.missingMandatory.join(", ")}.`, undefined, "HANDOVER_INCOMPLETE");
+      }
+      const existing = getMetadata(csmo.kickoff as Record<string, unknown> | undefined);
+      const actionItems = [] as Array<Record<string, unknown>>;
+      for (const item of input.actionItems ?? []) {
+        if (!item.description?.trim()) continue;
+        const ownerId = item.ownerId ? await this.ensureUserId(client, actor.tenantId, item.ownerId, "INVALID_OWNER", "action item owner") : null;
+        actionItems.push({ id: randomUUID(), description: item.description.trim(), owner: ownerId ? { id: ownerId } : null, dueDate: getTrimmedNullableString(item.dueDate) });
+      }
+      const kickoff = {
+        ...existing,
+        scheduledAt: input.scheduledAt !== undefined ? getTrimmedNullableString(input.scheduledAt) : existing.scheduledAt ?? null,
+        attendees: input.attendees ? input.attendees.map((a) => a.trim()).filter(Boolean) : existing.attendees ?? [],
+        decisions: input.decisions !== undefined ? getTrimmedNullableString(input.decisions) : existing.decisions ?? null,
+        actionItems: actionItems.length > 0 ? actionItems : existing.actionItems ?? [],
+        successCriteriaConfirmed: input.successCriteriaConfirmed ?? Boolean(existing.successCriteriaConfirmed),
+        completedAt: input.markCompleted ? new Date().toISOString() : existing.completedAt ?? null
+      };
+      const status = input.markCompleted ? "in_progress" : plan.status;
+      await client.query(`UPDATE onboarding_plans SET status = $3, metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [planId, actor.tenantId, status, JSON.stringify({ ...plan.metadata, csmo: { ...csmo, kickoff } }), actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.onboarding.kickoff", resourceType: "onboarding_plan", resourceId: planId, status: "success" });
+    });
+    return this.getOnboardingProject(actor, planId);
+  }
+
+  // CSMO-004: update the go-live readiness checklist.
+  async updateGoLiveChecklist(actor: ActorContext, audit: AuditMetadata, planId: string, input: UpdateGoLiveChecklistRequestBody): Promise<CsOnboardingProjectResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      const plan = await this.loadOnboardingPlanRow(client, actor.tenantId, planId);
+      const csmo = getMetadata(plan.metadata.csmo as Record<string, unknown> | undefined);
+      const goLive = getMetadata(csmo.goLive as Record<string, unknown> | undefined);
+      const items = { ...(getMetadata(goLive.items as Record<string, unknown> | undefined) as Record<string, unknown>) };
+      const validKeys = new Set(goLiveChecklistItems.map((item) => item.key));
+      for (const [key, status] of Object.entries(input.items ?? {})) {
+        if (validKeys.has(key as GoLiveChecklistKey) && goLiveItemStatuses.includes(status as GoLiveItemStatus)) {
+          items[key] = status;
+        }
+      }
+      await this.writePlanMetadata(client, actor, planId, { ...plan.metadata, csmo: { ...csmo, goLive: { ...goLive, items } } });
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.onboarding.golive_checklist", resourceType: "onboarding_plan", resourceId: planId, status: "success" });
+    });
+    return this.getOnboardingProject(actor, planId);
+  }
+
+  // CSMO-004: complete go-live — blocked while critical checklist items are pending.
+  async completeGoLive(actor: ActorContext, audit: AuditMetadata, planId: string, input: CompleteGoLiveRequestBody): Promise<CsOnboardingProjectResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      const plan = await this.loadOnboardingPlanRow(client, actor.tenantId, planId);
+      const csmo = getMetadata(plan.metadata.csmo as Record<string, unknown> | undefined);
+      const goLive = getMetadata(csmo.goLive as Record<string, unknown> | undefined);
+      const readiness = computeGoLiveReadiness(getMetadata(goLive.items as Record<string, unknown> | undefined) as Partial<Record<GoLiveChecklistKey, GoLiveItemStatus>>);
+      if (!readiness.canComplete) {
+        throw new AppError(409, `Go-live is blocked until critical items are resolved: ${readiness.criticalPending.join(", ")}.`, undefined, "GOLIVE_CRITICAL_PENDING");
+      }
+      const goLiveDate = getTrimmedNullableString(input.goLiveDate);
+      await client.query(
+        `UPDATE onboarding_plans SET target_go_live_date = COALESCE($3::date, target_go_live_date), first_value_at = NOW(), metadata = $4::jsonb, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [planId, actor.tenantId, goLiveDate, JSON.stringify({ ...plan.metadata, csmo: { ...csmo, goLive: { ...goLive, goLiveDate, completedAt: new Date().toISOString() } } }), actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.onboarding.golive", resourceType: "onboarding_plan", resourceId: planId, status: "success", metadata: { goLiveDate } });
+    });
+    return this.getOnboardingProject(actor, planId);
+  }
+
+  // CSMO-005: close onboarding — assign the ongoing CSM and initialize the health score.
+  async completeOnboarding(actor: ActorContext, audit: AuditMetadata, planId: string, input: CompleteOnboardingRequestBody): Promise<CsOnboardingProjectResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    if (typeof input.initialHealthScore !== "number" || input.initialHealthScore < 0 || input.initialHealthScore > 100) {
+      throw new AppError(400, "Initial health score must be between 0 and 100.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const plan = await this.loadOnboardingPlanRow(client, actor.tenantId, planId);
+      const csmo = getMetadata(plan.metadata.csmo as Record<string, unknown> | undefined);
+      const ongoingCsmId = await this.ensureUserId(client, actor.tenantId, input.ongoingCsmId, "INVALID_OWNER", "ongoing CSM");
+      if (!ongoingCsmId) {
+        throw new AppError(400, "An ongoing CSM is required to complete onboarding.", undefined, "VALIDATION_ERROR");
+      }
+      const goLive = getMetadata(csmo.goLive as Record<string, unknown> | undefined);
+      const goLiveDate = getTrimmedNullableString(input.goLiveDate) ?? (typeof goLive.goLiveDate === "string" ? goLive.goLiveDate : null);
+
+      const completion = {
+        completedAt: new Date().toISOString(),
+        goLiveDate,
+        usersTrained: typeof input.usersTrained === "number" ? input.usersTrained : null,
+        adoptionBaseline: typeof input.adoptionBaseline === "number" ? input.adoptionBaseline : null,
+        openRisks: getTrimmedNullableString(input.openRisks),
+        pendingItems: getTrimmedNullableString(input.pendingItems),
+        customerSignOff: Boolean(input.customerSignOff),
+        ongoingCsm: { id: ongoingCsmId },
+        initialHealthScore: input.initialHealthScore
+      };
+      await client.query(`UPDATE onboarding_plans SET status = 'completed', metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [planId, actor.tenantId, JSON.stringify({ ...plan.metadata, csmo: { ...csmo, completion } }), actor.userId]);
+
+      // Transition the CS account to adoption: assign the ongoing CSM, seed the health score.
+      const adoptionStageId = await this.resolveOptionValueId(client, actor.tenantId, "customer-success-stage", "adoption", "Lifecycle stage");
+      await client.query(
+        `UPDATE customer_success_accounts SET csm_owner_id = $3, lifecycle_stage_option_id = $4, health_score = $5, adoption_score = COALESCE($6, adoption_score), training_status = 'completed', updated_by = $7 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [plan.cs_account_id, actor.tenantId, ongoingCsmId, adoptionStageId, input.initialHealthScore, typeof input.adoptionBaseline === "number" ? input.adoptionBaseline : null, actor.userId]
+      );
+      await client.query(
+        `INSERT INTO customer_health_scores (tenant_id, cs_account_id, score, risk_status_option_id, drivers, notes, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, NULL, $4, $5, $6::jsonb, $7, $7)`,
+        [actor.tenantId, plan.cs_account_id, input.initialHealthScore, "Onboarding baseline", "Initial health score at onboarding completion.", JSON.stringify({ source: "onboarding_completion", planId }), actor.userId]
+      );
+
+      if (ongoingCsmId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "record_assignment",
+          recipientUserId: ongoingCsmId,
+          title: `Account handed over to you: ${plan.name}`,
+          message: "Onboarding is complete — this account is now in your adoption portfolio.",
+          linkedRecord: { entityType: "customer_success_account", entityId: plan.cs_account_id }
+        });
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.onboarding.complete", resourceType: "onboarding_plan", resourceId: planId, status: "success", metadata: { ongoingCsmId, initialHealthScore: input.initialHealthScore } });
+    });
+    return this.getOnboardingProject(actor, planId);
+  }
+
+  // ---- Persona 25 (Customer Success Manager — Scaled) ------------------------------------------
+
+  private async loadCsAccountFull(client: PoolClient, tenantId: string, csAccountId: string) {
+    const result = await client.query<{ id: string; account_id: string; csm_owner_id: string | null; health_score: number | null; segment_key: string | null }>(
+      `SELECT csa.id, csa.account_id, csa.csm_owner_id, csa.health_score, sv.value_key AS segment_key
+       FROM customer_success_accounts csa
+       LEFT JOIN tenant_option_values sv ON sv.id = csa.segment_option_id AND sv.tenant_id = csa.tenant_id
+       WHERE csa.id = $1 AND csa.tenant_id = $2 AND csa.deleted_at IS NULL LIMIT 1`,
+      [csAccountId, tenantId]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      throw new AppError(404, "Customer success account not found.", undefined, "CS_ACCOUNT_NOT_FOUND");
+    }
+    return row;
+  }
+
+  private riskKeyForBand(band: HealthBand): string {
+    return band === "green" ? "healthy" : band === "amber" ? "at_risk" : "critical";
+  }
+
+  // CSMS-001: compute an automated health score from weighted factors and record it to history.
+  async computeAccountHealthScore(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: ComputeHealthScoreRequestBody): Promise<CsHealthComputeResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const result = computeHealthScore(input.factors);
+    await this.databaseService.withTransaction(async (client) => {
+      await this.getCsAccountState(client, actor.tenantId, csAccountId);
+      const riskOptionId = await this.resolveOptionValueId(client, actor.tenantId, "cs-risk-status", this.riskKeyForBand(result.band), "Risk status");
+      const driversText = result.drivers.map((driver) => `${driver.label}: ${driver.subScore} (${driver.impact})`).join("; ");
+      await client.query(
+        `INSERT INTO customer_health_scores (tenant_id, cs_account_id, score, risk_status_option_id, drivers, notes, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $8)`,
+        [actor.tenantId, csAccountId, result.score, riskOptionId, driversText || null, getTrimmedNullableString(input.notes), JSON.stringify({ source: "automated_health_score", band: result.band, factors: input.factors, drivers: result.drivers }), actor.userId]
+      );
+      await client.query(`UPDATE customer_success_accounts SET health_score = $3, risk_status_option_id = $4, updated_by = $5 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [csAccountId, actor.tenantId, result.score, riskOptionId, actor.userId]);
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.health_score.compute", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { score: result.score, band: result.band } });
+    });
+    return { score: result.score, band: result.band, drivers: result.drivers, aiExplanation: { available: false, message: "AI health-driver explanation will connect with the governed AI Gateway; deterministic drivers are shown meanwhile." } };
+  }
+
+  // CSMS-002: adoption campaigns.
+  private mapAdoptionCampaign(row: AdoptionCampaignRow, targetCount: number): AdoptionCampaignSummary {
+    const metrics = getMetadata(row.metrics);
+    return {
+      id: row.id,
+      name: row.name,
+      status: normalizeFromList(adoptionCampaignStatuses, row.status, "draft"),
+      criteria: getMetadata(row.criteria),
+      contentTemplate: row.content_template,
+      targetCount,
+      engagementRate: typeof metrics.engagementRate === "number" ? metrics.engagementRate : null,
+      adoptionImprovement: typeof metrics.adoptionImprovement === "number" ? metrics.adoptionImprovement : null,
+      aiRecommendation: { available: false, message: "AI content + target recommendations will connect with the governed AI Gateway." },
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString()
+    };
+  }
+
+  private async countCampaignTargets(client: PoolClient, tenantId: string, criteria: Record<string, unknown>): Promise<number> {
+    // Target count is estimated from the criteria we can evaluate against CS accounts (segment + health band).
+    const conditions = ["csa.tenant_id = $1", "csa.deleted_at IS NULL"];
+    const params: unknown[] = [tenantId];
+    if (typeof criteria.segmentKey === "string") {
+      params.push(criteria.segmentKey);
+      conditions.push(`sv.value_key = $${params.length}`);
+    }
+    if (criteria.healthBand === "green") conditions.push("csa.health_score >= 75");
+    else if (criteria.healthBand === "amber") conditions.push("csa.health_score >= 50 AND csa.health_score < 75");
+    else if (criteria.healthBand === "red") conditions.push("csa.health_score < 50");
+    const result = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM customer_success_accounts csa LEFT JOIN tenant_option_values sv ON sv.id = csa.segment_option_id AND sv.tenant_id = csa.tenant_id WHERE ${conditions.join(" AND ")}`,
+      params
+    );
+    return Number(result.rows[0]?.count ?? "0");
+  }
+
+  async listAdoptionCampaigns(actor: ActorContext): Promise<AdoptionCampaignsResponse> {
+    this.assertEnabled();
+    return this.databaseService.withClient(async (client) => {
+      const result = await client.query<AdoptionCampaignRow>(
+        `SELECT id, name, status, criteria, content_template, metrics, created_at, updated_at FROM cs_adoption_campaigns WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100`,
+        [actor.tenantId]
+      );
+      const campaigns: AdoptionCampaignSummary[] = [];
+      for (const row of result.rows) {
+        campaigns.push(this.mapAdoptionCampaign(row, await this.countCampaignTargets(client, actor.tenantId, getMetadata(row.criteria))));
+      }
+      return { campaigns };
+    });
+  }
+
+  async createAdoptionCampaign(actor: ActorContext, audit: AuditMetadata, input: CreateAdoptionCampaignRequestBody): Promise<AdoptionCampaignResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const name = input.name?.trim();
+    if (!name) {
+      throw new AppError(400, "A campaign name is required.", undefined, "VALIDATION_ERROR");
+    }
+    const status: AdoptionCampaignStatus = normalizeFromList(adoptionCampaignStatuses, input.status, "draft");
+    const campaignId = await this.databaseService.withTransaction(async (client) => {
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO cs_adoption_campaigns (tenant_id, owner_id, name, status, criteria, content_template, metrics, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, '{}'::jsonb, $2, $2) RETURNING id`,
+        [actor.tenantId, actor.userId, name, status, JSON.stringify(input.criteria ?? {}), getTrimmedNullableString(input.contentTemplate)]
+      );
+      const id = inserted.rows[0].id;
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.adoption_campaign.create", resourceType: "cs_adoption_campaign", resourceId: id, status: "success" });
+      return id;
+    });
+    return this.databaseService.withClient(async (client) => {
+      const row = (await client.query<AdoptionCampaignRow>(`SELECT id, name, status, criteria, content_template, metrics, created_at, updated_at FROM cs_adoption_campaigns WHERE id = $1 AND tenant_id = $2`, [campaignId, actor.tenantId])).rows[0];
+      return { campaign: this.mapAdoptionCampaign(row, await this.countCampaignTargets(client, actor.tenantId, getMetadata(row.criteria))) };
+    });
+  }
+
+  // CSMS-003: low-usage alert — opens a tracked risk (escalation) with a playbook + template.
+  async checkLowUsage(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: LowUsageCheckRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const result = detectLowUsage(input.current, input.threshold);
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      if (result.low) {
+        const suggestedTemplate = `Hi — we noticed ${input.metricLabel} has dropped below the expected level. Can we schedule 20 minutes to help your team get more value?`;
+        await client.query(
+          `INSERT INTO escalations (tenant_id, cs_account_id, owner_id, title, severity, status, description, metadata, created_by, updated_by)
+           VALUES ($1, $2, $3, $4, $5, 'open', $6, $7::jsonb, $8, $8)`,
+          [
+            actor.tenantId, csAccountId, account.csm_owner_id, `Low usage: ${input.metricLabel}`, result.severity,
+            `Usage ${input.current} is below the threshold ${input.threshold} (deficit ${result.deficit}).`,
+            JSON.stringify({ playbook: "low_usage_recovery", metricLabel: input.metricLabel, current: input.current, threshold: input.threshold, suggestedTemplate }), actor.userId
+          ]
+        );
+        await this.recordAuditLog(client, actor, audit, { action: "customer_success.low_usage.alert", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { metricLabel: input.metricLabel, severity: result.severity } });
+      }
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSMS-004: renewal reminder playbook — renewal + cross-functional tasks + risk visibility.
+  async startRenewalPlaybook(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: RenewalPlaybookRequestBody): Promise<CsRenewalPlaybookResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    return this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      const statusOptionId = await this.resolveOptionValueId(client, actor.tenantId, "cs-renewal-status", "not_started", "Renewal status");
+      const salesOwnerId = await this.ensureUserId(client, actor.tenantId, input.salesOwnerId ?? null, "INVALID_OWNER", "sales owner");
+      const financeOwnerId = await this.ensureUserId(client, actor.tenantId, input.financeOwnerId ?? null, "INVALID_OWNER", "finance owner");
+
+      const renewal = await client.query<{ id: string }>(
+        `INSERT INTO renewals (tenant_id, cs_account_id, owner_id, renewal_date, status_option_id, forecast_value, strategy, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8::jsonb, $9, $9) RETURNING id`,
+        [actor.tenantId, csAccountId, account.csm_owner_id, input.renewalDate, statusOptionId, input.forecastValue ?? null, "Renewal playbook", JSON.stringify({ playbook: "renewal", customerContact: getTrimmedNullableString(input.customerContact) }), actor.userId]
+      );
+      const renewalId = renewal.rows[0].id;
+
+      const taskIds: string[] = [];
+      const dueAt = new Date(input.renewalDate);
+      const addTask = async (assigneeId: string | null, title: string) => {
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO crm_tasks (tenant_id, entity_type, entity_id, owner_user_id, assignee_user_id, title, due_at, priority, status, metadata, created_by, updated_by)
+           VALUES ($1, 'customer_success_account', $2, $3, $4, $5, $6::timestamptz, 'high', 'open', $7::jsonb, $8, $8) RETURNING id`,
+          [actor.tenantId, csAccountId, account.csm_owner_id, assigneeId, title, isNaN(dueAt.getTime()) ? null : dueAt.toISOString(), JSON.stringify({ playbook: "renewal", renewalId }), actor.userId]
+        );
+        taskIds.push(inserted.rows[0].id);
+        if (assigneeId && assigneeId !== actor.userId) {
+          await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: assigneeId, title, message: `Renewal playbook task due ${input.renewalDate}.`, linkedRecord: { entityType: "customer_success_account", entityId: csAccountId } });
+        }
+      };
+      await addTask(account.csm_owner_id, "CSM: own the renewal and confirm health");
+      await addTask(salesOwnerId, "Sales: prepare the renewal quote");
+      await addTask(financeOwnerId, "Finance: validate billing and payment status");
+      // Customer-contact task stays with the CSM (external contact captured in the title/metadata).
+      await addTask(account.csm_owner_id, `Customer contact: engage ${getTrimmedNullableString(input.customerContact) ?? "the primary contact"}`);
+
+      const openEsc = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM escalations WHERE tenant_id = $1 AND cs_account_id = $2 AND deleted_at IS NULL AND status IN ('open', 'in_progress')`, [actor.tenantId, csAccountId]);
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.renewal_playbook.start", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { renewalId, renewalDate: input.renewalDate } });
+
+      return { renewalId, taskIds, healthScore: account.health_score, openEscalationCount: Number(openEsc.rows[0]?.count ?? "0") };
+    });
+  }
+
+  // CSMS-005: expansion-signal assessment (deterministic; AI recommender is a placeholder).
+  async assessExpansion(actor: ActorContext, csAccountId: string, input: CreateExpansionOpportunityRequestBody["signals"]): Promise<CsExpansionSignalsResponse> {
+    this.assertEnabled();
+    await this.databaseService.withClient((client) => this.getCsAccountState(client, actor.tenantId, csAccountId));
+    return { assessment: detectExpansionSignals(input), aiRecommendation: { available: false, message: "AI expansion-signal detection and recommendation will connect with the governed AI Gateway." } };
+  }
+
+  // CSMS-005: turn an expansion recommendation into a pipeline opportunity + notify the sales owner.
+  async createExpansionOpportunity(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: CreateExpansionOpportunityRequestBody): Promise<{ opportunityId: string; salesOwnerId: string | null }> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const name = input.name?.trim();
+    if (!name) {
+      throw new AppError(400, "An opportunity name is required.", undefined, "VALIDATION_ERROR");
+    }
+    return this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      const salesOwnerId = (await this.ensureUserId(client, actor.tenantId, input.salesOwnerId ?? null, "INVALID_OWNER", "sales owner")) ?? account.csm_owner_id;
+      const stageOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-pipeline", "qualification", "Opportunity stage");
+      const sourceOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-source", "expansion", "Opportunity source");
+      const outcomeOptionId = await this.resolveOptionValueId(client, actor.tenantId, "opportunity-outcome-status", "open", "Opportunity outcome status");
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO opportunities (tenant_id, account_id, owner_id, name, stage_option_id, source_option_id, outcome_status_option_id, amount, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $10) RETURNING id`,
+        [actor.tenantId, account.account_id, salesOwnerId, name, stageOptionId, sourceOptionId, outcomeOptionId, input.amount ?? null, JSON.stringify({ expansion: { sourceCsAccountId: csAccountId, signals: detectExpansionSignals(input.signals) } }), actor.userId]
+      );
+      const opportunityId = inserted.rows[0].id;
+      if (salesOwnerId && salesOwnerId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: salesOwnerId, title: `Expansion opportunity: ${name}`, message: "Customer success flagged an expansion signal and created this opportunity.", linkedRecord: { entityType: "opportunity", entityId: opportunityId } });
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.expansion.create_opportunity", resourceType: "opportunity", resourceId: opportunityId, status: "success", metadata: { csAccountId, salesOwnerId } });
+      return { opportunityId, salesOwnerId };
+    });
+  }
+
+  // ---- Persona 26 (Customer Success Manager — Enterprise) --------------------------------------
+
+  private async writeAccountMetadata(client: PoolClient, actor: ActorContext, csAccountId: string, mutate: (metadata: Record<string, unknown>) => Record<string, unknown>) {
+    const current = await client.query<{ metadata: Record<string, unknown> | null }>(`SELECT metadata FROM customer_success_accounts WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`, [csAccountId, actor.tenantId]);
+    if (current.rowCount === 0) {
+      throw new AppError(404, "Customer success account not found.", undefined, "CS_ACCOUNT_NOT_FOUND");
+    }
+    const next = mutate(getMetadata(current.rows[0].metadata));
+    await client.query(`UPDATE customer_success_accounts SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [csAccountId, actor.tenantId, JSON.stringify(next), actor.userId]);
+  }
+
+  // CSME-001: strategic success plan (structured sections stored on the success_plans row).
+  async upsertEnterpriseSuccessPlan(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: UpsertSuccessPlanEnterpriseRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      await this.getCsAccountState(client, actor.tenantId, csAccountId);
+      const sections: Record<string, string | null> = {};
+      for (const section of successPlanSections) {
+        if (section in input.sections) {
+          sections[section] = getTrimmedNullableString(input.sections[section]);
+        }
+      }
+      const existing = await client.query<{ id: string; metadata: Record<string, unknown> | null }>(`SELECT id, metadata FROM success_plans WHERE tenant_id = $1 AND cs_account_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1`, [actor.tenantId, csAccountId]);
+      const priorMeta = getMetadata(existing.rows[0]?.metadata);
+      const priorSections = getMetadata(priorMeta.enterprise as Record<string, unknown> | undefined);
+      const mergedSections = { ...(priorSections.sections as Record<string, unknown> | undefined ?? {}), ...sections };
+      const enterprise = {
+        sections: mergedSections,
+        reviewedWithCustomerAt: input.reviewWithCustomer ? new Date().toISOString() : (priorSections.reviewedWithCustomerAt ?? null),
+        updatedAt: new Date().toISOString()
+      };
+      const name = getTrimmedNullableString(input.name) ?? "Enterprise success plan";
+      if (existing.rows[0]) {
+        await client.query(`UPDATE success_plans SET name = $4, metadata = $5::jsonb, updated_by = $3 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [existing.rows[0].id, actor.tenantId, actor.userId, name, JSON.stringify({ ...priorMeta, enterprise })]);
+      } else {
+        await client.query(`INSERT INTO success_plans (tenant_id, cs_account_id, name, status, metadata, created_by, updated_by) VALUES ($1, $2, $3, 'active', $4::jsonb, $5, $5)`, [actor.tenantId, csAccountId, name, JSON.stringify({ enterprise }), actor.userId]);
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.success_plan", resourceType: "customer_success_account", resourceId: csAccountId, status: "success" });
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSME-002: schedule an executive business review.
+  async scheduleQbrReview(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: ScheduleQbrRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.getCsAccountState(client, actor.tenantId, csAccountId);
+      await client.query(
+        `INSERT INTO qbrs (tenant_id, cs_account_id, owner_id, title, qbr_type, status, scheduled_at, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, 'scheduled', $6::timestamptz, '{}'::jsonb, $7, $7)`,
+        [actor.tenantId, csAccountId, account.csm_owner_id, input.title.trim(), input.qbrType === "ebr" ? "ebr" : "qbr", input.scheduledDate, actor.userId]
+      );
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.qbr_schedule", resourceType: "customer_success_account", resourceId: csAccountId, status: "success" });
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSME-002: record the review content + action items on an existing QBR/EBR.
+  async recordQbrReview(actor: ActorContext, audit: AuditMetadata, csAccountId: string, qbrId: string, input: RecordQbrReviewRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    await this.databaseService.withTransaction(async (client) => {
+      const existing = await client.query<{ id: string; metadata: Record<string, unknown> | null }>(`SELECT id, metadata FROM qbrs WHERE id = $1 AND tenant_id = $2 AND cs_account_id = $3 AND deleted_at IS NULL LIMIT 1`, [qbrId, actor.tenantId, csAccountId]);
+      if (existing.rowCount === 0) {
+        throw new AppError(404, "QBR/EBR not found.", undefined, "QBR_NOT_FOUND");
+      }
+      const sections: Record<string, string> = {};
+      for (const section of reviewSections) {
+        const value = getTrimmedNullableString(input.sections[section as ReviewSection]);
+        if (value) sections[section] = value;
+      }
+      const actionItems = [] as Array<Record<string, unknown>>;
+      for (const item of input.actionItems ?? []) {
+        if (!item.description?.trim()) continue;
+        const ownerId = item.ownerId ? await this.ensureUserId(client, actor.tenantId, item.ownerId, "INVALID_OWNER", "action item owner") : null;
+        actionItems.push({ id: randomUUID(), description: item.description.trim(), owner: ownerId ? { id: ownerId } : null, dueDate: getTrimmedNullableString(item.dueDate), done: false });
+      }
+      const meta = getMetadata(existing.rows[0].metadata);
+      const review = { ...getMetadata(meta.review as Record<string, unknown> | undefined), sections, actionItems: actionItems.length > 0 ? actionItems : (getMetadata(meta.review as Record<string, unknown> | undefined).actionItems ?? []) };
+      const status = input.markCompleted ? "completed" : "scheduled";
+      await client.query(`UPDATE qbrs SET status = $4, summary = $5, metadata = $6::jsonb, updated_by = $3 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, [qbrId, actor.tenantId, actor.userId, status, sections.outcomes ?? null, JSON.stringify({ ...meta, review })]);
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.qbr_review", resourceType: "qbr", resourceId: qbrId, status: "success" });
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSME-003: strategic risk — owner + mitigation are mandatory; high risks escalate to leadership.
+  async recordStrategicRisk(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: RecordStrategicRiskRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    if (!strategicRiskTypes.includes(input.riskType)) {
+      throw new AppError(400, "Invalid strategic risk type.", undefined, "VALIDATION_ERROR");
+    }
+    if (!input.mitigationPlan?.trim()) {
+      throw new AppError(400, "A mitigation plan is required.", undefined, "VALIDATION_ERROR");
+    }
+    await this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      const ownerId = await this.ensureUserId(client, actor.tenantId, input.ownerId, "INVALID_OWNER", "risk owner");
+      if (!ownerId) {
+        throw new AppError(400, "A risk owner is required.", undefined, "VALIDATION_ERROR");
+      }
+      const escalate = requiresLeadershipEscalation(input.severity);
+      const escalation = await client.query<{ id: string }>(
+        `INSERT INTO escalations (tenant_id, cs_account_id, owner_id, title, severity, status, description, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, 'open', $6, $7::jsonb, $8, $8) RETURNING id`,
+        [
+          actor.tenantId, csAccountId, ownerId, `Strategic risk: ${input.riskType.replace(/_/g, " ")}`, input.severity,
+          getTrimmedNullableString(input.description),
+          JSON.stringify({ riskType: input.riskType, mitigationPlan: input.mitigationPlan.trim(), leadershipEscalated: escalate }), actor.userId
+        ]
+      );
+      if (escalate) {
+        // High/critical strategic risk notifies the account's CSM owner as the leadership signal.
+        const recipient = account.csm_owner_id ?? ownerId;
+        if (recipient && recipient !== actor.userId) {
+          await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "customer_escalation", recipientUserId: recipient, title: `High strategic risk: ${input.riskType.replace(/_/g, " ")}`, message: input.mitigationPlan.trim(), linkedRecord: { entityType: "customer_success_account", entityId: csAccountId } });
+        }
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.strategic_risk", resourceType: "escalation", resourceId: escalation.rows[0].id, status: "success", metadata: { riskType: input.riskType, severity: input.severity, leadershipEscalated: escalate } });
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+
+  // CSME-004: renewal strategy — collaborative renewal plan + AI-stand-in probability prediction.
+  async planRenewalStrategy(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: RenewalStrategyRequestBody): Promise<CsRenewalStrategyResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    const prediction = predictRenewalProbability(input.factors);
+    return this.databaseService.withTransaction(async (client) => {
+      const account = await this.loadCsAccountFull(client, actor.tenantId, csAccountId);
+      const statusOptionId = await this.resolveOptionValueId(client, actor.tenantId, "cs-renewal-status", "in_progress", "Renewal status");
+      const salesOwnerId = await this.ensureUserId(client, actor.tenantId, input.salesOwnerId ?? null, "INVALID_OWNER", "sales owner");
+      const strategyMeta = {
+        commercialTerms: getTrimmedNullableString(input.commercialTerms),
+        valueDelivered: getTrimmedNullableString(input.valueDelivered),
+        stakeholders: getTrimmedNullableString(input.stakeholders),
+        risks: getTrimmedNullableString(input.risks),
+        expansionPotential: getTrimmedNullableString(input.expansionPotential),
+        prediction,
+        healthScore: account.health_score,
+        salesOwnerId: salesOwnerId ?? null
+      };
+      const renewal = await client.query<{ id: string }>(
+        `INSERT INTO renewals (tenant_id, cs_account_id, owner_id, renewal_date, status_option_id, probability, strategy, metadata, created_by, updated_by)
+         VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8::jsonb, $9, $9) RETURNING id`,
+        [actor.tenantId, csAccountId, account.csm_owner_id, input.renewalDate, statusOptionId, prediction.probability, "Enterprise renewal strategy", JSON.stringify({ playbook: "renewal_strategy", ...strategyMeta }), actor.userId]
+      );
+      if (salesOwnerId && salesOwnerId !== actor.userId) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, { notificationType: "record_assignment", recipientUserId: salesOwnerId, title: "Renewal strategy — collaborate", message: `Renewal ${input.renewalDate}, predicted ${prediction.probability}% (${prediction.band}).`, linkedRecord: { entityType: "customer_success_account", entityId: csAccountId } });
+      }
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.renewal_strategy", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { probability: prediction.probability } });
+      return { renewalId: renewal.rows[0].id, prediction, aiPrediction: { available: false, message: "AI renewal-probability prediction will connect with the governed AI Gateway; a deterministic prediction is shown meanwhile." } };
+    });
+  }
+
+  // CSME-005: advocacy readiness assessment (deterministic; AI recommender is a placeholder).
+  async assessAdvocacy(actor: ActorContext, csAccountId: string, input: AssessAdvocacyRequestBody) {
+    this.assertEnabled();
+    await this.databaseService.withClient((client) => this.getCsAccountState(client, actor.tenantId, csAccountId));
+    return { readiness: computeAdvocacyReadiness(input.factors), aiRecommendation: { available: false as const, message: "AI advocacy-readiness detection will connect with the governed AI Gateway." } };
+  }
+
+  // CSME-005: create an advocacy request with consent tracking.
+  async createAdvocacyRequest(actor: ActorContext, audit: AuditMetadata, csAccountId: string, input: CreateAdvocacyRequestBody): Promise<CustomerSuccessAccountResponse> {
+    this.assertEnabled();
+    this.assertChildMutation(actor);
+    if (!input.requestType?.trim()) {
+      throw new AppError(400, "An advocacy request type is required.", undefined, "VALIDATION_ERROR");
+    }
+    const readiness = computeAdvocacyReadiness(input.factors);
+    await this.databaseService.withTransaction(async (client) => {
+      await this.writeAccountMetadata(client, actor, csAccountId, (metadata) => ({
+        ...metadata,
+        advocacy: {
+          requestType: input.requestType.trim(),
+          readinessScore: readiness.score,
+          consentStatus: "pending",
+          notes: getTrimmedNullableString(input.notes),
+          requestedBy: { id: actor.userId, displayName: actor.displayName, email: actor.email },
+          requestedAt: new Date().toISOString()
+        }
+      }));
+      await this.recordAuditLog(client, actor, audit, { action: "customer_success.enterprise.advocacy_request", resourceType: "customer_success_account", resourceId: csAccountId, status: "success", metadata: { requestType: input.requestType.trim(), readinessScore: readiness.score } });
+    });
+    return this.getAccount(actor, csAccountId);
+  }
+}
+
+interface AdoptionCampaignRow {
+  id: string;
+  name: string;
+  status: string;
+  criteria: Record<string, unknown> | null;
+  content_template: string | null;
+  metrics: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
 }
 
 interface CsAccountRow {

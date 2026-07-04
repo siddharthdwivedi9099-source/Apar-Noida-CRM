@@ -9,9 +9,11 @@ import type {
 } from "@crm/types";
 import { BadgeCheck, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import { buildQueryString, formatDateTime, selectClassName, textareaClassName } from "@/lib/crm";
@@ -52,18 +54,6 @@ function getLinkedRecordHref(input: { entityType: string; entityId: string } | n
     default:
       return null;
   }
-}
-
-function getApprovalBadgeVariant(status: string) {
-  if (status === "approved") {
-    return "success" as const;
-  }
-
-  if (status === "pending") {
-    return "default" as const;
-  }
-
-  return "muted" as const;
 }
 
 export function ApprovalsPage() {
@@ -347,7 +337,7 @@ export function ApprovalsPage() {
                 description="Adjust the scope, status, or type to inspect other approval requests."
               />
             ) : (
-              approvalsResponse?.approvals.map((approval) => (
+              <ScrollableList items={approvalsResponse?.approvals ?? []} label="approvals" renderItem={(approval) => (
                 <Link
                   key={approval.id}
                   to={`/approvals/${approval.id}`}
@@ -358,7 +348,7 @@ export function ApprovalsPage() {
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={getApprovalBadgeVariant(approval.status)}>{approval.status}</Badge>
+                    <StatusPill value={approval.status}>{approval.status}</StatusPill>
                     <Badge variant="muted">
                       {approvalsResponse?.availableTypes.find((typeDefinition) => typeDefinition.key === approval.approvalType)?.label ??
                         toTitleCaseLabel(approval.approvalType)}
@@ -383,7 +373,7 @@ export function ApprovalsPage() {
                     </div>
                   </div>
                 </Link>
-              ))
+              )} />
             )}
           </CardContent>
         </Card>
@@ -410,9 +400,7 @@ export function ApprovalsPage() {
               <>
                 <div className="space-y-4 rounded-[1.5rem] border border-border/70 bg-background/70 p-6">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={getApprovalBadgeVariant(selectedApproval.status)}>
-                      {selectedApproval.status}
-                    </Badge>
+                    <StatusPill value={selectedApproval.status}>{selectedApproval.status}</StatusPill>
                     <Badge variant="muted">
                       {approvalsResponse?.availableTypes.find((typeDefinition) => typeDefinition.key === selectedApproval.approvalType)?.label ??
                         toTitleCaseLabel(selectedApproval.approvalType)}
@@ -545,11 +533,9 @@ export function ApprovalsPage() {
                       className="rounded-[1.35rem] border border-border/70 bg-background/70 p-4"
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={getApprovalBadgeVariant(historyEntry.toStatus ?? "pending")}>
-                          {historyEntry.action}
-                        </Badge>
+                        <StatusPill value={historyEntry.toStatus ?? "pending"}>{historyEntry.action}</StatusPill>
                         {historyEntry.toStatus ? (
-                          <Badge variant="muted">{historyEntry.toStatus}</Badge>
+                          <StatusPill size="sm" value={historyEntry.toStatus}>{historyEntry.toStatus}</StatusPill>
                         ) : null}
                       </div>
                       <p className="mt-3 text-sm font-medium">

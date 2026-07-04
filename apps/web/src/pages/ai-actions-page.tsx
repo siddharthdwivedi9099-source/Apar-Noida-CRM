@@ -7,9 +7,11 @@ import type {
   AiActionSummary
 } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { ScrollableList } from "@/components/crm/scrollable-list";
 import { apiRequest } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
@@ -124,7 +126,7 @@ export function AiActionsPage() {
           <CardHeader><CardTitle>Actions</CardTitle><CardDescription>Select an AI action to run.</CardDescription></CardHeader>
           <CardContent className="space-y-2">
             <ul className="space-y-2">
-              {visibleActions.map((action) => (
+              <ScrollableList items={visibleActions} label="actions" renderItem={(action) => (
                 <li key={action.key}>
                   <button type="button" onClick={() => { setSelected(action); setVariableValues({}); setRunResult(null); }} className={`w-full rounded-[1rem] border p-3 text-left ${selected?.key === action.key ? "border-primary bg-primary/5" : "border-border/60 bg-background/75"} ${action.permitted ? "" : "opacity-60"}`}>
                     <div className="flex flex-wrap items-center gap-2">
@@ -137,7 +139,7 @@ export function AiActionsPage() {
                     <p className="mt-1 text-xs text-muted-foreground">{action.description}</p>
                   </button>
                 </li>
-              ))}
+              )} />
             </ul>
           </CardContent>
         </Card>
@@ -170,7 +172,7 @@ export function AiActionsPage() {
               <CardHeader><CardTitle>Result</CardTitle><CardDescription>Governed placeholder output from the gateway.</CardDescription></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge>{runResult.status}</Badge>
+                  <StatusPill value={runResult.status}>{runResult.status}</StatusPill>
                   <Badge variant="muted">{runResult.provider}</Badge>
                   <Badge variant="muted">{runResult.model}</Badge>
                   {runResult.requiresReview ? <Badge>Review: {runResult.reviewStatus}</Badge> : null}
@@ -197,8 +199,8 @@ export function AiActionsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="muted">{run.module}</Badge>
                         <span className="font-medium">{run.actionKey}</span>
-                        <Badge variant="muted">{run.status}</Badge>
-                        {run.requiresReview ? <Badge variant="muted">{run.reviewStatus}</Badge> : null}
+                        <StatusPill size="sm" value={run.status}>{run.status}</StatusPill>
+                        {run.requiresReview ? <StatusPill size="sm" value={run.reviewStatus}>{run.reviewStatus}</StatusPill> : null}
                         <span className="text-xs text-muted-foreground">{formatDateTime(run.createdAt)}</span>
                       </div>
                     </li>

@@ -11,10 +11,25 @@ import {
   presalesPriorities,
   presalesRequestSortFields,
   presalesRequirementCategories,
+  type BdConvertRequestBody,
+  type BdHandoffRequestBody,
+  type BdImportRequestBody,
+  type CreateBdMarketSignalRequestBody,
+  type CreateBdPartnerReferralRequestBody,
   type CreateBdTargetAccountRequestBody,
+  type CreateBdTerritoryPlanRequestBody,
+  type SubmitBdTerritoryPlanReviewRequestBody,
+  type UpdateBdPartnerReferralRequestBody,
   type CreatePresalesRequestRequestBody,
   type BdTargetAccountListQuery,
+  type PresalesDemoFeedbackRequestBody,
+  type PresalesDemoWorkspaceRequestBody,
+  type PresalesFitmentReviewRequestBody,
+  type PresalesGapTaskRequestBody,
+  type PresalesPocPlanRequestBody,
+  type PresalesPocSignOffRequestBody,
   type PresalesRequestListQuery,
+  type PresalesTriageRequestBody,
   type UpdateBdTargetAccountRequestBody,
   type UpdatePresalesRequestRequestBody
 } from "@crm/types";
@@ -52,9 +67,27 @@ const bdStakeholderSchema = z.object({
   influenceLevel: z.enum(bdInfluenceLevels).optional(),
   relationshipStrength: z.enum(bdRelationshipStrengths).optional(),
   isExecutive: z.boolean().optional(),
+  buyerRoleKey: z.string().min(2).max(160).nullable().optional(),
   lastEngagementAt: z.string().datetime().nullable().optional(),
   engagementNotes: z.string().max(2000).nullable().optional()
 });
+
+const bdSegmentationFields = {
+  priorityKey: z.string().min(2).max(160).nullable().optional(),
+  technologies: z.array(z.string().min(1).max(160)).max(30).optional()
+};
+
+const bdEngagementSignalsSchema = z
+  .object({
+    opens: z.coerce.number().int().min(0).optional(),
+    clicks: z.coerce.number().int().min(0).optional(),
+    websiteVisits: z.coerce.number().int().min(0).optional(),
+    eventAttendance: z.coerce.number().int().min(0).optional(),
+    replies: z.coerce.number().int().min(0).optional(),
+    meetings: z.coerce.number().int().min(0).optional(),
+    stakeholderEngagement: z.coerce.number().int().min(0).optional()
+  })
+  .strict();
 
 const bdListQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
@@ -86,6 +119,7 @@ const bdCreateSchema = z.object({
   nextStep: z.string().max(4000).nullable().optional(),
   isPartnership: z.boolean().optional(),
   stakeholders: z.array(bdStakeholderSchema).max(100).optional(),
+  ...bdSegmentationFields,
   metadata: recordSchema.optional()
 });
 
@@ -105,10 +139,92 @@ const bdUpdateSchema = z.object({
   nextStep: z.string().max(4000).nullable().optional(),
   isPartnership: z.boolean().optional(),
   stakeholders: z.array(bdStakeholderSchema).max(100).optional(),
+  ...bdSegmentationFields,
+  sequence: z
+    .object({
+      paused: z.boolean().optional(),
+      pauseReason: z.string().max(2000).nullable().optional(),
+      completeStepKey: z.string().min(1).max(160).optional(),
+      logReply: z.boolean().optional()
+    })
+    .optional(),
+  engagementSignals: bdEngagementSignalsSchema.optional(),
   metadata: recordSchema.optional()
 });
 
 const targetAccountIdSchema = z.object({ targetAccountId: uuidSchema });
+
+const bdImportSchema = z.object({
+  accounts: z
+    .array(
+      z.object({
+        name: z.string().min(2).max(200),
+        accountId: uuidSchema.nullable().optional(),
+        industry: z.string().max(200).nullable().optional(),
+        region: z.string().max(200).nullable().optional(),
+        tierKey: z.string().min(2).max(160).nullable().optional(),
+        stageKey: z.string().min(2).max(160).nullable().optional(),
+        priorityKey: z.string().min(2).max(160).nullable().optional(),
+        technologies: z.array(z.string().min(1).max(160)).max(30).optional(),
+        annualRevenue: z.coerce.number().min(0).nullable().optional(),
+        employeeCount: z.coerce.number().int().min(0).nullable().optional()
+      })
+    )
+    .min(1)
+    .max(200)
+});
+
+const bdConvertSchema = z.object({
+  opportunityName: z.string().max(200).nullable().optional(),
+  stageKey: z.string().min(2).max(160),
+  amount: z.coerce.number().min(0),
+  expectedCloseDate: dateOnlySchema,
+  nextStep: z.string().min(1).max(4000),
+  ownerId: uuidSchema.nullable().optional()
+});
+
+const bdHandoffSchema = z.object({
+  salesOwnerId: uuidSchema,
+  recommendedApproach: z.string().min(1).max(8000),
+  painPoints: z.string().max(8000).nullable().optional(),
+  nextMeetingAt: z.string().datetime().nullable().optional(),
+  requireApproval: z.boolean().optional(),
+  approverUserId: uuidSchema.nullable().optional()
+});
+
+// ---- Persona 11 (BDM) schemas ------------------------------------------------------------------
+const territoryPlanSchema = z.object({
+  name: z.string().min(2).max(200),
+  ownerId: uuidSchema.nullable().optional(),
+  geography: z.string().max(2000).nullable().optional(),
+  targetSegments: z.string().max(8000).nullable().optional(),
+  namedAccounts: z.string().max(8000).nullable().optional(),
+  partnerCoverage: z.string().max(8000).nullable().optional(),
+  campaigns: z.string().max(8000).nullable().optional(),
+  pipelineTarget: z.coerce.number().min(0).nullable().optional(),
+  revenueTarget: z.coerce.number().min(0).nullable().optional()
+});
+const territoryPlanReviewSchema = z.object({ reviewerUserId: uuidSchema, note: z.string().max(4000).nullable().optional() });
+const marketSignalSchema = z.object({
+  signalTypeKey: z.string().min(2).max(160),
+  content: z.string().min(1).max(8000),
+  linkedEntityType: z.enum(["account", "opportunity", "campaign"]).nullable().optional(),
+  linkedEntityId: uuidSchema.nullable().optional()
+});
+const partnerReferralSchema = z.object({
+  customerName: z.string().min(1).max(200),
+  partnerAccountId: uuidSchema.nullable().optional(),
+  referralSource: z.string().max(2000).nullable().optional(),
+  referredValue: z.coerce.number().min(0).nullable().optional(),
+  notes: z.string().max(8000).nullable().optional()
+});
+const partnerReferralUpdateSchema = z.object({
+  converted: z.boolean().optional(),
+  commissionEligible: z.boolean().optional(),
+  referredValue: z.coerce.number().min(0).nullable().optional(),
+  opportunityId: uuidSchema.nullable().optional(),
+  notes: z.string().max(8000).nullable().optional()
+});
 
 const presalesRequirementSchema = z.object({
   id: uuidSchema.optional(),
@@ -118,7 +234,59 @@ const presalesRequirementSchema = z.object({
   response: z.string().max(4000).nullable().optional(),
   complianceStatus: z.enum(presalesComplianceStatuses).optional(),
   priority: z.enum(presalesPriorities).optional(),
-  sortOrder: z.coerce.number().int().min(0).optional()
+  sortOrder: z.coerce.number().int().min(0).optional(),
+  customization: z.string().max(4000).nullable().optional(),
+  integration: z.string().max(4000).nullable().optional(),
+  dependency: z.string().max(4000).nullable().optional(),
+  risk: z.string().max(4000).nullable().optional()
+});
+
+// ---- Persona 14 (Presales Consultant) action schemas -------------------------------------------
+const nullableText = (max: number) => z.string().max(max).nullable().optional();
+const presalesTriageSchema = z.object({
+  action: z.enum(["accepted", "rejected", "info_requested"]),
+  note: nullableText(4000)
+});
+const presalesDemoWorkspaceSchema = z.object({
+  painPoints: nullableText(8000),
+  useCases: nullableText(8000),
+  audience: nullableText(4000),
+  modules: nullableText(4000),
+  competitors: nullableText(4000),
+  objections: nullableText(8000),
+  expectedOutcome: nullableText(4000),
+  demoFlowNotes: nullableText(8000),
+  checklist: z.array(z.string().max(160)).max(50).optional()
+});
+const presalesDemoFeedbackSchema = z.object({
+  attendees: nullableText(4000),
+  modulesShown: nullableText(4000),
+  questions: nullableText(8000),
+  objections: nullableText(8000),
+  positiveSignals: nullableText(8000),
+  gaps: nullableText(8000),
+  nextSteps: nullableText(8000),
+  opportunityStageKey: z.string().min(1).max(160).nullable().optional()
+});
+const presalesGapTaskSchema = z.object({
+  requirementId: uuidSchema,
+  assigneeId: uuidSchema.nullable().optional(),
+  dueAt: z.string().datetime().nullable().optional(),
+  asChangeRequest: z.boolean().optional()
+});
+const presalesFitmentReviewSchema = z.object({ reviewerId: uuidSchema, note: nullableText(4000) });
+const presalesPocPlanSchema = z.object({
+  objective: nullableText(4000),
+  scope: nullableText(8000),
+  successCriteria: nullableText(8000),
+  timeline: nullableText(4000),
+  responsibilities: nullableText(8000),
+  demoData: nullableText(4000)
+});
+const presalesPocSignOffSchema = z.object({
+  outcome: z.enum(["success", "fail"]),
+  customerFeedback: nullableText(8000),
+  probability: z.coerce.number().int().min(0).max(100).nullable().optional()
 });
 
 const presalesListQuerySchema = z.object({
@@ -282,12 +450,126 @@ export function createBusinessDevelopmentRouter({ databaseService }: RouterDepen
     })
   );
 
+  router.post(
+    "/import",
+    requirePermissions({ oneOf: bdCreatePermissions }),
+    validateRequest({ body: bdImportSchema }),
+    asyncHandler(async (request, response) => {
+      response
+        .status(201)
+        .json(
+          await service.importBdTargetAccounts(request.auth!, getAuditMetadata(request), request.body as BdImportRequestBody)
+        );
+    })
+  );
+
+  // ---- Persona 11 (BDM) routes (static paths registered before /:targetAccountId) -------------
+  router.get(
+    "/territory-plans",
+    requirePermissions({ oneOf: bdReadPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.listTerritoryPlans(request.auth!));
+    })
+  );
+  router.post(
+    "/territory-plans",
+    requirePermissions({ oneOf: bdCreatePermissions }),
+    validateRequest({ body: territoryPlanSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(await service.createTerritoryPlan(request.auth!, getAuditMetadata(request), request.body as CreateBdTerritoryPlanRequestBody));
+    })
+  );
+  router.post(
+    "/territory-plans/:planId/review",
+    requirePermissions({ oneOf: bdUpdatePermissions }),
+    validateRequest({ params: z.object({ planId: uuidSchema }), body: territoryPlanReviewSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.submitTerritoryPlanReview(request.auth!, getAuditMetadata(request), request.params.planId, request.body as SubmitBdTerritoryPlanReviewRequestBody));
+    })
+  );
+
+  router.get(
+    "/market-signals",
+    requirePermissions({ oneOf: bdReadPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.listMarketSignals(request.auth!));
+    })
+  );
+  router.post(
+    "/market-signals",
+    requirePermissions({ oneOf: bdCreatePermissions }),
+    validateRequest({ body: marketSignalSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(await service.createMarketSignal(request.auth!, getAuditMetadata(request), request.body as CreateBdMarketSignalRequestBody));
+    })
+  );
+
+  router.get(
+    "/partner-referrals",
+    requirePermissions({ oneOf: bdReadPermissions }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.listPartnerReferrals(request.auth!));
+    })
+  );
+  router.post(
+    "/partner-referrals",
+    requirePermissions({ oneOf: bdCreatePermissions }),
+    validateRequest({ body: partnerReferralSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(await service.createPartnerReferral(request.auth!, getAuditMetadata(request), request.body as CreateBdPartnerReferralRequestBody));
+    })
+  );
+  router.patch(
+    "/partner-referrals/:referralId",
+    requirePermissions({ oneOf: bdUpdatePermissions }),
+    validateRequest({ params: z.object({ referralId: uuidSchema }), body: partnerReferralUpdateSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.updatePartnerReferral(request.auth!, getAuditMetadata(request), request.params.referralId, request.body as UpdateBdPartnerReferralRequestBody));
+    })
+  );
+
   router.get(
     "/:targetAccountId",
     requirePermissions({ oneOf: bdReadPermissions }),
     validateRequest({ params: targetAccountIdSchema }),
     asyncHandler(async (request, response) => {
       response.status(200).json(await service.getBdTargetAccount(request.auth!, request.params.targetAccountId));
+    })
+  );
+
+  router.post(
+    "/:targetAccountId/convert",
+    requirePermissions({ oneOf: bdUpdatePermissions }),
+    validateRequest({ params: targetAccountIdSchema, body: bdConvertSchema }),
+    asyncHandler(async (request, response) => {
+      response
+        .status(201)
+        .json(
+          await service.convertBdTargetAccount(
+            request.auth!,
+            getAuditMetadata(request),
+            request.params.targetAccountId,
+            request.body as BdConvertRequestBody
+          )
+        );
+    })
+  );
+
+  router.post(
+    "/:targetAccountId/handoff",
+    requirePermissions({ oneOf: bdUpdatePermissions }),
+    validateRequest({ params: targetAccountIdSchema, body: bdHandoffSchema }),
+    asyncHandler(async (request, response) => {
+      response
+        .status(201)
+        .json(
+          await service.handoffBdTargetAccount(
+            request.auth!,
+            getAuditMetadata(request),
+            request.params.targetAccountId,
+            request.body as BdHandoffRequestBody
+          )
+        );
     })
   );
 
@@ -402,6 +684,64 @@ export function createPresalesRouter({ databaseService }: RouterDependencies) {
       response
         .status(200)
         .json(await service.deletePresalesRequest(request.auth!, getAuditMetadata(request), request.params.requestId));
+    })
+  );
+
+  // ---- Persona 14 (Presales Consultant) delivery actions ----------------------------------------
+  router.post(
+    "/:requestId/triage",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesTriageSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.triagePresalesRequest(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesTriageRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/demo-workspace",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesDemoWorkspaceSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.upsertPresalesDemoWorkspace(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesDemoWorkspaceRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/demo-feedback",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesDemoFeedbackSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.capturePresalesDemoFeedback(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesDemoFeedbackRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/fitment/gap-task",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesGapTaskSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(await service.createPresalesGapTask(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesGapTaskRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/fitment/review",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesFitmentReviewSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.requestPresalesFitmentReview(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesFitmentReviewRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/poc",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesPocPlanSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.upsertPresalesPocPlan(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesPocPlanRequestBody));
+    })
+  );
+  router.post(
+    "/:requestId/poc/sign-off",
+    requirePermissions({ oneOf: presalesUpdatePermissions }),
+    validateRequest({ params: presalesRequestIdSchema, body: presalesPocSignOffSchema }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(await service.signOffPresalesPoc(request.auth!, getAuditMetadata(request), request.params.requestId, request.body as PresalesPocSignOffRequestBody));
     })
   );
 

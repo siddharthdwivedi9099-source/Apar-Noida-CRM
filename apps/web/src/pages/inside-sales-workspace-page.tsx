@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
+  ConvertLeadRequestBody,
   CreateCrmTaskRequestBody,
   InsideSalesWorkspaceResponse,
   SalesWorkspaceLeadSummary,
   SalesWorkspaceOptionsResponse,
   SalesWorkspaceTaskSummary,
+  ScheduleLeadMeetingRequestBody,
   UpdateLeadWorkspaceRequestBody
 } from "@crm/types";
 import { Link } from "react-router-dom";
 import { LeadWorkflowWorkbench } from "@/components/sales/lead-workflow-workbench";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
@@ -30,6 +33,24 @@ function getUniqueLeads(leads: SalesWorkspaceLeadSummary[]) {
   }
 
   return Array.from(map.values());
+}
+
+function getPriorityLabel(priority: SalesWorkspaceLeadSummary["priority"]) {
+  switch (priority) {
+    case "hot":
+      return "🔥 Hot";
+    case "high":
+      return "High";
+    case "medium":
+      return "Medium";
+    case "low":
+    default:
+      return "Low";
+  }
+}
+
+function getSlaBadgeVariant(status: NonNullable<SalesWorkspaceLeadSummary["slaStatus"]>) {
+  return status === "met" || status === "ok" ? "success" : "default";
 }
 
 interface LeadQueueCardProps {
@@ -68,19 +89,26 @@ function LeadQueueCard({
               onClick={() => onSelect(lead.id)}
               className={cn(
                 "w-full rounded-[1.25rem] border border-border/70 bg-background/75 p-4 text-left shadow-sm transition hover:border-primary/50",
-                selectedLeadId === lead.id ? "border-primary bg-primary/5" : ""
+                selectedLeadId === lead.id ? "border-primary bg-primary/5" : "",
+                lead.isHot ? "ring-2 ring-rose-400/70" : ""
               )}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>{lead.status?.label ?? "Status missing"}</Badge>
+                <StatusPill tone={lead.isHot ? "hot" : undefined} value={lead.priority}>{getPriorityLabel(lead.priority)}</StatusPill>
+                <StatusPill value={lead.status?.key ?? lead.status?.label}>{lead.status?.label ?? "No status"}</StatusPill>
+                {lead.source ? <Badge variant="muted">{lead.source.label}</Badge> : null}
                 {lead.workspace.callDisposition ? <Badge variant="muted">{lead.workspace.callDisposition.label}</Badge> : null}
-                {lead.workspace.handoffStatus ? <Badge variant="muted">{lead.workspace.handoffStatus.label}</Badge> : null}
+                {lead.slaStatus ? <Badge variant={getSlaBadgeVariant(lead.slaStatus)}>SLA {lead.slaStatus}</Badge> : null}
               </div>
               <p className="mt-3 font-semibold">{lead.fullName}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{lead.companyName}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {lead.companyName}
+                {lead.productSummary ? ` • ${lead.productSummary}` : ""}
+              </p>
               <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {lead.workspace.qualificationChecklistCompletionCount}/{lead.workspace.qualificationChecklistTotal} BANT
-                complete • {lead.overdueTaskCount} overdue tasks
+                Score {lead.score ?? "—"}
+                {lead.scoreGrade ? ` (${lead.scoreGrade})` : ""} • SLA due {formatDateTime(lead.slaDueAt)} •{" "}
+                {lead.overdueTaskCount} overdue
               </p>
             </button>
           ))
@@ -119,8 +147,8 @@ function TaskQueueCard({ title, description, tasks, onSelectLead, emptyMessage }
               className="w-full rounded-[1.25rem] border border-border/70 bg-background/75 p-4 text-left shadow-sm transition hover:border-primary/50"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>{task.status}</Badge>
-                <Badge variant="muted">{task.priority}</Badge>
+                <StatusPill size="sm" value={task.status}>{task.status}</StatusPill>
+                <StatusPill size="sm" value={task.priority}>{task.priority}</StatusPill>
               </div>
               <p className="mt-3 font-semibold">{task.title}</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -224,6 +252,48 @@ export function InsideSalesWorkspacePage() {
     }
 
     await apiRequest(`/records/lead/${leadId}/tasks`, {
+      method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
+  async function handleScheduleMeeting(leadId: string, payload: ScheduleLeadMeetingRequestBody) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/sales-workspaces/leads/${leadId}/meetings`, {
+      method: "POST",
+      accessToken,
+      body: payload
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
+  async function handleMarkNoShow(leadId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/sales-workspaces/leads/${leadId}/no-show`, {
+      method: "POST",
+      accessToken,
+      body: {}
+    });
+    await loadWorkspace();
+    setSelectedLeadId(leadId);
+  }
+
+  async function handleConvertLead(leadId: string, payload: ConvertLeadRequestBody) {
+    if (!accessToken) {
+      return;
+    }
+
+    await apiRequest(`/leads/${leadId}/convert`, {
       method: "POST",
       accessToken,
       body: payload
@@ -342,10 +412,15 @@ export function InsideSalesWorkspacePage() {
           canUpdateWorkflow={canUpdateWorkflow}
           canAssignOwner={canAssignOwner}
           canCreateTask={canCreateTask}
+          canScheduleMeeting={canUpdateWorkflow}
+          canConvertLead={canUpdateWorkflow}
           allowedTaskTypes={["call", "follow_up"]}
           defaultTaskType="follow_up"
           onSaveWorkflow={handleSaveWorkflow}
           onCreateTask={handleCreateTask}
+          onScheduleMeeting={handleScheduleMeeting}
+          onMarkNoShow={handleMarkNoShow}
+          onConvertLead={handleConvertLead}
         />
       )}
 

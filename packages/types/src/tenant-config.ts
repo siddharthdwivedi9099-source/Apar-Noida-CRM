@@ -606,7 +606,9 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "working", label: "Working", color: "#0ea5e9", sortOrder: 1 },
       { key: "qualified", label: "Qualified", color: "#14b8a6", sortOrder: 2 },
       { key: "nurturing", label: "Nurturing", color: "#a855f7", sortOrder: 3 },
-      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 4 }
+      { key: "meeting_scheduled", label: "Meeting Scheduled", color: "#0ea5e9", sortOrder: 4 },
+      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 5 },
+      { key: "converted", label: "Converted", color: "#22c55e", sortOrder: 6 }
     ],
     metadata: {
       seeded: true,
@@ -678,13 +680,57 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     description: "Default call outcomes for SDR and inside-sales call logging.",
     values: [
       { key: "pending", label: "Pending", color: "#64748b", sortOrder: 0, isDefault: true },
-      { key: "connected", label: "Connected", color: "#22c55e", sortOrder: 1 },
-      { key: "voicemail", label: "Voicemail", color: "#0ea5e9", sortOrder: 2 },
-      { key: "no_answer", label: "No Answer", color: "#f59e0b", sortOrder: 3 },
-      { key: "follow_up_needed", label: "Follow-up Needed", color: "#8b5cf6", sortOrder: 4 },
-      { key: "meeting_booked", label: "Meeting Booked", color: "#14b8a6", sortOrder: 5 },
-      { key: "not_interested", label: "Not Interested", color: "#ef4444", sortOrder: 6 },
-      { key: "disqualified", label: "Disqualified", color: "#b91c1c", sortOrder: 7 }
+      {
+        key: "connected",
+        label: "Connected",
+        color: "#22c55e",
+        sortOrder: 1,
+        metadata: { nextStep: { taskType: "follow_up", offsetHours: 48, title: "Post-call follow-up" } }
+      },
+      {
+        key: "voicemail",
+        label: "Voicemail",
+        color: "#0ea5e9",
+        sortOrder: 2,
+        metadata: { nextStep: { taskType: "call", offsetHours: 24, title: "Follow up after voicemail" } }
+      },
+      {
+        key: "no_answer",
+        label: "No Answer",
+        color: "#f59e0b",
+        sortOrder: 3,
+        metadata: { nextStep: { taskType: "call", offsetHours: 4, title: "Retry call — no answer" } }
+      },
+      {
+        key: "wrong_number",
+        label: "Wrong Number",
+        color: "#9ca3af",
+        sortOrder: 4
+      },
+      {
+        key: "follow_up_needed",
+        label: "Follow-up Needed",
+        color: "#8b5cf6",
+        sortOrder: 5,
+        metadata: { nextStep: { taskType: "follow_up", offsetHours: 24, title: "Follow-up needed" } }
+      },
+      {
+        key: "callback_requested",
+        label: "Callback Requested",
+        color: "#a855f7",
+        sortOrder: 6,
+        metadata: { nextStep: { taskType: "call", offsetHours: 24, title: "Callback requested by lead" } }
+      },
+      {
+        key: "interested",
+        label: "Interested",
+        color: "#16a34a",
+        sortOrder: 7,
+        metadata: { nextStep: { taskType: "follow_up", offsetHours: 48, title: "Advance interested lead" } }
+      },
+      { key: "meeting_booked", label: "Meeting Booked", color: "#14b8a6", sortOrder: 8 },
+      { key: "not_interested", label: "Not Interested", color: "#ef4444", sortOrder: 9 },
+      { key: "disqualified", label: "Disqualified", color: "#b91c1c", sortOrder: 10 }
     ],
     metadata: {
       seeded: true,
@@ -922,7 +968,8 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "partner", label: "Partner", color: "#6366f1", sortOrder: 4 },
       { key: "reseller", label: "Reseller", color: "#64748b", sortOrder: 5 },
       { key: "renewal", label: "Renewal", color: "#b45309", sortOrder: 6 },
-      { key: "expansion", label: "Expansion", color: "#f97316", sortOrder: 7 }
+      { key: "expansion", label: "Expansion", color: "#f97316", sortOrder: 7 },
+      { key: "business_development", label: "Business Development", color: "#0891b2", sortOrder: 8 }
     ],
     metadata: {
       seeded: true,
@@ -1048,6 +1095,26 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "billing", label: "Billing", color: "#8b5cf6", sortOrder: 2 },
       { key: "integrations", label: "Integrations", color: "#14b8a6", sortOrder: 3 },
       { key: "faq", label: "FAQ", color: "#64748b", sortOrder: 4 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "support"
+    }
+  },
+  {
+    setKey: "support-root-cause",
+    moduleKey: "support",
+    kind: "dropdown",
+    name: "Support Root Cause",
+    description: "Root-cause categories captured at ticket closure (L1-005).",
+    values: [
+      { key: "user_error", label: "User Error", color: "#64748b", sortOrder: 0, isDefault: true },
+      { key: "configuration", label: "Configuration", color: "#0ea5e9", sortOrder: 1 },
+      { key: "software_defect", label: "Software Defect", color: "#ef4444", sortOrder: 2 },
+      { key: "integration", label: "Integration", color: "#14b8a6", sortOrder: 3 },
+      { key: "data_issue", label: "Data Issue", color: "#f59e0b", sortOrder: 4 },
+      { key: "training_gap", label: "Training Gap", color: "#8b5cf6", sortOrder: 5 },
+      { key: "third_party", label: "Third Party", color: "#a16207", sortOrder: 6 }
     ],
     metadata: {
       seeded: true,
@@ -1230,6 +1297,88 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
     }
   },
   {
+    setKey: "bd-account-priority",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Account Priority",
+    description: "Outbound prioritization for target accounts (BDR-001).",
+    values: [
+      { key: "strategic", label: "Strategic", color: "#6366f1", sortOrder: 0 },
+      { key: "high", label: "High", color: "#ef4444", sortOrder: 1 },
+      { key: "medium", label: "Medium", color: "#f59e0b", sortOrder: 2, isDefault: true },
+      { key: "low", label: "Low", color: "#64748b", sortOrder: 3 }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
+    setKey: "bd-technology",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Account Technology",
+    description: "Technology stack tags used to segment target accounts (BDR-001).",
+    values: [
+      { key: "salesforce", label: "Salesforce", sortOrder: 0, isDefault: true },
+      { key: "microsoft", label: "Microsoft", sortOrder: 1 },
+      { key: "aws", label: "AWS", sortOrder: 2 },
+      { key: "azure", label: "Azure", sortOrder: 3 },
+      { key: "gcp", label: "Google Cloud", sortOrder: 4 },
+      { key: "sap", label: "SAP", sortOrder: 5 },
+      { key: "oracle", label: "Oracle", sortOrder: 6 },
+      { key: "custom", label: "Custom / In-house", sortOrder: 7 }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
+    setKey: "bd-buyer-role",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Buyer Role",
+    description: "Buying-committee roles for stakeholder mapping (BDR-002).",
+    values: [
+      { key: "decision_maker", label: "Decision Maker", sortOrder: 0, isDefault: true },
+      { key: "influencer", label: "Influencer", sortOrder: 1 },
+      { key: "evaluator", label: "Evaluator", sortOrder: 2 },
+      { key: "procurement", label: "Procurement", sortOrder: 3 },
+      { key: "finance", label: "Finance", sortOrder: 4 },
+      { key: "technical", label: "Technical", sortOrder: 5 },
+      { key: "user", label: "User", sortOrder: 6 },
+      { key: "executive", label: "Executive", sortOrder: 7 }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
+    setKey: "bd-market-signal-type",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Market Signal Type",
+    description: "Market-intelligence signal categories captured by business development managers (BDM-002).",
+    values: [
+      { key: "competitor", label: "Competitor insight", sortOrder: 0, isDefault: true },
+      { key: "pricing", label: "Pricing signal", sortOrder: 1 },
+      { key: "objection", label: "Objection", sortOrder: 2 },
+      { key: "customer_trend", label: "Customer trend", sortOrder: 3 },
+      { key: "opportunity", label: "Market opportunity", sortOrder: 4 }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
+    setKey: "bd-sequence-step",
+    moduleKey: "business_development",
+    kind: "dropdown",
+    name: "BD Outbound Sequence",
+    description:
+      "Configurable outbound sequence steps (BDR-003). `metadata.channel` is the touch type, `metadata.offsetHours` the offset from sequence start, and optional `metadata.persona`/`product`/`region` target the step.",
+    values: [
+      { key: "email_day0", label: "Day 0 - Intro email", sortOrder: 0, isDefault: true, metadata: { channel: "email", offsetHours: 0 } },
+      { key: "linkedin_day1", label: "Day 1 - LinkedIn touch", sortOrder: 1, metadata: { channel: "linkedin", offsetHours: 24 } },
+      { key: "call_day2", label: "Day 2 - Call", sortOrder: 2, metadata: { channel: "call", offsetHours: 48 } },
+      { key: "email_day4", label: "Day 4 - Value email", sortOrder: 3, metadata: { channel: "email", offsetHours: 96 } },
+      { key: "whatsapp_day6", label: "Day 6 - WhatsApp/SMS", sortOrder: 4, metadata: { channel: "whatsapp", offsetHours: 144 } },
+      { key: "task_day8", label: "Day 8 - Breakup task", sortOrder: 5, metadata: { channel: "task", offsetHours: 192 } }
+    ],
+    metadata: { seeded: true, category: "business-development" }
+  },
+  {
     setKey: "presales-request-type",
     moduleKey: "presales",
     kind: "dropdown",
@@ -1267,6 +1416,103 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       seeded: true,
       category: "presales"
     }
+  },
+  {
+    setKey: "presales-demo-checklist",
+    moduleKey: "presales",
+    kind: "dropdown",
+    name: "Presales Demo Checklist",
+    description: "Configurable preparation checklist for tailored presales demos (PS-002).",
+    values: [
+      { key: "environment_ready", label: "Demo environment ready", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "data_seeded", label: "Demo data seeded", color: "#22c55e", sortOrder: 1 },
+      { key: "script_prepared", label: "Demo script prepared", color: "#6366f1", sortOrder: 2 },
+      { key: "stakeholders_confirmed", label: "Stakeholders confirmed", color: "#f59e0b", sortOrder: 3 },
+      { key: "objections_prepared", label: "Objection handling prepared", color: "#8b5cf6", sortOrder: 4 },
+      { key: "success_criteria_aligned", label: "Success criteria aligned", color: "#14b8a6", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "presales"
+    }
+  },
+  {
+    setKey: "proposal-request-status",
+    moduleKey: "presales",
+    kind: "dropdown",
+    name: "Proposal Request Status",
+    description: "Lifecycle states for proposal/bid requests (PB-001).",
+    values: [
+      { key: "draft", label: "Draft", color: "#94a3b8", sortOrder: 0, isDefault: true },
+      { key: "in_progress", label: "In Progress", color: "#06b6d4", sortOrder: 1 },
+      { key: "in_review", label: "In Review", color: "#0ea5e9", sortOrder: 2 },
+      { key: "approved", label: "Approved", color: "#8b5cf6", sortOrder: 3 },
+      { key: "submitted", label: "Submitted", color: "#22c55e", sortOrder: 4 },
+      { key: "archived", label: "Archived", color: "#64748b", sortOrder: 5 }
+    ],
+    metadata: { seeded: true, category: "proposals" }
+  },
+  {
+    setKey: "proposal-content-category",
+    moduleKey: "presales",
+    kind: "dropdown",
+    name: "Proposal Content Category",
+    description: "Approved proposal content-library categories (PB-004).",
+    values: [
+      { key: "product_description", label: "Product Description", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "case_study", label: "Case Study", color: "#22c55e", sortOrder: 1 },
+      { key: "security_response", label: "Security Response", color: "#ef4444", sortOrder: 2 },
+      { key: "implementation_methodology", label: "Implementation Methodology", color: "#6366f1", sortOrder: 3 },
+      { key: "pricing_assumptions", label: "Pricing Assumptions", color: "#f59e0b", sortOrder: 4 },
+      { key: "company_profile", label: "Company Profile", color: "#14b8a6", sortOrder: 5 }
+    ],
+    metadata: { seeded: true, category: "proposals" }
+  },
+  {
+    setKey: "payment-term",
+    moduleKey: "sales",
+    kind: "dropdown",
+    name: "Payment Term",
+    description: "Quote/contract payment terms; non-standard terms require finance approval (FIN-003).",
+    values: [
+      { key: "net_30", label: "Net 30", color: "#22c55e", sortOrder: 0, isDefault: true, metadata: { standard: true } },
+      { key: "net_45", label: "Net 45", color: "#0ea5e9", sortOrder: 1, metadata: { standard: true } },
+      { key: "net_60", label: "Net 60", color: "#6366f1", sortOrder: 2, metadata: { standard: true } },
+      { key: "advance", label: "Advance Payment", color: "#f59e0b", sortOrder: 3, metadata: { standard: false } },
+      { key: "milestone", label: "Milestone-based", color: "#8b5cf6", sortOrder: 4, metadata: { standard: false } },
+      { key: "custom", label: "Custom", color: "#ef4444", sortOrder: 5, metadata: { standard: false } }
+    ],
+    metadata: { seeded: true, category: "commercial" }
+  },
+  {
+    setKey: "discount-approval-tier",
+    moduleKey: "sales",
+    kind: "dropdown",
+    name: "Discount Approval Tier",
+    description: "Configurable discount approval matrix; thresholdPct is the upper discount bound for each tier (FIN-002).",
+    values: [
+      { key: "standard", label: "Standard (auto)", color: "#22c55e", sortOrder: 0, isDefault: true, metadata: { thresholdPct: 10, requiresApproval: false, approverRole: null } },
+      { key: "manager", label: "Manager", color: "#0ea5e9", sortOrder: 1, metadata: { thresholdPct: 20, requiresApproval: true, approverRole: "sales-manager" } },
+      { key: "finance", label: "Finance", color: "#f59e0b", sortOrder: 2, metadata: { thresholdPct: 35, requiresApproval: true, approverRole: "finance" } },
+      { key: "executive", label: "Executive", color: "#ef4444", sortOrder: 3, metadata: { thresholdPct: 100, requiresApproval: true, approverRole: "sales-head" } }
+    ],
+    metadata: { seeded: true, category: "commercial" }
+  },
+  {
+    setKey: "legal-contract-type",
+    moduleKey: "sales",
+    kind: "dropdown",
+    name: "Legal Contract Type",
+    description: "Contract document types routed for legal review (LEG-001).",
+    values: [
+      { key: "nda", label: "NDA", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "msa", label: "Master Service Agreement", color: "#6366f1", sortOrder: 1 },
+      { key: "sow", label: "Statement of Work", color: "#22c55e", sortOrder: 2 },
+      { key: "dpa", label: "Data Processing Agreement", color: "#ef4444", sortOrder: 3 },
+      { key: "order_form", label: "Order Form", color: "#f59e0b", sortOrder: 4 },
+      { key: "amendment", label: "Amendment", color: "#8b5cf6", sortOrder: 5 }
+    ],
+    metadata: { seeded: true, category: "legal" }
   },
   {
     setKey: "partner-type",
@@ -1349,6 +1595,27 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "won", label: "Won", color: "#22c55e", sortOrder: 3 },
       { key: "lost", label: "Lost", color: "#ef4444", sortOrder: 4 },
       { key: "rejected", label: "Rejected", color: "#b91c1c", sortOrder: 5 }
+    ],
+    metadata: {
+      seeded: true,
+      category: "partners"
+    }
+  },
+  {
+    setKey: "partner-onboarding-checklist",
+    moduleKey: "partners",
+    kind: "dropdown",
+    name: "Partner Onboarding Checklist",
+    description: "Configurable structured onboarding steps for new channel partners (PM-002).",
+    values: [
+      { key: "agreement", label: "Agreement executed", color: "#0ea5e9", sortOrder: 0, isDefault: true },
+      { key: "profile", label: "Profile completion", color: "#6366f1", sortOrder: 1 },
+      { key: "portal_access", label: "Portal access created", color: "#06b6d4", sortOrder: 2 },
+      { key: "product_training", label: "Product training", color: "#22c55e", sortOrder: 3 },
+      { key: "sales_training", label: "Sales training", color: "#14b8a6", sortOrder: 4 },
+      { key: "certification", label: "Certification", color: "#8b5cf6", sortOrder: 5 },
+      { key: "marketing_assets", label: "Marketing assets", color: "#f59e0b", sortOrder: 6 },
+      { key: "first_deal_plan", label: "First deal plan", color: "#ef4444", sortOrder: 7 }
     ],
     metadata: {
       seeded: true,

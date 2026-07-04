@@ -28,7 +28,35 @@ import {
   type UpdateQbrRequestBody,
   type UpdateRenewalRequestBody,
   type UpsertOnboardingPlanRequestBody,
-  type UpsertSuccessPlanRequestBody
+  type UpsertSuccessPlanRequestBody,
+  onboardingImplementationTypes,
+  goLiveItemStatuses,
+  goLiveChecklistItems,
+  type ProvisionOnboardingRequestBody,
+  type RecordHandoverRequestBody,
+  type RecordKickoffRequestBody,
+  type UpdateGoLiveChecklistRequestBody,
+  type CompleteGoLiveRequestBody,
+  type CompleteOnboardingRequestBody,
+  healthFactorKeys,
+  healthBands,
+  adoptionCampaignStatuses,
+  type ComputeHealthScoreRequestBody,
+  type CreateAdoptionCampaignRequestBody,
+  type CreateExpansionOpportunityRequestBody,
+  type LowUsageCheckRequestBody,
+  type RenewalPlaybookRequestBody,
+  successPlanSections,
+  reviewSections,
+  strategicRiskTypes,
+  riskSeverities,
+  type UpsertSuccessPlanEnterpriseRequestBody,
+  type ScheduleQbrRequestBody,
+  type RecordQbrReviewRequestBody,
+  type RecordStrategicRiskRequestBody,
+  type RenewalStrategyRequestBody,
+  type AssessAdvocacyRequestBody,
+  type CreateAdvocacyRequestBody
 } from "@crm/types";
 import { asyncHandler } from "../../common/http/async-handler.js";
 import { createAuthMiddleware } from "../../common/middleware/authenticate.js";
@@ -215,6 +243,129 @@ const qbrIdSchema = z.object({ csAccountId: uuidSchema, qbrId: uuidSchema });
 const renewalIdSchema = z.object({ csAccountId: uuidSchema, renewalId: uuidSchema });
 const escalationIdSchema = z.object({ csAccountId: uuidSchema, escalationId: uuidSchema });
 
+// ---- Persona 24 (CSM — Onboarding) schemas -----------------------------------------------------
+const planIdSchema = z.object({ planId: uuidSchema });
+const csNullableText = (max: number) => z.string().trim().max(max).nullable().optional();
+const provisionSchema = z.object({ opportunityId: uuidSchema, implementationType: z.enum(onboardingImplementationTypes).optional() });
+const handoverSchema = z.object({
+  fields: z.object({
+    contract: csNullableText(8000), scope: csNullableText(8000), products: csNullableText(4000), commitments: csNullableText(8000),
+    stakeholders: csNullableText(4000), timeline: csNullableText(4000), risks: csNullableText(8000), specialTerms: csNullableText(8000),
+    integrations: csNullableText(4000), successCriteria: csNullableText(8000)
+  })
+});
+const kickoffSchema = z.object({
+  scheduledAt: csNullableText(40),
+  attendees: z.array(z.string().trim().max(200)).max(50).optional(),
+  decisions: csNullableText(8000),
+  actionItems: z.array(z.object({ description: z.string().min(1).max(2000), ownerId: uuidSchema.nullable().optional(), dueDate: csNullableText(40) })).max(50).optional(),
+  successCriteriaConfirmed: z.boolean().optional(),
+  markCompleted: z.boolean().optional()
+});
+const goLiveChecklistSchema = z.object({
+  items: z.record(z.enum(goLiveChecklistItems.map((item) => item.key) as [string, ...string[]]), z.enum(goLiveItemStatuses))
+});
+const completeGoLiveSchema = z.object({ goLiveDate: dateOnlySchema });
+const completeOnboardingSchema = z.object({
+  goLiveDate: dateOnlySchema.nullable().optional(),
+  usersTrained: z.coerce.number().int().min(0).nullable().optional(),
+  adoptionBaseline: score.nullable().optional(),
+  openRisks: csNullableText(8000),
+  pendingItems: csNullableText(8000),
+  customerSignOff: z.boolean(),
+  ongoingCsmId: uuidSchema,
+  initialHealthScore: score
+});
+
+// ---- Persona 25 (CSM — Scaled) schemas ---------------------------------------------------------
+const healthFactorsSchema = z.object(Object.fromEntries(healthFactorKeys.map((key) => [key, score.optional()])));
+const computeHealthSchema = z.object({
+  factors: healthFactorsSchema,
+  notes: csNullableText(4000)
+});
+const campaignCriteriaSchema = z.object({
+  minUsage: z.coerce.number().min(0).nullable().optional(),
+  module: csNullableText(160),
+  role: csNullableText(160),
+  segmentKey: csNullableText(160),
+  healthBand: z.enum(healthBands).nullable().optional()
+});
+const createCampaignSchema = z.object({
+  name: z.string().min(1).max(200),
+  criteria: campaignCriteriaSchema,
+  contentTemplate: csNullableText(8000),
+  status: z.enum(adoptionCampaignStatuses).optional()
+});
+const lowUsageSchema = z.object({ metricLabel: z.string().min(1).max(200), current: z.coerce.number().min(0), threshold: z.coerce.number().min(0) });
+const renewalPlaybookSchema = z.object({
+  renewalDate: dateOnlySchema,
+  forecastValue: z.coerce.number().min(0).nullable().optional(),
+  salesOwnerId: uuidSchema.nullable().optional(),
+  financeOwnerId: uuidSchema.nullable().optional(),
+  customerContact: csNullableText(200)
+});
+const expansionSignalsSchema = z.object({
+  usageRatio: z.coerce.number().min(0).nullable().optional(),
+  additionalDepartments: z.coerce.number().int().min(0).nullable().optional(),
+  featureRequests: z.coerce.number().int().min(0).nullable().optional(),
+  userGrowthRate: z.coerce.number().nullable().optional(),
+  productSupportQueries: z.coerce.number().int().min(0).nullable().optional(),
+  engagementScore: score.nullable().optional()
+}).partial();
+const expansionAssessSchema = z.object({ signals: expansionSignalsSchema.optional() });
+const expansionOpportunitySchema = z.object({
+  name: z.string().min(1).max(200),
+  amount: z.coerce.number().min(0).nullable().optional(),
+  salesOwnerId: uuidSchema.nullable().optional(),
+  signals: expansionSignalsSchema.optional()
+});
+
+// ---- Persona 26 (CSM — Enterprise) schemas -----------------------------------------------------
+const qbrIdParamSchema = z.object({ csAccountId: uuidSchema, qbrId: uuidSchema });
+const successPlanSectionsSchema = z.object(Object.fromEntries(successPlanSections.map((s) => [s, csNullableText(8000)])));
+const upsertEnterprisePlanSchema = z.object({ name: csNullableText(200), sections: successPlanSectionsSchema, reviewWithCustomer: z.boolean().optional() });
+const scheduleQbrSchema = z.object({ title: z.string().min(1).max(200), qbrType: z.enum(["qbr", "ebr"]).optional(), scheduledDate: z.string().min(1).max(40) });
+const reviewSectionsSchema = z.object(Object.fromEntries(reviewSections.map((s) => [s, csNullableText(8000)])));
+const recordQbrReviewSchema = z.object({
+  sections: reviewSectionsSchema,
+  actionItems: z.array(z.object({ description: z.string().min(1).max(2000), ownerId: uuidSchema.nullable().optional(), dueDate: csNullableText(40) })).max(50).optional(),
+  markCompleted: z.boolean().optional()
+});
+const strategicRiskSchema = z.object({
+  riskType: z.enum(strategicRiskTypes),
+  severity: z.enum(riskSeverities),
+  ownerId: uuidSchema,
+  mitigationPlan: z.string().min(1).max(8000),
+  description: csNullableText(8000)
+});
+const renewalFactorsSchema = z.object({
+  healthScore: score.nullable().optional(),
+  usageScore: score.nullable().optional(),
+  valueDelivered: score.nullable().optional(),
+  stakeholderStrength: score.nullable().optional(),
+  expansionPotential: score.nullable().optional(),
+  openRiskCount: z.coerce.number().int().min(0).nullable().optional()
+}).partial();
+const renewalStrategySchema = z.object({
+  renewalDate: dateOnlySchema,
+  commercialTerms: csNullableText(8000),
+  valueDelivered: csNullableText(8000),
+  stakeholders: csNullableText(8000),
+  risks: csNullableText(8000),
+  expansionPotential: csNullableText(8000),
+  salesOwnerId: uuidSchema.nullable().optional(),
+  factors: renewalFactorsSchema.optional()
+});
+const advocacyFactorsSchema = z.object({
+  healthScore: score.nullable().optional(),
+  nps: z.coerce.number().min(-100).max(100).nullable().optional(),
+  adoptionScore: score.nullable().optional(),
+  renewalSecured: z.boolean().nullable().optional(),
+  executiveRelationship: score.nullable().optional()
+}).partial();
+const assessAdvocacySchema = z.object({ factors: advocacyFactorsSchema });
+const createAdvocacySchema = z.object({ requestType: z.string().min(1).max(160), factors: advocacyFactorsSchema.optional(), notes: csNullableText(4000) });
+
 const readPermissions: string[] = [
   "customer_success.view",
   "customer_success.create",
@@ -341,6 +492,75 @@ export function createCustomerSuccessRouter({ databaseService }: RouterDependenc
 
   router.patch("/accounts/:csAccountId/escalations/:escalationId", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: escalationIdSchema, body: escalationUpdateSchema }), asyncHandler(async (request, response) => {
     response.status(200).json(await service.updateEscalation(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.params.escalationId, request.body as UpdateEscalationRequestBody));
+  }));
+
+  // ---- Persona 24 (CSM — Onboarding) routes ----------------------------------------------------
+  router.post("/onboarding/provision", requirePermissions({ oneOf: createPermissions }), validateRequest({ body: provisionSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.provisionOnboarding(request.auth!, getAuditMetadata(request), request.body as ProvisionOnboardingRequestBody));
+  }));
+  router.get("/onboarding/:planId", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: planIdSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.getOnboardingProject(request.auth!, request.params.planId));
+  }));
+  router.put("/onboarding/:planId/handover", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: handoverSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.recordHandover(request.auth!, getAuditMetadata(request), request.params.planId, request.body as RecordHandoverRequestBody));
+  }));
+  router.post("/onboarding/:planId/kickoff", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: kickoffSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.recordKickoff(request.auth!, getAuditMetadata(request), request.params.planId, request.body as RecordKickoffRequestBody));
+  }));
+  router.put("/onboarding/:planId/go-live-checklist", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: goLiveChecklistSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.updateGoLiveChecklist(request.auth!, getAuditMetadata(request), request.params.planId, request.body as UpdateGoLiveChecklistRequestBody));
+  }));
+  router.post("/onboarding/:planId/go-live", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: completeGoLiveSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.completeGoLive(request.auth!, getAuditMetadata(request), request.params.planId, request.body as CompleteGoLiveRequestBody));
+  }));
+  router.post("/onboarding/:planId/complete", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: planIdSchema, body: completeOnboardingSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.completeOnboarding(request.auth!, getAuditMetadata(request), request.params.planId, request.body as CompleteOnboardingRequestBody));
+  }));
+
+  // ---- Persona 25 (CSM — Scaled) routes --------------------------------------------------------
+  router.post("/accounts/:csAccountId/health-score/compute", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: computeHealthSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.computeAccountHealthScore(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as ComputeHealthScoreRequestBody));
+  }));
+  router.get("/adoption-campaigns", requirePermissions({ oneOf: readPermissions }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.listAdoptionCampaigns(request.auth!));
+  }));
+  router.post("/adoption-campaigns", requirePermissions({ oneOf: createPermissions }), validateRequest({ body: createCampaignSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.createAdoptionCampaign(request.auth!, getAuditMetadata(request), request.body as CreateAdoptionCampaignRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/low-usage-check", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: lowUsageSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.checkLowUsage(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as LowUsageCheckRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/renewal-playbook", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: renewalPlaybookSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.startRenewalPlaybook(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as RenewalPlaybookRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/expansion/assess", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: csAccountIdSchema, body: expansionAssessSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.assessExpansion(request.auth!, request.params.csAccountId, (request.body as { signals?: CreateExpansionOpportunityRequestBody["signals"] }).signals));
+  }));
+  router.post("/accounts/:csAccountId/expansion/opportunity", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: expansionOpportunitySchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.createExpansionOpportunity(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as CreateExpansionOpportunityRequestBody));
+  }));
+
+  // ---- Persona 26 (CSM — Enterprise) routes ----------------------------------------------------
+  router.put("/accounts/:csAccountId/enterprise/success-plan", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: upsertEnterprisePlanSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.upsertEnterpriseSuccessPlan(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as UpsertSuccessPlanEnterpriseRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/qbrs", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: scheduleQbrSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.scheduleQbrReview(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as ScheduleQbrRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/qbrs/:qbrId/review", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: qbrIdParamSchema, body: recordQbrReviewSchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.recordQbrReview(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.params.qbrId, request.body as RecordQbrReviewRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/risks", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: strategicRiskSchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.recordStrategicRisk(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as RecordStrategicRiskRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/renewal-strategy", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: renewalStrategySchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.planRenewalStrategy(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as RenewalStrategyRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/advocacy/assess", requirePermissions({ oneOf: readPermissions }), validateRequest({ params: csAccountIdSchema, body: assessAdvocacySchema }), asyncHandler(async (request, response) => {
+    response.status(200).json(await service.assessAdvocacy(request.auth!, request.params.csAccountId, request.body as AssessAdvocacyRequestBody));
+  }));
+  router.post("/accounts/:csAccountId/enterprise/advocacy/request", requirePermissions({ oneOf: childPermissions }), validateRequest({ params: csAccountIdSchema, body: createAdvocacySchema }), asyncHandler(async (request, response) => {
+    response.status(201).json(await service.createAdvocacyRequest(request.auth!, getAuditMetadata(request), request.params.csAccountId, request.body as CreateAdvocacyRequestBody));
   }));
 
   return router;

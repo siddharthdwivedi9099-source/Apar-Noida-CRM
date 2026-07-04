@@ -470,7 +470,8 @@ async function assertOpportunityState(
     stageKey,
     sourceKey,
     outcomeStatusKey,
-    stakeholderContactIds
+    stakeholderContactIds,
+    customFields
   }
 ) {
   const row = await queryOne(
@@ -482,6 +483,7 @@ async function assertOpportunityState(
         opportunities.account_id,
         opportunities.primary_contact_id,
         opportunities.name,
+        opportunities.custom_fields,
         opportunities.created_by,
         opportunities.updated_by,
         opportunities.deleted_at,
@@ -510,6 +512,7 @@ async function assertOpportunityState(
         opportunities.account_id,
         opportunities.primary_contact_id,
         opportunities.name,
+        opportunities.custom_fields,
         opportunities.created_by,
         opportunities.updated_by,
         opportunities.deleted_at,
@@ -533,6 +536,9 @@ async function assertOpportunityState(
   assert.equal(row.created_by, actorUserId);
   assert.equal(row.deleted_at, null);
   assert.deepEqual((row.stakeholder_contact_ids ?? []).sort(), [...stakeholderContactIds].sort());
+  if (customFields) {
+    assert.deepEqual(row.custom_fields ?? {}, customFields);
+  }
 }
 
 async function assertStageChangeActivity(client, opportunityId, toStageLabel) {
@@ -674,6 +680,21 @@ async function main() {
     const contactBetaId = contactBeta.contact.id;
 
     log("Checking opportunity options, candidate lookups, and validation paths.");
+    const customOpportunityFieldKey = `deal_region_${runToken}`;
+    const customOpportunityField = await request("/tenant-config/custom-fields", {
+      method: "POST",
+      accessToken: adminSession.accessToken,
+      expectedStatus: 201,
+      body: {
+        moduleKey: "opportunities",
+        entityKey: "opportunity",
+        fieldKey: customOpportunityFieldKey,
+        label: `Deal Region ${runToken}`,
+        dataType: "text"
+      }
+    });
+    assert.equal(customOpportunityField.customField.fieldKey, customOpportunityFieldKey);
+
     const opportunityOptions = await request("/opportunities/options", {
       accessToken: adminSession.accessToken,
       expectedStatus: 200
@@ -684,6 +705,9 @@ async function main() {
     assert.ok(opportunityOptions.accounts.some((account) => account.id === accountAlphaId));
     assert.ok(opportunityOptions.contacts.some((contact) => contact.id === contactAlphaId));
     assert.ok(opportunityOptions.availableScopes.includes("all"));
+    assert.ok(opportunityOptions.fieldDefinitions.some((field) => field.fieldKey === "name" && field.isSystemField));
+    assert.ok(opportunityOptions.fieldDefinitions.some((field) => field.fieldKey === customOpportunityFieldKey && !field.isSystemField));
+    assert.deepEqual(opportunityOptions.customFieldOptions, {});
 
     await expectError("/opportunities", {
       method: "POST",
@@ -729,6 +753,9 @@ async function main() {
         competitor: `Competitor ${runToken}`,
         stakeholderContactIds: [contactAlphaId],
         nextStep: `Discovery follow-up ${runToken}`,
+        customFields: {
+          [customOpportunityFieldKey]: `North Region ${runToken}`
+        },
         metadata: {
           runToken
         }
@@ -736,6 +763,7 @@ async function main() {
     });
     const alphaOpportunityId = alphaOpportunity.opportunity.id;
     assert.equal(alphaOpportunity.opportunity.aiPlaceholders.actions.length, 5);
+    assert.equal(alphaOpportunity.opportunity.customFields[customOpportunityFieldKey], `North Region ${runToken}`);
     await assertOpportunityState(client, alphaOpportunityId, {
       tenantId,
       actorUserId: adminSession.currentUser.id,
@@ -746,7 +774,10 @@ async function main() {
       stageKey: "discovery",
       sourceKey: "inbound",
       outcomeStatusKey: "open",
-      stakeholderContactIds: [contactAlphaId]
+      stakeholderContactIds: [contactAlphaId],
+      customFields: {
+        [customOpportunityFieldKey]: `North Region ${runToken}`
+      }
     });
     await assertAuditLog(client, {
       tenantId,
@@ -911,6 +942,7 @@ async function main() {
       expectedStatus: 200
     });
     assert.equal(viewerDetail.opportunity.aiPlaceholders.actions.length, 0);
+    assert.equal(viewerDetail.opportunity.customFields[customOpportunityFieldKey], `North Region ${runToken}`);
     await expectError("/opportunities", {
       method: "POST",
       accessToken: viewerSession.accessToken,
@@ -986,6 +1018,7 @@ async function main() {
     });
     assert.equal(approvalUpdate.opportunity.stage?.key, "negotiation");
     assert.equal(approvalUpdate.opportunity.outcomeStatus?.key, "open");
+    assert.equal(approvalUpdate.opportunity.customFields[customOpportunityFieldKey], `North Region ${runToken}`);
     await assertAuditLog(client, {
       tenantId,
       actorUserId: approveSession.currentUser.id,
@@ -1011,6 +1044,33 @@ async function main() {
       body: {
         amount: 99999,
         name: `Blocked amount change ${runToken}`
+      }
+    });
+
+    const customFieldUpdate = await request(`/opportunities/${alphaOpportunityId}`, {
+      method: "PATCH",
+      accessToken: adminSession.accessToken,
+      expectedStatus: 200,
+      body: {
+        customFields: {
+          [customOpportunityFieldKey]: `West Region ${runToken}`
+        }
+      }
+    });
+    assert.equal(customFieldUpdate.opportunity.customFields[customOpportunityFieldKey], `West Region ${runToken}`);
+    await assertOpportunityState(client, alphaOpportunityId, {
+      tenantId,
+      actorUserId: adminSession.currentUser.id,
+      ownerUserId: adminSession.currentUser.id,
+      accountId: accountAlphaId,
+      primaryContactId: contactAlphaId,
+      name: `Alpha Deal ${runToken}`,
+      stageKey: "negotiation",
+      sourceKey: "inbound",
+      outcomeStatusKey: "open",
+      stakeholderContactIds: [contactAlphaId],
+      customFields: {
+        [customOpportunityFieldKey]: `West Region ${runToken}`
       }
     });
 
