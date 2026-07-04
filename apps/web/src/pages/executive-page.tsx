@@ -3,6 +3,7 @@ import type { CrmLookupUserSummary, ExecutiveCommandCenterResponse, ExecutiveIns
 import { strategicRiskSeverities, riskStatuses } from "@crm/types";
 import { CrmHero, CrmMetricCard } from "@/components/crm/crm-shell";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,17 +12,6 @@ import { formatCurrencyAmount, selectClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
 import { useAuth } from "@/providers/auth-provider";
 
-const severityClass: Record<string, string> = {
-  critical: "border-rose-200 bg-rose-100 text-rose-700",
-  high: "border-orange-200 bg-orange-100 text-orange-700",
-  medium: "border-amber-200 bg-amber-100 text-amber-700",
-  low: "border-slate-200 bg-slate-100 text-slate-700"
-};
-const insightClass: Record<string, string> = {
-  critical: "border-rose-200 bg-rose-100 text-rose-700",
-  warning: "border-amber-200 bg-amber-100 text-amber-700",
-  info: "border-slate-200 bg-slate-100 text-slate-700"
-};
 
 function kpiValue(kpi: ExecutiveKpi): string {
   if (kpi.value === null) return "—";
@@ -125,7 +115,7 @@ export function ExecutivePage() {
           {insights?.insights.length ? insights.insights.map((ins) => (
             <div key={ins.key} className="rounded-[1rem] border border-border/60 bg-background/75 p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="muted" className={insightClass[ins.severity]}>{ins.severity}</Badge>
+                <StatusPill value={ins.severity}>{ins.severity}</StatusPill>
                 <span className="font-medium">{ins.message}</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">Recommended: {ins.recommendedAction}</p>
@@ -165,10 +155,10 @@ export function ExecutivePage() {
           {risks?.risks.length ? risks.risks.map((r) => (
             <div key={r.id} className="rounded-[1rem] border border-border/60 bg-background/75 p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="muted" className={severityClass[r.severity]}>{r.severity}</Badge>
+                <StatusPill value={r.severity}>{r.severity}</StatusPill>
                 <span className="font-medium">{r.title}</span>
                 <Badge variant="muted">{r.source}</Badge>
-                <Badge variant="muted">{r.status}</Badge>
+                <StatusPill size="sm" value={r.status}>{r.status}</StatusPill>
                 {r.dueDate ? <span className="text-xs text-muted-foreground">due {r.dueDate}</span> : null}
                 <select className={selectClassName} value={r.status} onChange={(e) => void run(`rs-${r.id}`, () => apiRequest(`/executive/risks/${r.id}`, { method: "PATCH", accessToken, body: { status: e.target.value } }), "Risk status updated.")} disabled={busy !== null} aria-label="Update risk status">
                   {riskStatuses.map((s) => <option key={s} value={s}>{s}</option>)}

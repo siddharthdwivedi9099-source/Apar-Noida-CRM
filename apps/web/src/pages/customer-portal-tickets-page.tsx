@@ -5,6 +5,7 @@ import type {
   CustomerPortalTicketResponse
 } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -144,7 +145,7 @@ export function CustomerPortalTicketsPage() {
                     <p className="font-semibold">{ticket.subject}</p>
                     <p className="text-xs text-muted-foreground">Updated {formatDateTime(ticket.updatedAt)}</p>
                   </div>
-                  <Badge variant={ticket.id === selectedTicket?.id ? "default" : "muted"}>{ticket.status.label ?? "Open"}</Badge>
+                  <StatusPill value={ticket.status.key ?? ticket.status.label}>{ticket.status.label ?? "Open"}</StatusPill>
                 </div>
               </button>
             ))}

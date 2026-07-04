@@ -15,6 +15,7 @@ import type {
 } from "@crm/types";
 import { workflowConditionOperators } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState } from "@/components/crm/crm-shell";
@@ -26,8 +27,6 @@ import { useAuth } from "@/providers/auth-provider";
 
 const inputClassName = "flex h-10 w-full rounded-xl border border-border bg-white/80 px-3 text-sm";
 const textareaClassName = "flex min-h-[80px] w-full rounded-xl border border-border bg-white/80 px-3 py-2 font-mono text-xs";
-
-const statusVariant = (status: string) => (status === "succeeded" ? "default" : status === "failed" ? "muted" : "muted");
 
 export function WorkflowsPage() {
   const { accessToken, hasAnyPermission } = useAuth();
@@ -267,7 +266,7 @@ export function WorkflowsPage() {
                   {visibleWorkflows.map((workflow) => (
                     <li key={workflow.id}>
                       <button type="button" onClick={() => void openWorkflow(workflow.id)} className={`w-full rounded-[1rem] border p-3 text-left ${selected?.id === workflow.id ? "border-primary bg-primary/5" : "border-border/60 bg-background/75"}`}>
-                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{workflow.name}</span><Badge variant={workflow.status === "active" ? "default" : "muted"}>{workflow.status}</Badge></div>
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{workflow.name}</span><StatusPill size="sm" value={workflow.status}>{workflow.status}</StatusPill></div>
                         <p className="mt-1 text-xs text-muted-foreground">{workflow.triggerType} • {workflow.actionCount} actions • {workflow.runCount} runs</p>
                       </button>
                     </li>
@@ -285,7 +284,7 @@ export function WorkflowsPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle>{selected.name}</CardTitle>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={selected.status === "active" ? "default" : "muted"}>{selected.status}</Badge>
+                    <StatusPill value={selected.status}>{selected.status}</StatusPill>
                     {canEdit && selected.status !== "active" ? <Button size="sm" variant="outline" onClick={() => void patchWorkflow({ status: "active", isEnabled: true })}>Activate</Button> : null}
                     {canEdit && selected.status === "active" ? <Button size="sm" variant="outline" onClick={() => void patchWorkflow({ status: "inactive", isEnabled: false })}>Deactivate</Button> : null}
                   </div>
@@ -338,11 +337,11 @@ export function WorkflowsPage() {
               <Card>
                 <CardHeader><CardTitle>Run result</CardTitle><CardDescription>{lastRun.actionsSucceeded} succeeded • {lastRun.actionsFailed} failed</CardDescription></CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <Badge variant={statusVariant(lastRun.status)}>{lastRun.status}</Badge>
+                  <StatusPill value={lastRun.status}>{lastRun.status}</StatusPill>
                   <ul className="space-y-1">
                     {lastRun.logs.map((logEntry) => (
                       <li key={logEntry.id} className="rounded-[0.75rem] border border-border/60 bg-background/75 px-3 py-2 text-xs">
-                        <Badge variant={statusVariant(logEntry.status)}>{logEntry.status}</Badge> <span className="ml-1">{logEntry.actionType ?? "conditions"}</span> — {logEntry.message}
+                        <StatusPill size="sm" value={logEntry.status}>{logEntry.status}</StatusPill> <span className="ml-1">{logEntry.actionType ?? "conditions"}</span> — {logEntry.message}
                       </li>
                     ))}
                   </ul>
@@ -357,7 +356,7 @@ export function WorkflowsPage() {
                   <ul className="space-y-1">
                     {runs.slice(0, 15).map((run) => (
                       <li key={run.id} className="flex flex-wrap items-center gap-2 rounded-[0.75rem] border border-border/60 bg-background/75 px-3 py-2 text-xs">
-                        <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
+                        <StatusPill size="sm" value={run.status}>{run.status}</StatusPill>
                         <span>{run.actionsSucceeded}✓ / {run.actionsFailed}✗</span>
                         <span className="text-muted-foreground">{formatDateTime(run.createdAt)}</span>
                       </li>

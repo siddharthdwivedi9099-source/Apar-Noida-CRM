@@ -3,6 +3,7 @@ import type { AiQualityDashboardResponse, AiRiskLevel, AiUseCaseActionType, AiUs
 import { aiRiskLevels, aiUseCaseActionTypes } from "@crm/types";
 import { CrmHero, CrmMetricCard } from "@/components/crm/crm-shell";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,11 +12,6 @@ import { formatDateTime, selectClassName, textareaClassName } from "@/lib/crm";
 import { getErrorMessage } from "@/lib/error-message";
 import { useAuth } from "@/providers/auth-provider";
 
-const riskClass: Record<AiRiskLevel, string> = {
-  low: "border-emerald-200 bg-emerald-100 text-emerald-700",
-  medium: "border-amber-200 bg-amber-100 text-amber-700",
-  high: "border-rose-200 bg-rose-100 text-rose-700"
-};
 
 export function AiGovernancePage() {
   const { accessToken, hasAnyPermission } = useAuth();
@@ -150,8 +146,8 @@ export function AiGovernancePage() {
             <div key={uc.id} className="rounded-[1rem] border border-border/60 bg-background/75 p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{uc.name}</span>
-                <Badge variant="muted" className={riskClass[uc.riskLevel]}>{uc.riskLevel} risk</Badge>
-                <Badge variant="muted">{uc.approvalStatus}</Badge>
+                <StatusPill value={uc.riskLevel}>{uc.riskLevel} risk</StatusPill>
+                <StatusPill size="sm" value={uc.approvalStatus}>{uc.approvalStatus}</StatusPill>
                 <Badge variant="muted">v{uc.version}</Badge>
                 {uc.persona ? <span className="text-xs text-muted-foreground">{uc.persona}</span> : null}
                 {uc.model ? <span className="text-xs text-muted-foreground">{uc.model}</span> : null}

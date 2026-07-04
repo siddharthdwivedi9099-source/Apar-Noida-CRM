@@ -10,6 +10,7 @@ import type {
   TrainingProgramsResponse
 } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -286,7 +287,7 @@ export function TrainingPage() {
               ) : (
                 programList.map((program) => (
                   <button key={program.id} type="button" onClick={() => setSelectedProgramId(program.id)} className={cn("w-full rounded-[1.25rem] border border-border/70 bg-background/75 p-4 text-left shadow-sm transition hover:border-primary/50", selectedProgramId === program.id ? "border-primary bg-primary/5" : "")}>
-                    <div className="flex flex-wrap items-center gap-2"><Badge>{program.status}</Badge><Badge variant="muted">{program.category?.label ?? "—"}</Badge><Badge variant="muted">{program.level?.label ?? "—"}</Badge></div>
+                    <div className="flex flex-wrap items-center gap-2"><StatusPill value={program.status}>{program.status}</StatusPill><Badge variant="muted">{program.category?.label ?? "—"}</Badge><Badge variant="muted">{program.level?.label ?? "—"}</Badge></div>
                     <p className="mt-3 font-semibold">{program.title}</p>
                     <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">{program.moduleCount} modules • {program.lessonCount} lessons • {program.assignmentCount} assignments</p>
                   </button>
@@ -326,7 +327,7 @@ export function TrainingPage() {
                 ) : (
                   assignmentList.map((assignment) => (
                     <button key={assignment.id} type="button" onClick={() => setSelectedAssignmentId(assignment.id)} className={cn("w-full rounded-[1.25rem] border border-border/70 bg-background/75 p-4 text-left shadow-sm transition hover:border-primary/50", selectedAssignmentId === assignment.id ? "border-primary bg-primary/5" : "")}>
-                      <div className="flex flex-wrap items-center gap-2"><Badge>{assignment.status}</Badge><Badge variant="muted">{assignment.completionPercent}%</Badge></div>
+                      <div className="flex flex-wrap items-center gap-2"><StatusPill value={assignment.status}>{assignment.status}</StatusPill><Badge variant="muted">{assignment.completionPercent}%</Badge></div>
                       <p className="mt-3 font-semibold">{assignment.program?.title ?? "Program"}</p>
                       <p className="mt-1 text-sm text-muted-foreground">{assignment.user?.displayName ?? assignment.account?.name ?? "Unassigned"} • {assignment.completedLessonCount}/{assignment.lessonCount} lessons</p>
                     </button>
@@ -354,7 +355,7 @@ export function TrainingPage() {
               ) : (
                 myTraining.assignments.map((assignment) => (
                   <button key={assignment.id} type="button" onClick={() => { setSelectedAssignmentId(assignment.id); setTab("assignments"); }} className="w-full rounded-[1.25rem] border border-border/70 bg-background/75 p-4 text-left shadow-sm transition hover:border-primary/50">
-                    <div className="flex flex-wrap items-center gap-2"><Badge>{assignment.status}</Badge><Badge variant="muted">{assignment.completionPercent}%</Badge></div>
+                    <div className="flex flex-wrap items-center gap-2"><StatusPill value={assignment.status}>{assignment.status}</StatusPill><Badge variant="muted">{assignment.completionPercent}%</Badge></div>
                     <p className="mt-3 font-semibold">{assignment.program?.title ?? "Program"}</p>
                     <p className="mt-1 text-sm text-muted-foreground">{assignment.completedLessonCount}/{assignment.lessonCount} lessons • Due {formatDateOnly(assignment.dueDate)}</p>
                   </button>
@@ -436,7 +437,7 @@ function AssignmentDetailCard({ detail, onMarkLesson }: { detail: TrainingAssign
           <ul className="space-y-2">
             {detail.progress.map((item) => (
               <li key={item.lessonId} className="flex items-center justify-between gap-2 rounded-[1rem] border border-border/60 bg-background/75 p-3">
-                <div className="flex flex-wrap items-center gap-2"><span className={cn("font-medium", item.status === "completed" ? "line-through text-muted-foreground" : "")}>{item.lessonTitle}</span><Badge variant="muted">{item.status}</Badge></div>
+                <div className="flex flex-wrap items-center gap-2"><span className={cn("font-medium", item.status === "completed" ? "line-through text-muted-foreground" : "")}>{item.lessonTitle}</span><StatusPill size="sm" value={item.status}>{item.status}</StatusPill></div>
                 {item.status !== "completed" ? <Button type="button" variant="outline" size="sm" onClick={() => onMarkLesson(detail.id, item.lessonId)}>Complete</Button> : null}
               </li>
             ))}

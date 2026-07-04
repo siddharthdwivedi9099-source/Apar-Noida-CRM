@@ -8,6 +8,7 @@ import type {
 } from "@crm/types";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -590,7 +591,7 @@ export function BusinessDevelopmentPage() {
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge>{account.tier?.label ?? "Tier missing"}</Badge>
-                    <Badge variant="muted">{account.stage?.label ?? "Stage missing"}</Badge>
+                    <StatusPill value={account.stage?.key ?? account.stage?.label}>{account.stage?.label ?? "No stage"}</StatusPill>
                     {account.isPartnership ? <Badge variant="muted">Partnership</Badge> : null}
                   </div>
                   <p className="mt-3 font-semibold">{account.name}</p>

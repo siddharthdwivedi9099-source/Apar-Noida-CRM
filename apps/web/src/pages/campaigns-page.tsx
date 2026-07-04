@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CampaignListQuery, CampaignOptionsResponse, CampaignsResponse } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -390,7 +391,7 @@ export function CampaignsPage() {
               <Card key={campaign.id}>
                 <CardHeader>
                   <div className="flex flex-wrap items-center gap-2">
-                    {campaign.status ? <Badge>{campaign.status.label}</Badge> : null}
+                    {campaign.status ? <StatusPill value={campaign.status.key ?? campaign.status.label}>{campaign.status.label}</StatusPill> : null}
                     {campaign.type ? <Badge variant="muted">{campaign.type.label}</Badge> : null}
                     {campaign.channel ? <Badge variant="muted">{campaign.channel.label}</Badge> : null}
                   </div>

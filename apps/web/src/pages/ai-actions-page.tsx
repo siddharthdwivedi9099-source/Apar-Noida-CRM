@@ -7,6 +7,7 @@ import type {
   AiActionSummary
 } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
@@ -170,7 +171,7 @@ export function AiActionsPage() {
               <CardHeader><CardTitle>Result</CardTitle><CardDescription>Governed placeholder output from the gateway.</CardDescription></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge>{runResult.status}</Badge>
+                  <StatusPill value={runResult.status}>{runResult.status}</StatusPill>
                   <Badge variant="muted">{runResult.provider}</Badge>
                   <Badge variant="muted">{runResult.model}</Badge>
                   {runResult.requiresReview ? <Badge>Review: {runResult.reviewStatus}</Badge> : null}
@@ -197,8 +198,8 @@ export function AiActionsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="muted">{run.module}</Badge>
                         <span className="font-medium">{run.actionKey}</span>
-                        <Badge variant="muted">{run.status}</Badge>
-                        {run.requiresReview ? <Badge variant="muted">{run.reviewStatus}</Badge> : null}
+                        <StatusPill size="sm" value={run.status}>{run.status}</StatusPill>
+                        {run.requiresReview ? <StatusPill size="sm" value={run.reviewStatus}>{run.reviewStatus}</StatusPill> : null}
                         <span className="text-xs text-muted-foreground">{formatDateTime(run.createdAt)}</span>
                       </div>
                     </li>

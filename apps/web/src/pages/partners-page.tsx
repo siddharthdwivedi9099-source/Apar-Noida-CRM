@@ -11,6 +11,7 @@ import type {
 } from "@crm/types";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -527,7 +528,7 @@ export function PartnersPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge>{partner.tier?.label ?? "Tier missing"}</Badge>
                     <Badge variant="muted">{partner.type?.label ?? "Type missing"}</Badge>
-                    <Badge variant="muted">{partner.status?.label ?? "Status missing"}</Badge>
+                    <StatusPill value={partner.status?.key ?? partner.status?.label}>{partner.status?.label ?? "No status"}</StatusPill>
                   </div>
                   <p className="mt-3 font-semibold">{partner.name}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{partner.region ?? "Region n/a"} • {partner.territory ?? "Territory n/a"}</p>
@@ -713,7 +714,7 @@ function PartnerDetailCard({
                 <li key={task.id} className="flex items-center justify-between gap-2 rounded-[1rem] border border-border/60 bg-background/75 p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={cn("font-medium", task.status === "completed" ? "line-through text-muted-foreground" : "")}>{task.label}</span>
-                    <Badge variant="muted">{task.status}</Badge>
+                    <StatusPill size="sm" value={task.status}>{task.status}</StatusPill>
                   </div>
                   {canEdit ? (
                     <Button type="button" variant="outline" size="sm" onClick={() => onAdvanceTask(task.id)}>
@@ -736,7 +737,7 @@ function PartnerDetailCard({
                 <li key={deal.id} className="rounded-[1rem] border border-border/60 bg-background/75 p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{deal.name}</span>
-                    <Badge variant="muted">{deal.stage?.label ?? "Stage missing"}</Badge>
+                    <StatusPill size="sm" value={deal.stage?.key ?? deal.stage?.label}>{deal.stage?.label ?? "No stage"}</StatusPill>
                   </div>
                   <p className="mt-1 text-muted-foreground">
                     {deal.customerName ?? "No customer"} • {formatCurrencyAmount(deal.amount)} • Close {formatDateOnly(deal.expectedCloseDate)}

@@ -12,6 +12,7 @@ import type {
 import { Link } from "react-router-dom";
 import { LeadWorkflowWorkbench } from "@/components/sales/lead-workflow-workbench";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
@@ -93,8 +94,8 @@ function LeadQueueCard({
               )}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={lead.isHot ? "default" : "muted"}>{getPriorityLabel(lead.priority)}</Badge>
-                <Badge>{lead.status?.label ?? "Status missing"}</Badge>
+                <StatusPill tone={lead.isHot ? "hot" : undefined} value={lead.priority}>{getPriorityLabel(lead.priority)}</StatusPill>
+                <StatusPill value={lead.status?.key ?? lead.status?.label}>{lead.status?.label ?? "No status"}</StatusPill>
                 {lead.source ? <Badge variant="muted">{lead.source.label}</Badge> : null}
                 {lead.workspace.callDisposition ? <Badge variant="muted">{lead.workspace.callDisposition.label}</Badge> : null}
                 {lead.slaStatus ? <Badge variant={getSlaBadgeVariant(lead.slaStatus)}>SLA {lead.slaStatus}</Badge> : null}
@@ -146,8 +147,8 @@ function TaskQueueCard({ title, description, tasks, onSelectLead, emptyMessage }
               className="w-full rounded-[1.25rem] border border-border/70 bg-background/75 p-4 text-left shadow-sm transition hover:border-primary/50"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>{task.status}</Badge>
-                <Badge variant="muted">{task.priority}</Badge>
+                <StatusPill size="sm" value={task.status}>{task.status}</StatusPill>
+                <StatusPill size="sm" value={task.priority}>{task.priority}</StatusPill>
               </div>
               <p className="mt-3 font-semibold">{task.title}</p>
               <p className="mt-1 text-sm text-muted-foreground">

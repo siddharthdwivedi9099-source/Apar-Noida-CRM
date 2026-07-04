@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SocialPostListQuery, SocialOptionsResponse, SocialPostsResponse } from "@crm/types";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -583,8 +584,8 @@ export function SocialPage() {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-2">
                           <div className="flex flex-wrap gap-2">
-                            {post.status ? <Badge>{post.status.label}</Badge> : null}
-                            {post.approvalStatus ? <Badge variant="muted">{post.approvalStatus.label}</Badge> : null}
+                            {post.status ? <StatusPill value={post.status.key ?? post.status.label}>{post.status.label}</StatusPill> : null}
+                            {post.approvalStatus ? <StatusPill size="sm" value={post.approvalStatus.key ?? post.approvalStatus.label}>{post.approvalStatus.label}</StatusPill> : null}
                           </div>
                           <h3 className="font-display text-2xl font-semibold">{post.title}</h3>
                           <p className="text-sm leading-6 text-muted-foreground">
