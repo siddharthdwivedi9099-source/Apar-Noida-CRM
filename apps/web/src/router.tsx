@@ -57,6 +57,7 @@ import { LeadFormPage } from "./pages/lead-form-page";
 import { LeadsPage } from "./pages/leads-page";
 import { DataQualityPage } from "./pages/data-quality-page";
 import { RecordToolsPage } from "./pages/record-tools-page";
+import { BulkImportPage } from "./pages/bulk-import-page";
 import { ExceptionsPage } from "./pages/exceptions-page";
 import { LoginPage } from "./pages/login-page";
 import { ModuleSettingsPage } from "./pages/module-settings-page";
@@ -541,6 +542,19 @@ export const router = createBrowserRouter([
                 moduleKey="leads"
               >
                 <RecordToolsPage />
+              </PermissionRoute>
+            )
+          },
+          {
+            path: "imports",
+            element: (
+              <PermissionRoute
+                requiredPermissionCodes={["leads.import", "accounts.import", "contacts.import", "opportunities.import"]}
+                title="Bulk import is limited by role."
+                description="Open bulk import with a role that includes import permissions."
+                moduleKey="leads"
+              >
+                <BulkImportPage />
               </PermissionRoute>
             )
           },

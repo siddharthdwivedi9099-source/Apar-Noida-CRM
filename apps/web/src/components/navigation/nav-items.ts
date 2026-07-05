@@ -25,6 +25,7 @@ import {
   ShoppingBag,
   Sparkles,
   Target,
+  UploadCloud,
   Users,
   Workflow
 } from "lucide-react";
@@ -153,6 +154,15 @@ export const appNavItems: AppNavItem[] = [
     icon: ScrollText,
     moduleKey: "leads",
     requiredPermissionCodes: routePermissionRequirements.leads
+  },
+  {
+    title: "Bulk Import",
+    href: "/imports",
+    group: "operations",
+    description: "Migrate previous data — fixed CSV formats for leads, accounts, contacts, and opportunities.",
+    icon: UploadCloud,
+    moduleKey: "leads",
+    requiredPermissionCodes: ["leads.import", "accounts.import", "contacts.import", "opportunities.import"]
   },
   {
     title: "Edge Cases",
