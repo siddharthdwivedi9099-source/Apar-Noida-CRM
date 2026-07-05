@@ -48,7 +48,7 @@ export function OpportunityEnterpriseActions({ detail, options, accessToken, can
     });
     setMessage(null);
     setErrorMessage(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [detail.id]);
 
   useEffect(() => {

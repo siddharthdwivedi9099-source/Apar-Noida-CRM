@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import type {
   BdTargetAccountDetail,
   BdTargetAccountOptionsResponse,
-  BdTargetAccountSummary,
   BdTargetAccountsResponse,
   CreateBdTargetAccountRequestBody
 } from "@crm/types";

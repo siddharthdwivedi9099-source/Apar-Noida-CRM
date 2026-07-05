@@ -53,6 +53,8 @@ const updateLeadWorkspaceSchema = z.object({
   qualificationOutcome: z.enum(["pending", "qualified", "not_qualified"]).optional(),
   qualificationOverrideReason: z.string().max(2000).nullable().optional(),
   disqualificationReasonKey: z.string().min(2).max(160).nullable().optional(),
+  rejectionReasonKey: z.string().min(2).max(160).nullable().optional(),
+  rejectionNote: z.string().max(2000).nullable().optional(),
   cadence: z
     .object({
       paused: z.boolean().optional(),

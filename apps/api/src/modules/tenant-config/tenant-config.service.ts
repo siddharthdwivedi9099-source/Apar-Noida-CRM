@@ -25,16 +25,18 @@ import type {
 import {
   customFieldDataTypes,
   defaultTenantCoreSettings,
+  defaultTenantTelephonySettings,
   defaultTenantTerminologyEntries,
   defaultTenantThemeSettings,
   permissionModuleLabels,
+  telephonyProtocols,
   tenantCardStyles,
   tenantDensityPreferences,
   tenantFontPreferences,
   tenantModuleDefinitions,
-  tenantOptionSetKinds,
   tenantSidebarStyles,
-  tenantThemeModes
+  tenantThemeModes,
+  type TenantTelephonySettings
 } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
@@ -215,7 +217,23 @@ export class TenantConfigService {
       locale: asString(settings.locale, defaultTenantCoreSettings.locale),
       currency: asString(settings.currency, defaultTenantCoreSettings.currency),
       dateFormat: asString(settings.dateFormat, defaultTenantCoreSettings.dateFormat),
-      timeFormat: settings.timeFormat === "24h" ? "24h" : defaultTenantCoreSettings.timeFormat
+      timeFormat: settings.timeFormat === "24h" ? "24h" : defaultTenantCoreSettings.timeFormat,
+      telephony: this.mergeTelephonySettings(settings.telephony)
+    };
+  }
+
+  private mergeTelephonySettings(value: unknown): TenantTelephonySettings {
+    const settings = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+
+    return {
+      clickToCallEnabled:
+        typeof settings.clickToCallEnabled === "boolean"
+          ? settings.clickToCallEnabled
+          : defaultTenantTelephonySettings.clickToCallEnabled,
+      protocol: isAllowedString(settings.protocol, telephonyProtocols)
+        ? settings.protocol
+        : defaultTenantTelephonySettings.protocol,
+      customUrlTemplate: asNullableString(settings.customUrlTemplate)
     };
   }
 
@@ -664,6 +682,8 @@ export class TenantConfigService {
   ): Promise<TenantCoreSettingsResponse> {
     this.assertEnabled();
 
+    const normalized = this.mergeCoreSettings(input as unknown as Record<string, unknown>);
+
     return this.databaseService.withTransaction(async (client) => {
       await this.upsertTenantSetting(client, {
         tenantId: actor.tenantId,
@@ -671,7 +691,7 @@ export class TenantConfigService {
         settingKey: SETTING_KEYS.core,
         description: "Tenant-level workspace settings for locale, timezone, and formatting.",
         settingValue: {
-          ...input
+          ...normalized
         },
         metadata: {
           phase: "phase-5-config",
@@ -691,7 +711,7 @@ export class TenantConfigService {
       });
 
       return {
-        settings: input
+        settings: normalized
       };
     });
   }

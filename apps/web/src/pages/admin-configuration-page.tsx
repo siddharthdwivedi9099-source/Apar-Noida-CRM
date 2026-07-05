@@ -34,7 +34,7 @@ export function AdminConfigurationPage() {
 
   useEffect(() => {
     void loadVersions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

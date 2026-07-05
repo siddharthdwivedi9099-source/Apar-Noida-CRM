@@ -14,7 +14,6 @@ import type {
   LeadDiscoveryFieldDefinition,
   LeadIcpAttributes,
   LeadIcpCriterionDefinition,
-  LeadMeetingTypeDefinition,
   LeadObjection,
   LeadObjectionTrendEntry,
   LeadObjectionTypeDefinition,
@@ -2135,6 +2134,35 @@ export class SalesWorkspacesService {
         typeof currentWorkspace.handoffStatusKey === "string"
           ? getTrimmedNullableString(currentWorkspace.handoffStatusKey)
           : null;
+
+      // MM-003/MM-005: a sales rejection of a marketing handoff requires a structured
+      // reason from the configurable lead-rejection-reason set so marketing can
+      // analyse poor-fit sources.
+      const movingToRejected =
+        nextHandoffStatusKey === "rejected_by_sales" && previousHandoffStatusKey !== "rejected_by_sales";
+      const nextRejectionReasonKey =
+        input.rejectionReasonKey !== undefined
+          ? getTrimmedNullableString(input.rejectionReasonKey)
+          : typeof currentWorkspace.rejectionReasonKey === "string"
+            ? getTrimmedNullableString(currentWorkspace.rejectionReasonKey)
+            : null;
+      if (input.rejectionReasonKey) {
+        await this.resolveOptionValueId(
+          client,
+          actor.tenantId,
+          "lead-rejection-reason",
+          input.rejectionReasonKey,
+          "Lead rejection reason"
+        );
+      }
+      if (movingToRejected && !nextRejectionReasonKey) {
+        throw new AppError(
+          400,
+          "A rejection reason is required when sales rejects a handoff.",
+          undefined,
+          "VALIDATION_ERROR"
+        );
+      }
       const baseOutreachStatusKey =
         input.outreachStatusKey !== undefined
           ? getTrimmedNullableString(input.outreachStatusKey)
@@ -2174,6 +2202,16 @@ export class SalesWorkspacesService {
         qualificationOutcome: nextQualificationOutcome,
         qualificationOverrideReason: nextQualificationOverrideReason,
         disqualificationReasonKey: nextDisqualificationReasonKey,
+        rejectionReasonKey: nextRejectionReasonKey,
+        rejectionNote:
+          input.rejectionNote !== undefined
+            ? getTrimmedNullableString(input.rejectionNote)
+            : (typeof currentWorkspace.rejectionNote === "string"
+                ? getTrimmedNullableString(currentWorkspace.rejectionNote)
+                : null),
+        rejection: movingToRejected
+          ? { reasonKey: nextRejectionReasonKey, rejectedBy: actor.userId, rejectedAt: new Date().toISOString() }
+          : currentWorkspace.rejection ?? null,
         cadence: input.cadence
           ? { ...nextCadence, updatedAt: new Date().toISOString() }
           : currentWorkspace.cadence,

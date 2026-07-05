@@ -60,7 +60,7 @@ export function ExecutivePage() {
     if (accessToken) {
       apiRequest<{ owners: CrmLookupUserSummary[] }>("/customer-success/options", { accessToken }).then((o) => setOwners(o.owners)).catch(() => undefined);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

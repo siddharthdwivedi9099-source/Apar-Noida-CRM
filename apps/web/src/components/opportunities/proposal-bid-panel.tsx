@@ -52,7 +52,7 @@ export function ProposalBidPanel({ opportunityId, accessToken, canManage }: Prop
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken, opportunityId]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

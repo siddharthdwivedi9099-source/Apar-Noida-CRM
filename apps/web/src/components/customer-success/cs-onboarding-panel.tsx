@@ -60,7 +60,7 @@ export function CsOnboardingPanel({ planId, owners, accessToken, canEdit, onRelo
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken, planId]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

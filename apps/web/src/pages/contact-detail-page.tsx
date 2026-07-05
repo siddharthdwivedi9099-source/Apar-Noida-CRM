@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CrmActivityPanel } from "@/components/crm/crm-activity-panel";
 import { CrmNotesPanel } from "@/components/crm/crm-notes-panel";
 import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { EmailLink, PhoneLink } from "@/components/crm/contact-links";
 import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { getErrorMessage } from "@/lib/error-message";
@@ -279,11 +280,11 @@ export function ContactDetailPage() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="rounded-[1.25rem] bg-background/75 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Email</p>
-              <p className="mt-2 font-semibold">{contact.email ?? "Not provided"}</p>
+              <p className="mt-2 font-semibold">{contact.email ? <EmailLink email={contact.email} /> : "Not provided"}</p>
             </div>
             <div className="rounded-[1.25rem] bg-background/75 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Phone</p>
-              <p className="mt-2 font-semibold">{contact.phone ?? "Not provided"}</p>
+              <p className="mt-2 font-semibold">{contact.phone ? <PhoneLink phone={contact.phone} /> : "Not provided"}</p>
             </div>
             <div className="rounded-[1.25rem] bg-background/75 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">LinkedIn</p>

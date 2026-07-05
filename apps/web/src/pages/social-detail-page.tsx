@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import type { SocialPostResponse } from "@crm/types";
+import type { SocialPostResponse, SocialResponseEntry } from "@crm/types";
+import { SocialLeadCapturePanel, SocialResponsePanel } from "@/components/social/social-engagement-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -163,6 +164,13 @@ export function SocialDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          <SocialLeadCapturePanel postId={post.id} />
+
+          <SocialResponsePanel
+            postId={post.id}
+            responses={Array.isArray(post.metadata.responses) ? (post.metadata.responses as SocialResponseEntry[]) : []}
+          />
 
           <Card>
             <CardHeader>

@@ -50,7 +50,7 @@ export function PartnerManagementPanel({ partnerId, accessToken, canManage }: Pa
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken, partnerId]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

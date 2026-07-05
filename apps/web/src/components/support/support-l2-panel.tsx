@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { L2InvestigationResponse, L2InvestigationView, SupportTicketOptionsResponse } from "@crm/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,7 +43,7 @@ export function SupportL2Panel({ ticketId, options, accessToken, canManage }: Su
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken, ticketId]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

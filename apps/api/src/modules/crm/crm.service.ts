@@ -20,7 +20,6 @@ import type {
   AccountResponse,
   AccountSummary,
   AddExecutiveMeetingRequestBody,
-  ExecutiveEngagementView,
   ExecutiveMeeting,
   StrategicAccountPlanState,
   SubmitAccountPlanReviewRequestBody,

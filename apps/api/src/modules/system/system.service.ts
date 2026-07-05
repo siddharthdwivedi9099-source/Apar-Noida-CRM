@@ -1,7 +1,6 @@
 import type { PoolClient } from "pg";
 import type {
   BackupPolicySummary,
-  BackupRunSummary,
   BackupStatusResponse,
   CreateDeploymentRequestBody,
   CreateEnvironmentRequestBody,
@@ -308,7 +307,7 @@ export class SystemAdminService {
       }
       const needsApproval = requiresDeploymentApproval(normalize(environmentKinds, env.kind, "dev"), env.is_production);
       const status = current.rows[0].status;
-      let nextStatus = status;
+      let nextStatus: string;
       const sets: string[] = [];
       const params: unknown[] = [deploymentId, actor.tenantId];
       const push = (value: unknown) => { params.push(value); return `$${params.length}`; };

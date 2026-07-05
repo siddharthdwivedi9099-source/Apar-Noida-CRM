@@ -301,7 +301,7 @@ export class ExceptionsService {
     return this.databaseService.withTransaction(async (client) => {
       // Resolve the account + owner from the originating lead/opportunity.
       let accountId: string | null = null;
-      let ownerId: string | null = null;
+      let ownerId: string | null;
       if (input.entityType === "opportunity") {
         const opp = (await client.query<{ account_id: string | null; owner_id: string | null }>(`SELECT account_id, owner_id FROM opportunities WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`, [input.entityId, actor.tenantId])).rows[0];
         if (!opp) throw new AppError(404, "Opportunity not found.", undefined, "NOT_FOUND");

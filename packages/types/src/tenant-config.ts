@@ -22,6 +22,16 @@ export interface TenantSummary {
   name: string;
 }
 
+export const telephonyProtocols = ["tel", "callto", "sip", "custom"] as const;
+export type TelephonyProtocol = (typeof telephonyProtocols)[number];
+
+export interface TenantTelephonySettings {
+  clickToCallEnabled: boolean;
+  protocol: TelephonyProtocol;
+  /** Dialer URL for protocol "custom"; {number} is replaced with the sanitized number. */
+  customUrlTemplate: string | null;
+}
+
 export interface TenantCoreSettings {
   workspaceName: string;
   timezone: string;
@@ -29,6 +39,38 @@ export interface TenantCoreSettings {
   currency: string;
   dateFormat: string;
   timeFormat: "12h" | "24h";
+  telephony: TenantTelephonySettings;
+}
+
+/**
+ * Click-to-call: turn a user-entered phone number into a dial href using the
+ * tenant-configured telephony protocol (tel/callto/sip for OS dialers and
+ * softphones, or a custom dialer/IVR URL template). Returns null when
+ * click-to-call is disabled or the number is not dialable.
+ */
+export function buildClickToCallHref(
+  phone: string | null | undefined,
+  telephony: TenantTelephonySettings
+): string | null {
+  if (!telephony.clickToCallEnabled || !phone) {
+    return null;
+  }
+
+  const dialable = phone.replace(/[^+0-9*#]/g, "");
+
+  if (dialable.replace(/[^0-9]/g, "").length < 3) {
+    return null;
+  }
+
+  if (telephony.protocol === "custom") {
+    if (!telephony.customUrlTemplate || !telephony.customUrlTemplate.includes("{number}")) {
+      return null;
+    }
+
+    return telephony.customUrlTemplate.replace("{number}", encodeURIComponent(dialable));
+  }
+
+  return `${telephony.protocol}:${dialable}`;
 }
 
 export interface TenantThemeSettings {
@@ -256,13 +298,20 @@ export interface TenantTerminologyResponse {
   terminology: TenantTerminologyEntry[];
 }
 
+export const defaultTenantTelephonySettings: TenantTelephonySettings = {
+  clickToCallEnabled: true,
+  protocol: "tel",
+  customUrlTemplate: null
+};
+
 export const defaultTenantCoreSettings: TenantCoreSettings = {
   workspaceName: "Sample Tenant Workspace",
   timezone: "UTC",
   locale: "en-US",
   currency: "USD",
   dateFormat: "MMM d, yyyy",
-  timeFormat: "12h"
+  timeFormat: "12h",
+  telephony: defaultTenantTelephonySettings
 };
 
 export const defaultTenantThemeSettings: TenantThemeSettings = {
@@ -626,7 +675,13 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "campaign", label: "Campaign", color: "#14b8a6", sortOrder: 1 },
       { key: "partner", label: "Partner", color: "#f59e0b", sortOrder: 2 },
       { key: "referral", label: "Referral", color: "#8b5cf6", sortOrder: 3 },
-      { key: "outbound", label: "Outbound", color: "#ef4444", sortOrder: 4 }
+      { key: "outbound", label: "Outbound", color: "#ef4444", sortOrder: 4 },
+      { key: "linkedin", label: "LinkedIn", color: "#0a66c2", sortOrder: 5 },
+      { key: "instagram", label: "Instagram", color: "#e1306c", sortOrder: 6 },
+      { key: "facebook", label: "Facebook", color: "#1877f2", sortOrder: 7 },
+      { key: "youtube", label: "YouTube", color: "#ff0033", sortOrder: 8 },
+      { key: "whatsapp", label: "WhatsApp", color: "#22c55e", sortOrder: 9 },
+      { key: "social_other", label: "Social (Other)", color: "#64748b", sortOrder: 10 }
     ],
     metadata: {
       seeded: true,
@@ -665,7 +720,8 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "sales_ready", label: "Sales Ready", color: "#22c55e", sortOrder: 2 },
       { key: "handed_to_sales", label: "Handed to Sales", color: "#14b8a6", sortOrder: 3 },
       { key: "accepted_by_sales", label: "Accepted by Sales", color: "#8b5cf6", sortOrder: 4 },
-      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 5 }
+      { key: "rejected_by_sales", label: "Rejected by Sales", color: "#f43f5e", sortOrder: 5 },
+      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 6 }
     ],
     metadata: {
       seeded: true,

@@ -75,7 +75,7 @@ export function Sidebar({
     if (activeGroup) {
       setOpenGroups((current) => (current.has(activeGroup) ? current : new Set(current).add(activeGroup)));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [activeGroup]);
 
   function toggleGroup(key: NavGroupKey) {

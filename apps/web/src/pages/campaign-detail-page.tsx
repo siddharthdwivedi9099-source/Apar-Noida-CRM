@@ -21,6 +21,7 @@ import { CampaignMembersManager } from "@/components/campaigns/campaign-members-
 import { CrmActivityPanel } from "@/components/crm/crm-activity-panel";
 import { CrmNotesPanel } from "@/components/crm/crm-notes-panel";
 import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { CampaignGovernancePanel } from "@/components/campaigns/campaign-governance-panel";
 import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { apiRequest } from "@/lib/api-client";
@@ -356,6 +357,8 @@ export function CampaignDetailPage() {
       </section>
 
       {errorMessage ? <p className="text-sm text-rose-600">{errorMessage}</p> : null}
+
+      <CampaignGovernancePanel campaign={campaign} owners={optionsResponse?.owners ?? []} onChanged={loadCampaign} />
 
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <Card>

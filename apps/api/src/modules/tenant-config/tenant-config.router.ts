@@ -3,7 +3,9 @@ import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   customFieldDataTypes,
+  defaultTenantTelephonySettings,
   permissionModuleKeys,
+  telephonyProtocols,
   tenantCardStyles,
   tenantDensityPreferences,
   tenantFontPreferences,
@@ -40,7 +42,14 @@ const tenantSettingsSchema = z.object({
   locale: z.string().min(2).max(32),
   currency: z.string().min(3).max(12),
   dateFormat: z.string().min(2).max(40),
-  timeFormat: z.enum(["12h", "24h"])
+  timeFormat: z.enum(["12h", "24h"]),
+  telephony: z
+    .object({
+      clickToCallEnabled: z.boolean(),
+      protocol: z.enum(telephonyProtocols),
+      customUrlTemplate: z.string().max(300).nullable()
+    })
+    .default(defaultTenantTelephonySettings)
 });
 
 const themeSchema = z.object({

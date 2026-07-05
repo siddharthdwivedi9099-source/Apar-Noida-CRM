@@ -1121,13 +1121,19 @@ export const defaultCoreCrmStandardPicklistDefinitions: TenantOptionSetSeedDefin
     moduleKey: "leads",
     kind: "dropdown",
     name: "Lead Source",
-    description: "Standard lead intake source values.",
+    description: "Standard lead intake source values, including social channels (SM-002).",
     values: [
       { key: "website", label: "Website", color: "#0ea5e9", sortOrder: 0, isDefault: true },
       { key: "campaign", label: "Campaign", color: "#14b8a6", sortOrder: 1 },
       { key: "partner", label: "Partner", color: "#f59e0b", sortOrder: 2 },
       { key: "referral", label: "Referral", color: "#8b5cf6", sortOrder: 3 },
-      { key: "outbound", label: "Outbound", color: "#ef4444", sortOrder: 4 }
+      { key: "outbound", label: "Outbound", color: "#ef4444", sortOrder: 4 },
+      { key: "linkedin", label: "LinkedIn", color: "#0a66c2", sortOrder: 5 },
+      { key: "instagram", label: "Instagram", color: "#e1306c", sortOrder: 6 },
+      { key: "facebook", label: "Facebook", color: "#1877f2", sortOrder: 7 },
+      { key: "youtube", label: "YouTube", color: "#ff0033", sortOrder: 8 },
+      { key: "whatsapp", label: "WhatsApp", color: "#22c55e", sortOrder: 9 },
+      { key: "social_other", label: "Social (Other)", color: "#64748b", sortOrder: 10 }
     ]
   }),
   optionSet({
@@ -1225,6 +1231,63 @@ export const defaultCoreCrmStandardPicklistDefinitions: TenantOptionSetSeedDefin
       { key: "future_need", label: "Future Need", sortOrder: 7 },
       { key: "competitor", label: "Competitor", sortOrder: 8 },
       { key: "irrelevant", label: "Irrelevant", sortOrder: 9, isDefault: true }
+    ]
+  }),
+  optionSet({
+    setKey: "lead-rejection-reason",
+    moduleKey: "leads",
+    kind: "dropdown",
+    name: "Lead Rejection Reason",
+    description:
+      "Reason sales rejected a marketing handoff (MM-003/MM-005). Mandatory when handoff status becomes rejected_by_sales; marketing analyses these to improve targeting.",
+    values: [
+      { key: "poor_fit", label: "Poor Fit", sortOrder: 0, isDefault: true },
+      { key: "no_budget", label: "No Budget", sortOrder: 1 },
+      { key: "wrong_contact", label: "Wrong Contact", sortOrder: 2 },
+      { key: "bad_timing", label: "Bad Timing", sortOrder: 3 },
+      { key: "duplicate", label: "Duplicate", sortOrder: 4 },
+      { key: "insufficient_context", label: "Insufficient Context", sortOrder: 5 }
+    ]
+  }),
+  optionSet({
+    setKey: "social-response-template",
+    moduleKey: "social",
+    kind: "dropdown",
+    name: "Social Response Template",
+    description:
+      "Brand-approved social response templates (SM-004). `metadata.body` holds the response text; `metadata.sensitive` marks templates that suggest escalation.",
+    values: [
+      {
+        key: "thanks_interest",
+        label: "Thanks for the interest",
+        sortOrder: 0,
+        isDefault: true,
+        metadata: { body: "Thank you for your interest! A member of our team will reach out shortly with the details you asked for." }
+      },
+      {
+        key: "demo_offer",
+        label: "Offer a demo",
+        sortOrder: 1,
+        metadata: { body: "We'd love to show you how it works — can we set up a quick personalized demo this week?" }
+      },
+      {
+        key: "pricing_followup",
+        label: "Pricing follow-up",
+        sortOrder: 2,
+        metadata: { body: "Great question on pricing — plans depend on team size and modules. Sharing a summary by DM now." }
+      },
+      {
+        key: "complaint_ack",
+        label: "Complaint acknowledgement",
+        sortOrder: 3,
+        metadata: { body: "We're sorry about the experience. Our support team is looking into this right away and will follow up directly.", sensitive: true }
+      },
+      {
+        key: "support_redirect",
+        label: "Redirect to support",
+        sortOrder: 4,
+        metadata: { body: "So we can resolve this quickly, our support team will take this up — expect a reply within the hour.", sensitive: true }
+      }
     ]
   }),
   optionSet({
@@ -1793,6 +1856,8 @@ export const coreCrmRequiredPicklistKeys = [
   "lead-grade",
   "qualification-status",
   "disqualification-reason",
+  "lead-rejection-reason",
+  "social-response-template",
   "lead-qualification-checklist",
   "lead-contact-script",
   "lead-cadence-step",

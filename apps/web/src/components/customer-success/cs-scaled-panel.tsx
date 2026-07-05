@@ -61,7 +61,7 @@ export function CsScaledPanel({ csAccountId, owners, accessToken, canEdit, onRel
     void loadCampaigns();
     setHealth(null);
     setSignals(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken, csAccountId]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAuditMetadata, getClientIp } from "../../common/http/request-metadata.js";
+import { getAuditMetadata } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   resellerOnboardingTaskStatuses,

@@ -63,7 +63,7 @@ export function OpportunityExecActions({ detail, options, accessToken, canEdit, 
     setCloseLost((current) => ({ ...current, lossReasonKey: options.lossReasons[0]?.key ?? current.lossReasonKey }));
     setMessage(null);
     setErrorMessage(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [detail.id]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

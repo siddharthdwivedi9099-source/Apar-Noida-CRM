@@ -57,9 +57,6 @@ const defaultSummary: TenantConfigurationSummary = {
 
 const TenantConfigContext = createContext<TenantConfigContextValue | undefined>(undefined);
 
-function isHexColor(value: string) {
-  return /^#[0-9a-fA-F]{6}$/.test(value);
-}
 
 function hexToRgbTriplet(hexColor: string) {
   const normalized = hexColor.replace("#", "");
@@ -87,7 +84,7 @@ function hexToHsl(hexColor: string) {
   const saturation =
     lightness > 0.5 ? difference / (2 - max - min) : difference / (max + min);
 
-  let hue = 0;
+  let hue: number;
 
   switch (max) {
     case red:

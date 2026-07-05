@@ -77,6 +77,8 @@ const requestedPicklistKeys = [
   "lead-grade",
   "qualification-status",
   "disqualification-reason",
+  "lead-rejection-reason",
+  "social-response-template",
   "lead-qualification-checklist",
   "lead-contact-script",
   "lead-cadence-step",

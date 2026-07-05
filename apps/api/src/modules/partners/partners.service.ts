@@ -1836,7 +1836,7 @@ export class PartnersService {
         throw new AppError(404, "Partner deal registration not found.", undefined, "PARTNER_DEAL_NOT_FOUND");
       }
       const metadata = getMetadata(dealRow.rows[0].metadata);
-      let nextMetadata: Record<string, unknown> = { ...metadata, decisionNote: input.note?.trim() || null, decidedAt: new Date().toISOString() };
+      const nextMetadata: Record<string, unknown> = { ...metadata, decisionNote: input.note?.trim() || null, decidedAt: new Date().toISOString() };
       let stageKey: string | null = null;
       if (input.decision === "approved") {
         // R13 (Section 13): a partner deal cannot be approved while a duplicate

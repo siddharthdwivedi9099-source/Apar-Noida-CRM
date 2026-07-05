@@ -28,7 +28,6 @@ import {
   type KnowledgeDocumentListQuery,
   type KnowledgeDocumentListResponse,
   type KnowledgeDocumentResponse,
-  type KnowledgeDocumentStatus,
   type KnowledgeDocumentSummary,
   type KnowledgeGap,
   type KnowledgeGapListQuery,

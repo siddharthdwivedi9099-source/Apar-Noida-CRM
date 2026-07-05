@@ -14,7 +14,7 @@ import { SalesManagerDashboard } from "@/components/sales/sales-manager-dashboar
 const owner = { id: "u1", displayName: "Asha Rep", email: "asha@example.com", teamName: null, departmentName: null };
 
 function mockApi() {
-  apiRequestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+  apiRequestMock.mockImplementation(async (path: string, _init?: { method?: string }) => {
     if (path === "/opportunities/manager/pipeline") {
       return {
         totalOpen: 3,

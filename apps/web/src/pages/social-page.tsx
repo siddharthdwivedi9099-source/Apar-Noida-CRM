@@ -10,7 +10,6 @@ import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import {
   buildQueryString,
-  formatDateOnly,
   formatDateTime,
   formatShortDate,
   pageSizeOptions,
@@ -577,7 +576,7 @@ export function SocialPage() {
         <CardContent className="space-y-4">
           {data?.posts.length ? (
             <>
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid max-h-[46rem] gap-4 overflow-y-auto overscroll-contain pr-1 xl:grid-cols-2">
                 {data.posts.map((post) => (
                   <Card key={post.id}>
                     <CardContent className="space-y-4 p-6">
