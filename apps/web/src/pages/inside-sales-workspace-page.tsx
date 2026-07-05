@@ -76,7 +76,7 @@ function LeadQueueCard({
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="max-h-[30rem] space-y-3 overflow-y-auto overscroll-contain">
         {leads.length === 0 ? (
           <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
             {emptyMessage}
@@ -133,7 +133,7 @@ function TaskQueueCard({ title, description, tasks, onSelectLead, emptyMessage }
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="max-h-[30rem] space-y-3 overflow-y-auto overscroll-contain">
         {tasks.length === 0 ? (
           <div className="rounded-[1.25rem] bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
             {emptyMessage}

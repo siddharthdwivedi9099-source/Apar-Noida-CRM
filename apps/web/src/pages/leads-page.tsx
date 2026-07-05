@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Avatar } from "@/components/ui/avatar";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { EmailLink, PhoneLink } from "@/components/crm/contact-links";
 import { Filter, Flame, Users } from "lucide-react";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
@@ -346,7 +347,7 @@ export function LeadsPage() {
               />
             ) : data && data.leads.length > 0 ? (
               <>
-                <div className="space-y-3">
+                <div className="max-h-[36rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
                   {data.leads.map((lead) => (
                     <div key={lead.id} className="interactive-card rounded-[1.5rem] border border-white/50 bg-background/80 p-5 shadow-sm backdrop-blur dark:border-white/10">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -365,7 +366,9 @@ export function LeadsPage() {
                               {lead.companyName}
                             </Link>
                             <p className="text-sm text-muted-foreground">
-                              {lead.fullName} {lead.email ? `• ${lead.email}` : ""} {lead.phone ? `• ${lead.phone}` : ""}
+                              {lead.fullName}
+                              {lead.email ? <> • <EmailLink email={lead.email} /></> : null}
+                              {lead.phone ? <> • <PhoneLink phone={lead.phone} /></> : null}
                             </p>
                           </div>
                           <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">

@@ -386,7 +386,7 @@ export function CampaignsPage() {
         </div>
 
         {data?.campaigns.length ? (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid max-h-[46rem] gap-4 overflow-y-auto overscroll-contain pr-1 lg:grid-cols-2">
             {data.campaigns.map((campaign) => (
               <Card key={campaign.id}>
                 <CardHeader>

@@ -308,7 +308,7 @@ export function AccountsPage() {
               />
             ) : data && data.accounts.length > 0 ? (
               <>
-                <div className="space-y-3">
+                <div className="max-h-[36rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
                   {data.accounts.map((account) => (
                     <div key={account.id} className="interactive-card rounded-[1.5rem] border border-white/50 bg-background/80 p-5 shadow-sm backdrop-blur dark:border-white/10">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

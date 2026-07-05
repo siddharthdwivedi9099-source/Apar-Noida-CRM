@@ -653,7 +653,8 @@ export function OpportunitiesPage() {
                 }
               />
             ) : (
-              visibleOpportunities.map((opportunity) => (
+              <div className="max-h-[36rem] space-y-4 overflow-y-auto overscroll-contain pr-1">
+                {visibleOpportunities.map((opportunity) => (
                 <div key={opportunity.id} className="interactive-card rounded-[1.5rem] border border-white/50 bg-background/85 p-5 shadow-sm backdrop-blur dark:border-white/10">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="space-y-2">
@@ -727,7 +728,8 @@ export function OpportunitiesPage() {
                     </div>
                   </div>
                 </div>
-              ))
+              ))}
+              </div>
             )}
 
             {listData ? (
@@ -817,7 +819,7 @@ export function OpportunitiesPage() {
                         <p className="text-sm text-muted-foreground">{formatCurrencyAmount(stageAmount)}</p>
                       </div>
 
-                      <div className="space-y-3">
+                      <div className="max-h-[32rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
                         {stageOpportunities.length === 0 ? (
                           <div className="rounded-[1.25rem] border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                             No opportunities in this stage.

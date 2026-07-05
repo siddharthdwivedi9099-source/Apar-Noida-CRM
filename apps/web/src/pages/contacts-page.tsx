@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CrmEmptyState, CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { EmailLink, PhoneLink } from "@/components/crm/contact-links";
 import { getErrorMessage } from "@/lib/error-message";
 import { apiRequest } from "@/lib/api-client";
 import { buildQueryString, formatDateTime, pageSizeOptions, selectClassName } from "@/lib/crm";
@@ -315,7 +316,7 @@ export function ContactsPage() {
               />
             ) : data && data.contacts.length > 0 ? (
               <>
-                <div className="space-y-3">
+                <div className="max-h-[36rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
                   {data.contacts.map((contact) => (
                     <div key={contact.id} className="rounded-[1.5rem] bg-background/75 p-5 shadow-sm">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -328,7 +329,9 @@ export function ContactsPage() {
                           <div>
                             <p className="font-display text-2xl font-semibold">{contact.fullName}</p>
                             <p className="text-sm text-muted-foreground">
-                              {contact.email ?? "No email"} {contact.phone ? `• ${contact.phone}` : ""} {contact.linkedinUrl ? `• ${contact.linkedinUrl}` : ""}
+                              {contact.email ? <EmailLink email={contact.email} /> : "No email"}
+                              {contact.phone ? <> • <PhoneLink phone={contact.phone} /></> : null}
+                              {contact.linkedinUrl ? ` • ${contact.linkedinUrl}` : ""}
                             </p>
                           </div>
                           <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">

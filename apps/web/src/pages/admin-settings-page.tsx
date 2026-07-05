@@ -190,6 +190,68 @@ export function AdminSettingsPage() {
                 </select>
               </label>
 
+              <div className="md:col-span-2 space-y-2 rounded-[1.25rem] bg-secondary/40 p-4">
+                <p className="text-sm font-semibold">Telephony &amp; click-to-call</p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Phone numbers across the CRM become dialable links. Pick the protocol your dialer, softphone, or IVR
+                  bridge understands — or provide a custom dialer URL with a {"{number}"} placeholder.
+                </p>
+                <div className="grid gap-4 pt-2 md:grid-cols-3">
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium">Click-to-call</span>
+                    <select
+                      className={selectClassName}
+                      value={formState.telephony.clickToCallEnabled ? "enabled" : "disabled"}
+                      onChange={(event) =>
+                        setFormState((currentValue) => ({
+                          ...currentValue,
+                          telephony: { ...currentValue.telephony, clickToCallEnabled: event.target.value === "enabled" }
+                        }))
+                      }
+                    >
+                      <option value="enabled">Enabled</option>
+                      <option value="disabled">Disabled</option>
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium">Dial protocol</span>
+                    <select
+                      className={selectClassName}
+                      value={formState.telephony.protocol}
+                      onChange={(event) =>
+                        setFormState((currentValue) => ({
+                          ...currentValue,
+                          telephony: {
+                            ...currentValue.telephony,
+                            protocol: event.target.value as TenantCoreSettings["telephony"]["protocol"]
+                          }
+                        }))
+                      }
+                    >
+                      <option value="tel">tel: (device dialer / mobile)</option>
+                      <option value="callto">callto: (Teams / Skype)</option>
+                      <option value="sip">sip: (softphone / IVR)</option>
+                      <option value="custom">Custom dialer URL</option>
+                    </select>
+                  </label>
+                  {formState.telephony.protocol === "custom" ? (
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium">Custom dialer URL template</span>
+                      <Input
+                        placeholder="https://dialer.example.com/call?to={number}"
+                        value={formState.telephony.customUrlTemplate ?? ""}
+                        onChange={(event) =>
+                          setFormState((currentValue) => ({
+                            ...currentValue,
+                            telephony: { ...currentValue.telephony, customUrlTemplate: event.target.value || null }
+                          }))
+                        }
+                      />
+                    </label>
+                  ) : null}
+                </div>
+              </div>
+
               <div className="md:col-span-2 flex flex-wrap items-center gap-3">
                 <Button type="submit" disabled={isSaving}>
                   {isSaving ? "Saving..." : "Save workspace settings"}

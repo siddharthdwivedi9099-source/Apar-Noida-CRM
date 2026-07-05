@@ -18,6 +18,7 @@ import { BpfStageProgress } from "@/components/crm/bpf-stage-progress";
 import { CrmActivityPanel } from "@/components/crm/crm-activity-panel";
 import { CrmNotesPanel } from "@/components/crm/crm-notes-panel";
 import { CrmHero, CrmLoadingState, CrmMetricCard } from "@/components/crm/crm-shell";
+import { EmailLink, PhoneLink } from "@/components/crm/contact-links";
 import { CrmTaskList } from "@/components/crm/crm-task-list";
 import { CrmTimeline } from "@/components/crm/crm-timeline";
 import { getErrorMessage } from "@/lib/error-message";
@@ -397,11 +398,11 @@ export function LeadDetailPage() {
             </div>
             <div className="rounded-[1.25rem] bg-background/75 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Email</p>
-              <p className="mt-2 font-semibold">{lead.email ?? "Not provided"}</p>
+              <p className="mt-2 font-semibold">{lead.email ? <EmailLink email={lead.email} /> : "Not provided"}</p>
             </div>
             <div className="rounded-[1.25rem] bg-background/75 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Phone</p>
-              <p className="mt-2 font-semibold">{lead.phone ?? "Not provided"}</p>
+              <p className="mt-2 font-semibold">{lead.phone ? <PhoneLink phone={lead.phone} /> : "Not provided"}</p>
             </div>
             <div className="rounded-[1.25rem] bg-background/75 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Lead score placeholder</p>
