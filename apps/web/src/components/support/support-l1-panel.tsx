@@ -43,7 +43,7 @@ export function SupportL1Panel({ ticketId, options, accessToken, canManage, onRe
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken, ticketId]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

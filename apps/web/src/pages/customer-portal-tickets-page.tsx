@@ -4,7 +4,6 @@ import type {
   CustomerPortalTicketListResponse,
   CustomerPortalTicketResponse
 } from "@crm/types";
-import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

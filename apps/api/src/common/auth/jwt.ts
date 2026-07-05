@@ -16,6 +16,7 @@ interface JwtPayloadBase {
   exp: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface JwtClaims extends JwtPayloadBase {}
 
 interface SignJwtInput {

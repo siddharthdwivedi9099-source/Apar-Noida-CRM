@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { TenantCoreSettings } from "@crm/types";
-import { Building2, LayoutTemplate, Palette, ShieldCheck, Shapes, Type } from "lucide-react";
+import { Building2, Palette, ShieldCheck, Shapes, Type } from "lucide-react";
 import { Link } from "react-router-dom";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { ConfigurationGovernance } from "@/components/admin/configuration-governance";

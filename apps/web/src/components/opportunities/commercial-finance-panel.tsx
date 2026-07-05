@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { CommercialOptionsResponse, CommercialResponse, CommercialView } from "@crm/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,7 +51,7 @@ export function CommercialFinancePanel({ opportunityId, accessToken, canManage }
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken, opportunityId]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

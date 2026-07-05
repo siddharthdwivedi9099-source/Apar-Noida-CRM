@@ -1,5 +1,7 @@
 import type {
+  CampaignApprovalPolicy,
   CampaignAssetReference,
+  CampaignClosureReport,
   CampaignDetail,
   CampaignListQuery,
   CampaignMemberEntityType,
@@ -11,20 +13,24 @@ import type {
   CampaignResponse,
   CampaignSummary,
   CampaignsResponse,
+  CloseCampaignRequestBody,
   CreateCampaignMemberRequestBody,
   CreateCampaignRequestBody,
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
   CrmOptionValueSummary,
   CrmPagination,
+  RequestCampaignApprovalBody,
   RoleSummary,
   UpdateCampaignMemberRequestBody,
   UpdateCampaignRequestBody
 } from "@crm/types";
+import { campaignOutcomes, defaultCampaignApprovalPolicy, isCampaignApprovalRequired } from "@crm/types";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { getPositiveNumber } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { ApprovalService } from "../approvals/approvals.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -312,10 +318,14 @@ function buildAccountRecordSummary(row: AccountCandidateRow): CampaignMemberReco
 }
 
 export class CampaignService {
+  private readonly approvalService: ApprovalService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
-  ) {}
+  ) {
+    this.approvalService = new ApprovalService(databaseService, config);
+  }
 
   private assertEnabled() {
     if (!this.databaseService.isEnabled()) {
@@ -1489,6 +1499,34 @@ export class CampaignService {
         ? normalizeRelatedAssets(input.relatedAssets)
         : normalizeRelatedAssets(currentCampaign.related_assets);
 
+      // CM-004: a campaign cannot go live without required approvals. The
+      // requirement is configuration (budget threshold + campaign types in the
+      // campaigns.approval_policy system setting); the decision itself lives in
+      // the approvals subsystem and is read back live here.
+      if (input.statusKey === "active") {
+        const policy = await this.loadApprovalPolicy(client, actor.tenantId);
+        const effectiveBudget =
+          input.budgetAmount !== undefined ? input.budgetAmount : toNullableNumber(currentCampaign.budget_amount);
+        const effectiveTypeKey = input.typeKey ?? (await this.resolveOptionValueKey(client, actor.tenantId, currentCampaign.type_option_id));
+
+        if (isCampaignApprovalRequired(effectiveBudget, effectiveTypeKey, policy)) {
+          const approvalState = getMetadata(metadata.approval as Record<string, unknown> | undefined);
+          const approvalId = typeof approvalState.approvalId === "string" ? approvalState.approvalId : null;
+          const approvalStatus = approvalId ? await this.loadApprovalStatus(client, actor.tenantId, approvalId) : null;
+
+          if (approvalStatus !== "approved") {
+            throw new AppError(
+              422,
+              "This campaign requires approval before it can go live. Request approval and wait for the decision.",
+              { budgetThreshold: policy.budgetThreshold, approvalStatus },
+              "CAMPAIGN_APPROVAL_REQUIRED"
+            );
+          }
+
+          metadata.approval = { ...approvalState, status: approvalStatus };
+        }
+      }
+
       await client.query(
         `
           UPDATE campaigns
@@ -1546,6 +1584,191 @@ export class CampaignService {
       return {
         campaign: await this.loadCampaignDetail(client, actor, campaignId)
       };
+    });
+  }
+
+  // ---- CM-004: campaign approval -----------------------------------------------------------------
+
+  private async loadApprovalPolicy(client: PoolClient, tenantId: string): Promise<CampaignApprovalPolicy> {
+    const result = await client.query<{ setting_value: Record<string, unknown> | null }>(
+      `
+        SELECT setting_value
+        FROM system_settings
+        WHERE tenant_id = $1
+          AND setting_key = 'campaigns.approval_policy'
+        LIMIT 1
+      `,
+      [tenantId]
+    );
+    const value = result.rows[0]?.setting_value ?? {};
+    const budgetThreshold = typeof value.budgetThreshold === "number" ? value.budgetThreshold : defaultCampaignApprovalPolicy.budgetThreshold;
+    const requiredForTypeKeys = Array.isArray(value.requiredForTypeKeys)
+      ? value.requiredForTypeKeys.filter((key): key is string => typeof key === "string")
+      : defaultCampaignApprovalPolicy.requiredForTypeKeys;
+    return { budgetThreshold, requiredForTypeKeys };
+  }
+
+  private async resolveOptionValueKey(client: PoolClient, tenantId: string, optionValueId: string | null): Promise<string | null> {
+    if (!optionValueId) {
+      return null;
+    }
+    const result = await client.query<{ value_key: string }>(
+      `SELECT value_key FROM tenant_option_values WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [optionValueId, tenantId]
+    );
+    return result.rows[0]?.value_key ?? null;
+  }
+
+  private async loadApprovalStatus(client: PoolClient, tenantId: string, approvalId: string): Promise<string | null> {
+    const result = await client.query<{ status: string }>(
+      `SELECT status FROM approval_requests WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [approvalId, tenantId]
+    );
+    return result.rows[0]?.status ?? null;
+  }
+
+  async requestCampaignApproval(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    campaignId: string,
+    input: RequestCampaignApprovalBody
+  ): Promise<CampaignResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withTransaction(async (client) => {
+      const currentCampaign = await this.getCampaignState(client, actor.tenantId, campaignId);
+      const approverId = await this.ensureOwnerId(client, actor.tenantId, input.approverUserId);
+      if (!approverId) {
+        throw new AppError(400, "An approver is required for the campaign approval.", undefined, "VALIDATION_ERROR");
+      }
+
+      const approval = await this.approvalService.createApprovalWithClient(client, actor, audit, {
+        approvalType: "campaign_approval",
+        title: `Campaign approval: ${currentCampaign.name}`,
+        description: getTrimmedNullableString(input.note) ?? "Campaign go-live approval requested.",
+        approverUserId: approverId,
+        linkedRecord: { entityType: "campaign", entityId: campaignId }
+      });
+
+      const metadata = getMetadata(currentCampaign.metadata);
+      metadata.approval = {
+        approvalId: approval.id,
+        status: "pending",
+        requestedBy: actor.userId,
+        requestedAt: new Date().toISOString()
+      };
+
+      await client.query(
+        `UPDATE campaigns SET metadata = $3::jsonb, updated_by = $4 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [campaignId, actor.tenantId, JSON.stringify(metadata), actor.userId]
+      );
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "campaign.approval.request",
+        resourceType: "campaign",
+        resourceId: campaignId,
+        status: "success",
+        metadata: { approvalId: approval.id, approverId }
+      });
+
+      return { campaign: await this.loadCampaignDetail(client, actor, campaignId) };
+    });
+  }
+
+  // ---- CM-005: campaign closure report -----------------------------------------------------------
+
+  async closeCampaign(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    campaignId: string,
+    input: CloseCampaignRequestBody
+  ): Promise<CampaignResponse> {
+    this.assertEnabled();
+
+    if (!campaignOutcomes.includes(input.outcome)) {
+      throw new AppError(400, "Campaign outcome is invalid.", undefined, "VALIDATION_ERROR");
+    }
+
+    return this.databaseService.withTransaction(async (client) => {
+      const currentCampaign = await this.getCampaignState(client, actor.tenantId, campaignId);
+      const metadata = getMetadata(currentCampaign.metadata);
+      if (metadata.closureReport) {
+        throw new AppError(409, "This campaign already has a closure report.", undefined, "CAMPAIGN_ALREADY_CLOSED");
+      }
+
+      const completedStatusId = await this.resolveOptionValueId(client, actor.tenantId, "campaign-status", "completed", "Campaign status");
+
+      const memberCounts = await client.query<{ member_entity_type: string; count: string }>(
+        `
+          SELECT member_entity_type, COUNT(*) AS count
+          FROM campaign_members
+          WHERE tenant_id = $1 AND campaign_id = $2 AND deleted_at IS NULL
+          GROUP BY member_entity_type
+        `,
+        [actor.tenantId, campaignId]
+      );
+      const countByType = new Map(memberCounts.rows.map((row) => [row.member_entity_type, Number(row.count)]));
+
+      const leadMetrics = await client.query<{ lead_count: string; mql_count: string; converted_count: string }>(
+        `
+          SELECT
+            COUNT(*) AS lead_count,
+            COUNT(*) FILTER (WHERE leads.metadata->'mql'->>'isMql' = 'true') AS mql_count,
+            COUNT(*) FILTER (WHERE leads.metadata ? 'conversion') AS converted_count
+          FROM campaign_members
+          INNER JOIN leads
+            ON leads.id = campaign_members.member_entity_id
+           AND leads.tenant_id = campaign_members.tenant_id
+           AND leads.deleted_at IS NULL
+          WHERE campaign_members.tenant_id = $1
+            AND campaign_members.campaign_id = $2
+            AND campaign_members.member_entity_type = 'lead'
+            AND campaign_members.deleted_at IS NULL
+        `,
+        [actor.tenantId, campaignId]
+      );
+      const leadRow = leadMetrics.rows[0];
+
+      const report: CampaignClosureReport = {
+        outcome: input.outcome,
+        metrics: {
+          memberCount: [...countByType.values()].reduce((total, count) => total + count, 0),
+          leadCount: Number(leadRow?.lead_count ?? 0),
+          contactCount: countByType.get("contact") ?? 0,
+          accountCount: countByType.get("account") ?? 0,
+          mqlCount: Number(leadRow?.mql_count ?? 0),
+          convertedLeadCount: Number(leadRow?.converted_count ?? 0),
+          budgetAmount: toNullableNumber(currentCampaign.budget_amount)
+        },
+        learnings: getTrimmedNullableString(input.learnings),
+        recommendations: getTrimmedNullableString(input.recommendations),
+        closedBy: actor.userId,
+        closedAt: new Date().toISOString(),
+        aiSummaryPlaceholder: {
+          available: false,
+          message: "The AI performance summary runs through the governed AI Gateway once connected to this report."
+        }
+      };
+      metadata.closureReport = report;
+
+      await client.query(
+        `
+          UPDATE campaigns
+          SET status_option_id = $3, metadata = $4::jsonb, updated_by = $5
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+        `,
+        [campaignId, actor.tenantId, completedStatusId, JSON.stringify(metadata), actor.userId]
+      );
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "campaign.close",
+        resourceType: "campaign",
+        resourceId: campaignId,
+        status: "success",
+        metadata: { outcome: input.outcome, metrics: report.metrics as unknown as Record<string, unknown> }
+      });
+
+      return { campaign: await this.loadCampaignDetail(client, actor, campaignId) };
     });
   }
 

@@ -27,7 +27,7 @@ export function CustomerPortalOnboardingPage() {
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken]);
 
   async function complete(task: PortalOnboardingTask) {

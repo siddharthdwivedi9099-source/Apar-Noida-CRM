@@ -860,6 +860,9 @@ export interface UpdateLeadWorkspaceRequestBody {
   qualificationOverrideReason?: string | null;
   // ISR-006 structured disqualification reason (mandatory when moving a lead to disqualified).
   disqualificationReasonKey?: string | null;
+  // MM-003/MM-005: structured rejection reason (mandatory when handoff becomes rejected_by_sales).
+  rejectionReasonKey?: string | null;
+  rejectionNote?: string | null;
   // ISR-003 cadence controls (advance a step, pause with reason, log a failed attempt).
   cadence?: UpdateLeadCadenceInput;
   // Persona 7 (SDR) capture: account research, ICP attributes, discovery answers, objections.
@@ -2148,6 +2151,8 @@ export interface SocialOptionsResponse {
   statuses: CrmOptionValueSummary[];
   approvalStatuses: CrmOptionValueSummary[];
   channels: CrmOptionValueSummary[];
+  /** SM-004: brand-approved response templates from the social-response-template option set. */
+  responseTemplates: import("./social-marketing.js").SocialResponseTemplateSummary[];
 }
 
 // ============================================================================

@@ -88,7 +88,7 @@ import type {
   LowUsageCheckRequestBody,
   RenewalPlaybookRequestBody
 } from "@crm/types";
-import { adoptionCampaignStatuses, computeHealthScore, detectExpansionSignals, detectLowUsage, resolveHealthBand } from "@crm/types";
+import { adoptionCampaignStatuses, computeHealthScore, detectExpansionSignals, detectLowUsage } from "@crm/types";
 import type {
   AssessAdvocacyRequestBody,
   CreateAdvocacyRequestBody,
@@ -98,10 +98,9 @@ import type {
   RenewalStrategyRequestBody,
   ReviewSection,
   ScheduleQbrRequestBody,
-  StrategicRiskType,
   UpsertSuccessPlanEnterpriseRequestBody
 } from "@crm/types";
-import { computeAdvocacyReadiness, predictRenewalProbability, requiresLeadershipEscalation, reviewSections, strategicRiskTypes, successPlanSections, validateSuccessPlan } from "@crm/types";
+import { computeAdvocacyReadiness, predictRenewalProbability, requiresLeadershipEscalation, reviewSections, strategicRiskTypes, successPlanSections } from "@crm/types";
 import type { PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import { AppError } from "../../common/errors/app-error.js";
@@ -1587,7 +1586,7 @@ export class CustomerSuccessService {
       const now = Date.now();
       const ninetyDays = now + 90 * 24 * 60 * 60 * 1000;
 
-      const distribute = <T>(key: (account: CustomerSuccessAccountSummary) => CrmOptionValueSummary | null, label: T) => {
+      const distribute = <T>(key: (account: CustomerSuccessAccountSummary) => CrmOptionValueSummary | null, _label: T) => {
         const map = new Map<string, { value: CrmOptionValueSummary | null; accountCount: number }>();
         for (const account of accounts) {
           const value = key(account);

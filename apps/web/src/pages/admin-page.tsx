@@ -10,7 +10,7 @@ import type {
 } from "@crm/types";
 import { ShieldCheck, UserCog, WandSparkles } from "lucide-react";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
-import { adminMutationPermissions, hasAnyPermission } from "@/lib/rbac";
+import { adminMutationPermissions } from "@/lib/rbac";
 import { useAuth } from "@/providers/auth-provider";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { Badge } from "@/components/ui/badge";

@@ -675,7 +675,13 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "campaign", label: "Campaign", color: "#14b8a6", sortOrder: 1 },
       { key: "partner", label: "Partner", color: "#f59e0b", sortOrder: 2 },
       { key: "referral", label: "Referral", color: "#8b5cf6", sortOrder: 3 },
-      { key: "outbound", label: "Outbound", color: "#ef4444", sortOrder: 4 }
+      { key: "outbound", label: "Outbound", color: "#ef4444", sortOrder: 4 },
+      { key: "linkedin", label: "LinkedIn", color: "#0a66c2", sortOrder: 5 },
+      { key: "instagram", label: "Instagram", color: "#e1306c", sortOrder: 6 },
+      { key: "facebook", label: "Facebook", color: "#1877f2", sortOrder: 7 },
+      { key: "youtube", label: "YouTube", color: "#ff0033", sortOrder: 8 },
+      { key: "whatsapp", label: "WhatsApp", color: "#22c55e", sortOrder: 9 },
+      { key: "social_other", label: "Social (Other)", color: "#64748b", sortOrder: 10 }
     ],
     metadata: {
       seeded: true,
@@ -714,7 +720,8 @@ export const defaultTenantOptionSetDefinitions: TenantOptionSetSeedDefinition[] 
       { key: "sales_ready", label: "Sales Ready", color: "#22c55e", sortOrder: 2 },
       { key: "handed_to_sales", label: "Handed to Sales", color: "#14b8a6", sortOrder: 3 },
       { key: "accepted_by_sales", label: "Accepted by Sales", color: "#8b5cf6", sortOrder: 4 },
-      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 5 }
+      { key: "rejected_by_sales", label: "Rejected by Sales", color: "#f43f5e", sortOrder: 5 },
+      { key: "disqualified", label: "Disqualified", color: "#ef4444", sortOrder: 6 }
     ],
     metadata: {
       seeded: true,

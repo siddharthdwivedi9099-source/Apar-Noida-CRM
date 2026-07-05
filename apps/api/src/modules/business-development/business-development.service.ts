@@ -57,7 +57,6 @@ import type {
   OpportunityLookupSummary,
   PresalesAiPlaceholderSummary,
   PresalesComplianceStatus,
-  PresalesPipelineScope,
   PresalesPriority,
   PresalesRequestDetail,
   PresalesRequestListQuery,
@@ -77,7 +76,6 @@ import {
   evaluateBdSequence,
   evaluateBuyingCommitteeCompleteness
 } from "@crm/types";
-import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { buildPagination } from "../../common/pagination.js";

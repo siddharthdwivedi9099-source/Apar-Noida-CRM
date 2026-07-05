@@ -3,10 +3,13 @@ import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
   campaignMemberEntityTypes,
+  campaignOutcomes,
   campaignSortFields,
   type CampaignListQuery,
+  type CloseCampaignRequestBody,
   type CreateCampaignMemberRequestBody,
   type CreateCampaignRequestBody,
+  type RequestCampaignApprovalBody,
   type UpdateCampaignMemberRequestBody,
   type UpdateCampaignRequestBody
 } from "@crm/types";
@@ -93,6 +96,19 @@ const memberUpdateSchema = z.object({
 
 const campaignIdSchema = z.object({
   campaignId: uuidSchema
+});
+
+// CM-004: request go-live approval for a campaign.
+const campaignApprovalRequestSchema = z.object({
+  approverUserId: uuidSchema,
+  note: z.string().max(2000).nullable().optional()
+});
+
+// CM-005: close a campaign with an outcome + learnings.
+const campaignCloseSchema = z.object({
+  outcome: z.enum(campaignOutcomes),
+  learnings: z.string().max(4000).nullable().optional(),
+  recommendations: z.string().max(4000).nullable().optional()
 });
 
 const campaignMemberIdSchema = z.object({
@@ -214,6 +230,52 @@ export function createCampaignRouter({ databaseService }: CampaignRouterDependen
           },
           request.params.campaignId,
           request.body as UpdateCampaignRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/:campaignId/approval-request",
+    requirePermissions({ oneOf: campaignUpdatePermissions }),
+    validateRequest({
+      params: campaignIdSchema,
+      body: campaignApprovalRequestSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await campaignService.requestCampaignApproval(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.campaignId,
+          request.body as RequestCampaignApprovalBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/:campaignId/close",
+    requirePermissions({ oneOf: campaignUpdatePermissions }),
+    validateRequest({
+      params: campaignIdSchema,
+      body: campaignCloseSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(200).json(
+        await campaignService.closeCampaign(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.campaignId,
+          request.body as CloseCampaignRequestBody
         )
       );
     })

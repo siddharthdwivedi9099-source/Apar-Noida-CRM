@@ -1,11 +1,15 @@
 import type {
+  CaptureSocialLeadRequestBody,
+  CaptureSocialLeadResponse,
   CreateSocialPostRequestBody,
   CrmLookupUserSummary,
   CrmMutationSuccessResponse,
   CrmOptionValueSummary,
   CrmPagination,
+  RecordSocialResponseRequestBody,
   RoleSummary,
   SocialChannelsResponse,
+  SocialLeadDuplicateMatch,
   SocialLinkedCampaignSummary,
   SocialOptionsResponse,
   SocialPostDetail,
@@ -13,12 +17,17 @@ import type {
   SocialPostResponse,
   SocialPostSummary,
   SocialPostsResponse,
+  SocialResponseEntry,
+  SocialResponsesResponse,
   UpdateSocialPostRequestBody
 } from "@crm/types";
+import { mapSocialChannelToLeadSource, socialInteractionTypes } from "@crm/types";
+import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { AppError } from "../../common/errors/app-error.js";
 import { getPositiveNumber } from "../../common/pagination.js";
 import { DatabaseService } from "../../platform/database/database.service.js";
+import { NotificationService } from "../notifications/notifications.service.js";
 
 interface AuditMetadata {
   requestId: string;
@@ -255,10 +264,14 @@ function buildCampaignLink(row: SocialPostRecordRow): SocialLinkedCampaignSummar
 }
 
 export class SocialService {
+  private readonly notificationService: NotificationService;
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly config: { enableAuditLogs: boolean }
-  ) {}
+  ) {
+    this.notificationService = new NotificationService(databaseService, config);
+  }
 
   private assertEnabled() {
     if (!this.databaseService.isEnabled()) {
@@ -941,7 +954,34 @@ export class SocialService {
       campaigns: await this.loadCampaignLookups(client, actor.tenantId),
       statuses: await this.loadOptionSetValues(client, actor.tenantId, "social-post-status"),
       approvalStatuses: await this.loadOptionSetValues(client, actor.tenantId, "social-approval-status"),
-      channels: await this.loadOptionSetValues(client, actor.tenantId, "social-channel")
+      channels: await this.loadOptionSetValues(client, actor.tenantId, "social-channel"),
+      responseTemplates: await this.loadResponseTemplates(client, actor.tenantId)
+    }));
+  }
+
+  private async loadResponseTemplates(client: PoolClient, tenantId: string) {
+    const result = await client.query<{ value_key: string; label: string; metadata: Record<string, unknown> | null }>(
+      `
+        SELECT tenant_option_values.value_key, tenant_option_values.label, tenant_option_values.metadata
+        FROM tenant_option_sets
+        INNER JOIN tenant_option_values
+          ON tenant_option_values.option_set_id = tenant_option_sets.id
+         AND tenant_option_values.tenant_id = tenant_option_sets.tenant_id
+        WHERE tenant_option_sets.tenant_id = $1
+          AND tenant_option_sets.set_key = 'social-response-template'
+          AND tenant_option_sets.deleted_at IS NULL
+          AND tenant_option_values.deleted_at IS NULL
+          AND tenant_option_values.is_active = true
+        ORDER BY tenant_option_values.sort_order ASC
+      `,
+      [tenantId]
+    );
+
+    return result.rows.map((row) => ({
+      key: row.value_key,
+      label: row.label,
+      body: typeof row.metadata?.body === "string" ? row.metadata.body : null,
+      sensitive: row.metadata?.sensitive === true
     }));
   }
 
@@ -1355,6 +1395,241 @@ export class SocialService {
       });
 
       return { success: true };
+    });
+  }
+
+  // ---- SM-002: convert a social interaction into a CRM lead -------------------------------------
+
+  async captureLeadFromPost(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    postId: string,
+    input: CaptureSocialLeadRequestBody
+  ): Promise<CaptureSocialLeadResponse> {
+    this.assertEnabled();
+
+    if (!socialInteractionTypes.includes(input.interactionType)) {
+      throw new AppError(400, "Interaction type is invalid.", undefined, "VALIDATION_ERROR");
+    }
+
+    return this.databaseService.withTransaction(async (client) => {
+      const post = await this.getSocialPostState(client, actor.tenantId, postId);
+      const channelsByPost = await this.loadChannelsForPosts(client, actor.tenantId, [postId]);
+      const channelKey = (channelsByPost.get(postId) ?? [])[0]?.key ?? null;
+
+      // The lead source is automatically the post's social channel (configurable set).
+      const sourceValues = await this.loadOptionSetValues(client, actor.tenantId, "lead-source");
+      const sourceKey = mapSocialChannelToLeadSource(
+        channelKey,
+        sourceValues.filter((value) => value.isActive).map((value) => value.key)
+      );
+      const sourceOptionId = await this.resolveOptionValueId(client, actor.tenantId, "lead-source", sourceKey, "Lead source");
+
+      const statusValues = await this.loadOptionSetValues(client, actor.tenantId, "lead-status");
+      const defaultStatus = statusValues.find((value) => value.isDefault && value.isActive) ?? statusValues.find((value) => value.isActive);
+      if (!defaultStatus) {
+        throw new AppError(400, "No active lead status is configured for this tenant.", undefined, "INVALID_OPTION_VALUE");
+      }
+
+      // Duplicate detection runs before lead creation (email/phone match).
+      const email = input.email?.trim().toLowerCase() || null;
+      const phone = input.phone?.trim() || null;
+      let duplicates: SocialLeadDuplicateMatch[] = [];
+
+      if (email || phone) {
+        const duplicateResult = await client.query<{
+          id: string;
+          first_name: string;
+          last_name: string;
+          company_name: string;
+          email: string | null;
+          phone: string | null;
+        }>(
+          `
+            SELECT id, first_name, last_name, company_name, email, phone
+            FROM leads
+            WHERE tenant_id = $1
+              AND deleted_at IS NULL
+              AND ((LOWER(email) = $2 AND $2 IS NOT NULL) OR (phone = $3 AND $3 IS NOT NULL))
+            LIMIT 5
+          `,
+          [actor.tenantId, email, phone]
+        );
+        duplicates = duplicateResult.rows.map((row) => ({
+          leadId: row.id,
+          fullName: `${row.first_name} ${row.last_name}`.trim(),
+          companyName: row.company_name,
+          email: row.email,
+          phone: row.phone
+        }));
+      }
+
+      if (duplicates.length > 0 && !input.allowDuplicate) {
+        throw new AppError(
+          409,
+          "Possible duplicate leads were found. Review them or retry with allowDuplicate.",
+          { duplicates },
+          "DUPLICATE_LEAD_DETECTED"
+        );
+      }
+
+      const leadMetadata = {
+        social: {
+          postId,
+          postTitle: post.title,
+          campaignId: post.campaign_id,
+          channelKey,
+          interactionType: input.interactionType,
+          consentCaptured: Boolean(input.consentCaptured),
+          note: input.note?.trim() || null,
+          capturedAt: new Date().toISOString()
+        }
+      };
+
+      const insertResult = await client.query<{ id: string }>(
+        `
+          INSERT INTO leads (
+            tenant_id, owner_id, first_name, last_name, company_name, email, phone,
+            status_option_id, source_option_id, score, custom_fields, metadata, created_by, updated_by
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, '{}'::jsonb, $10::jsonb, $11, $11)
+          RETURNING id
+        `,
+        [
+          actor.tenantId,
+          actor.userId,
+          input.firstName.trim(),
+          input.lastName.trim(),
+          input.companyName.trim(),
+          email,
+          phone,
+          defaultStatus.id,
+          sourceOptionId,
+          JSON.stringify(leadMetadata),
+          actor.userId
+        ]
+      );
+
+      const leadId = insertResult.rows[0]?.id;
+      if (!leadId) {
+        throw new AppError(500, "Lead capture failed.", undefined, "LEAD_CREATE_FAILED");
+      }
+
+      // Campaign + post attribution: the lead joins the linked campaign's audience.
+      if (post.campaign_id) {
+        await client.query(
+          `
+            INSERT INTO campaign_members (tenant_id, campaign_id, member_entity_type, member_entity_id, metadata, created_by, updated_by)
+            SELECT $1, $2, 'lead', $3, $4::jsonb, $5, $5
+            WHERE NOT EXISTS (
+              SELECT 1 FROM campaign_members
+              WHERE tenant_id = $1 AND campaign_id = $2 AND member_entity_type = 'lead' AND member_entity_id = $3 AND deleted_at IS NULL
+            )
+          `,
+          [actor.tenantId, post.campaign_id, leadId, JSON.stringify({ capturedFrom: "social_post", postId }), actor.userId]
+        );
+      }
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "social.lead.capture",
+        resourceType: "lead",
+        resourceId: leadId,
+        status: "success",
+        metadata: { postId, sourceKey, interactionType: input.interactionType, duplicateCount: duplicates.length }
+      });
+
+      return { leadId, sourceKey, campaignId: post.campaign_id, duplicates };
+    });
+  }
+
+  // ---- SM-004: brand-approved response templates + response logging ------------------------------
+
+  async recordSocialResponse(
+    actor: ActorContext,
+    audit: AuditMetadata,
+    postId: string,
+    input: RecordSocialResponseRequestBody
+  ): Promise<SocialResponsesResponse> {
+    this.assertEnabled();
+
+    return this.databaseService.withTransaction(async (client) => {
+      const post = await this.getSocialPostState(client, actor.tenantId, postId);
+
+      let responseText = input.responseText?.trim() || null;
+      const templateKey = input.templateKey?.trim() || null;
+
+      if (templateKey) {
+        const templateResult = await client.query<{ metadata: Record<string, unknown> | null }>(
+          `
+            SELECT tenant_option_values.metadata
+            FROM tenant_option_sets
+            INNER JOIN tenant_option_values
+              ON tenant_option_values.option_set_id = tenant_option_sets.id
+             AND tenant_option_values.tenant_id = tenant_option_sets.tenant_id
+            WHERE tenant_option_sets.tenant_id = $1
+              AND tenant_option_sets.set_key = 'social-response-template'
+              AND tenant_option_sets.deleted_at IS NULL
+              AND tenant_option_values.deleted_at IS NULL
+              AND tenant_option_values.is_active = true
+              AND tenant_option_values.value_key = $2
+            LIMIT 1
+          `,
+          [actor.tenantId, templateKey]
+        );
+        const templateBody = templateResult.rows[0]?.metadata?.body;
+        if (typeof templateBody !== "string") {
+          throw new AppError(400, "Response template is invalid for this tenant.", undefined, "INVALID_OPTION_VALUE");
+        }
+        responseText = responseText ?? templateBody;
+      }
+
+      if (!responseText) {
+        throw new AppError(400, "A response text or template is required.", undefined, "VALIDATION_ERROR");
+      }
+
+      const entry: SocialResponseEntry = {
+        id: randomUUID(),
+        templateKey,
+        response: responseText,
+        interactionRef: input.interactionRef?.trim() || null,
+        escalated: Boolean(input.escalate),
+        respondedBy: actor.userId,
+        respondedAt: new Date().toISOString()
+      };
+
+      const metadata = (post.metadata ?? {}) as Record<string, unknown>;
+      const existingResponses = Array.isArray(metadata.responses) ? (metadata.responses as SocialResponseEntry[]) : [];
+      const responses = [...existingResponses, entry];
+
+      await client.query(
+        `
+          UPDATE social_posts
+          SET metadata = metadata || $4::jsonb, updated_by = $3, updated_at = NOW()
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+        `,
+        [postId, actor.tenantId, actor.userId, JSON.stringify({ responses })]
+      );
+
+      // Sensitive complaints escalate to the support manager role.
+      if (entry.escalated) {
+        await this.notificationService.createNotificationWithClient(client, actor, audit, {
+          notificationType: "customer_escalation",
+          recipientRoleSlug: "support-manager",
+          title: `Social complaint escalated: ${post.title}`,
+          message: responseText,
+          linkedRecord: { entityType: "social_post", entityId: postId }
+        });
+      }
+
+      await this.recordAuditLog(client, actor, audit, {
+        action: "social.response.record",
+        resourceType: "social_post",
+        resourceId: postId,
+        status: "success",
+        metadata: { templateKey, escalated: entry.escalated }
+      });
+
+      return { responses };
     });
   }
 }

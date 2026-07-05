@@ -34,7 +34,6 @@ import {
   tenantDensityPreferences,
   tenantFontPreferences,
   tenantModuleDefinitions,
-  tenantOptionSetKinds,
   tenantSidebarStyles,
   tenantThemeModes,
   type TenantTelephonySettings

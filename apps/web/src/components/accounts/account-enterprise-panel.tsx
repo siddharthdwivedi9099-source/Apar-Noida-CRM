@@ -64,7 +64,7 @@ export function AccountEnterprisePanel({ accountId, accessToken, canEdit, owners
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accountId, accessToken]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

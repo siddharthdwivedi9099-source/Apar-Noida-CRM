@@ -49,7 +49,7 @@ export function PartnerPortalPanel({ accessToken, canManage }: PartnerPortalPane
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

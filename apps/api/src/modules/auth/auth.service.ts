@@ -112,14 +112,6 @@ function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
-function getNullableString(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  const trimmedValue = value.trim();
-  return trimmedValue ? trimmedValue : null;
-}
 
 export class AuthService {
   constructor(

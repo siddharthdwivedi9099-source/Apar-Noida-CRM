@@ -17,6 +17,7 @@ export interface RedisPlaceholderConfig {
   url: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface DatabaseQueryResult<T extends QueryResultRow = QueryResultRow> extends QueryResult<T> {}
 
 export interface DatabaseHealth extends ConnectionHealth {

@@ -34,6 +34,7 @@ export const MAX_PROMPT_VARIABLE_LENGTH = 8000;
 // are mitigated by templates being managed and by per-action human review.
 export function sanitizePromptVariable(value: string): string {
   // Strip control characters except tab, newline, and carriage return.
+  // eslint-disable-next-line no-control-regex -- intentional: strips control chars during prompt sanitization
   const withoutControlChars = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
   const withoutDelimiters = withoutControlChars.replace(/\{\{/g, "{ {").replace(/\}\}/g, "} }");
   return withoutDelimiters.length > MAX_PROMPT_VARIABLE_LENGTH

@@ -51,7 +51,7 @@ export function LegalReviewPanel({ opportunityId, accessToken, canManage }: Lega
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken, opportunityId]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

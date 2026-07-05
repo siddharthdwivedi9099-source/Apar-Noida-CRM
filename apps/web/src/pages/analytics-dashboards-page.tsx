@@ -34,7 +34,7 @@ function Bars({ data }: { data: Array<{ label: string; value: number }> }) {
   );
 }
 
-function Widget({ widget, dashboardKey, onDrilldown }: { widget: DashboardWidgetData; dashboardKey: string; onDrilldown: (w: DashboardWidgetData) => void }) {
+function Widget({ widget, onDrilldown }: { widget: DashboardWidgetData; dashboardKey: string; onDrilldown: (w: DashboardWidgetData) => void }) {
   return (
     <Card>
       <CardHeader className="pb-2">

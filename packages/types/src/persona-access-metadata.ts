@@ -84,7 +84,7 @@ const personaAccessPhaseMetadata = {
 
 const allObjectActions = [...personaObjectPermissionActions];
 const contributorActions: PersonaObjectPermissionAction[] = ["create", "read", "update", "export"];
-const collaboratorActions: PersonaObjectPermissionAction[] = ["create", "read", "update"];
+const _collaboratorActions: PersonaObjectPermissionAction[] = ["create", "read", "update"];
 const readActions: PersonaObjectPermissionAction[] = ["read"];
 const readExportActions: PersonaObjectPermissionAction[] = ["read", "export"];
 const approveActions: PersonaObjectPermissionAction[] = ["read", "update", "export", "approve"];
@@ -315,7 +315,7 @@ const aiGovernanceFields: PersonaFieldPermissionMap = {
 
 const marketingObjects = ["lead", "campaign", "campaign_member", "activity", "task", "email_log", "note"];
 const salesObjects = ["lead", "account", "contact", "opportunity", "activity", "task", "meeting", "call", "email_log", "note"];
-const commercialObjects = ["opportunity", "quote", "proposal", "contract", "approval_request"];
+const _commercialObjects = ["opportunity", "quote", "proposal", "contract", "approval_request"];
 const partnerObjects = ["partner", "partner_user", "partner_deal_registration", "partner_commission", "account", "contact", "opportunity"];
 const supportObjects = ["support_ticket", "sla", "escalation", "knowledge_article", "account", "contact", "activity", "task", "note"];
 const customerSuccessObjects = [

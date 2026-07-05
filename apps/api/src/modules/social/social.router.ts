@@ -2,8 +2,11 @@ import { Router } from "express";
 import { getClientIp } from "../../common/http/request-metadata.js";
 import { z } from "zod";
 import {
+  socialInteractionTypes,
   socialPostSortFields,
+  type CaptureSocialLeadRequestBody,
   type CreateSocialPostRequestBody,
+  type RecordSocialResponseRequestBody,
   type SocialPostListQuery,
   type UpdateSocialPostRequestBody
 } from "@crm/types";
@@ -69,6 +72,28 @@ const updateSocialPostSchema = z.object({
 
 const socialPostIdSchema = z.object({
   postId: uuidSchema
+});
+
+// SM-002: convert a social interaction into a CRM lead.
+const captureSocialLeadSchema = z.object({
+  interactionType: z.enum(socialInteractionTypes),
+  firstName: z.string().min(1).max(120),
+  lastName: z.string().min(1).max(120),
+  companyName: z.string().min(1).max(200),
+  email: z.string().email().max(320).nullable().optional(),
+  phone: z.string().max(40).nullable().optional(),
+  consentCaptured: z.boolean().optional(),
+  note: z.string().max(2000).nullable().optional(),
+  allowDuplicate: z.boolean().optional()
+});
+
+// SM-004: log a brand-approved (or free-text) response against a post.
+// (Requiring template-or-text is enforced in the service.)
+const recordSocialResponseSchema = z.object({
+  templateKey: z.string().max(160).nullable().optional(),
+  responseText: z.string().max(4000).nullable().optional(),
+  interactionRef: z.string().max(400).nullable().optional(),
+  escalate: z.boolean().optional()
 });
 
 const socialReadPermissions: string[] = [
@@ -187,6 +212,52 @@ export function createSocialRouter({ databaseService }: SocialRouterDependencies
           },
           request.params.postId,
           request.body as UpdateSocialPostRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/:postId/capture-lead",
+    requirePermissions({ oneOf: ["leads.create", "social.configure"] }),
+    validateRequest({
+      params: socialPostIdSchema,
+      body: captureSocialLeadSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await socialService.captureLeadFromPost(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.postId,
+          request.body as CaptureSocialLeadRequestBody
+        )
+      );
+    })
+  );
+
+  router.post(
+    "/:postId/responses",
+    requirePermissions({ oneOf: socialUpdatePermissions }),
+    validateRequest({
+      params: socialPostIdSchema,
+      body: recordSocialResponseSchema
+    }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(
+        await socialService.recordSocialResponse(
+          request.auth!,
+          {
+            requestId: request.requestId,
+            ipAddress: getClientIp(request),
+            userAgent: request.header("user-agent") ?? null
+          },
+          request.params.postId,
+          request.body as RecordSocialResponseRequestBody
         )
       );
     })

@@ -66,7 +66,7 @@ export function summarizeProposalVersions(
 ): ProposalVersionSummary {
   const list = Array.isArray(versions) ? versions : [];
   const hasFinal = Boolean(finalVersionId) || list.some((version) => version.isFinal === true);
-  let finalLocked = false;
+  let finalLocked: boolean;
   if (finalVersionId && versionsWithIds) {
     finalLocked = versionsWithIds.some((version) => version.id === finalVersionId && version.locked === true);
   } else {

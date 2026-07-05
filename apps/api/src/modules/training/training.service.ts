@@ -1,5 +1,4 @@
 import type {
-  AccountLookupSummary,
   ContactRelationshipSummary,
   CreateCustomerLearnerRequestBody,
   CreateTrainingAssetRequestBody,

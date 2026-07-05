@@ -3,7 +3,6 @@
 // low-usage alerts, renewal playbooks, and expansion-signal detection. Deterministic helpers are
 // unit-tested; AI driver-explanation / content-recommendation stay governed placeholders.
 
-import type { CrmLookupUserSummary } from "./crm.js";
 
 // ---- CSMS-001: automated health score ----------------------------------------------------------
 

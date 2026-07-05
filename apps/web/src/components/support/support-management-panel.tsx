@@ -70,7 +70,7 @@ export function SupportManagementPanel({ accessToken, options, canManage, select
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [accessToken, canManage, selectedId]);
 
   async function run(key: string, action: () => Promise<unknown>, successMessage: string) {

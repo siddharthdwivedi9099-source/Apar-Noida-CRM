@@ -10,7 +10,6 @@ import { apiRequest } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-message";
 import {
   buildQueryString,
-  formatDateOnly,
   formatDateTime,
   formatShortDate,
   pageSizeOptions,

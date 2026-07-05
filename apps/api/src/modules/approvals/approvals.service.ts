@@ -34,13 +34,6 @@ interface ActorContext {
   roles: RoleSummary[];
 }
 
-interface UserLookupRow {
-  id: string;
-  display_name: string;
-  email: string;
-  team_name: string | null;
-  department_name: string | null;
-}
 
 interface ApprovalRow {
   id: string;

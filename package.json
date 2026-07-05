@@ -20,6 +20,7 @@
     "test:web": "npm run test --workspace @crm/web",
     "test:coverage": "npm run build:packages && npm run test:coverage --workspace @crm/api && npm run test:coverage --workspace @crm/web",
     "typecheck": "npm run build:packages && npm run typecheck --workspace @crm/types && npm run typecheck --workspace @crm/config && npm run typecheck --workspace @crm/ui && npm run typecheck --workspace @crm/auth && npm run typecheck --workspace @crm/ai && npm run typecheck --workspace @crm/database && npm run typecheck --workspace @crm/web && npm run typecheck --workspace @crm/api",
+    "lint": "eslint .",
     "db:build": "npm run build --workspace @crm/database",
     "db:create:migration": "npm run db:build && node scripts/database.mjs create-migration",
     "db:migrate": "npm run db:build && node scripts/database.mjs migrate",
@@ -41,14 +42,19 @@
     "docker:logs": "docker compose logs -f api web"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/supertest": "^6.0.3",
     "concurrently": "^9.1.2",
+    "eslint": "^10.6.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
     "jsdom": "^25.0.1",
     "supertest": "^7.2.2",
+    "typescript-eslint": "^8.62.1",
     "vitest": "^2.1.9"
   }
 }
